@@ -41,10 +41,17 @@ const UserList: React.FC = () => {
         }
     };
 
-    const filteredUsers = users.filter(user =>
-        user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.email.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    const filteredUsers = users.filter(user => {
+        // NOTE: some accounts (e.g. farmers self-registered from the mobile
+        // app before entering a name, or placeholder "@lacra.temp" accounts)
+        // have `name: null` from the backend. Guard against that so a single
+        // null-named user doesn't crash the whole User Management page with
+        // "Cannot read properties of null (reading 'toLowerCase')".
+        const name = (user.name || '').toLowerCase();
+        const email = (user.email || '').toLowerCase();
+        const term = searchTerm.toLowerCase();
+        return name.includes(term) || email.includes(term);
+    });
 
     if (loading) return <div>Loading...</div>;
     if (error) return <div className="text-red-500">{error}</div>;
@@ -91,7 +98,7 @@ const UserList: React.FC = () => {
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="flex items-center">
                                             <div>
-                                                <div className="text-sm font-medium text-gray-900">{user.name}</div>
+                                                <div className="text-sm font-medium text-gray-900">{user.name || <span className="italic text-gray-400">No name set</span>}</div>
                                                 <div className="text-sm text-gray-500">{user.email}</div>
                                             </div>
                                         </div>
