@@ -1,12 +1,22 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { MapContainer, TileLayer, Polygon, CircleMarker, Marker, useMap, useMapEvents, ScaleControl } from 'react-leaflet';
+import { MapContainer, TileLayer, Polygon, CircleMarker, Marker, Popup, useMap, useMapEvents, ScaleControl } from 'react-leaflet';
 import L from 'leaflet';
 import * as turf from '@turf/turf';
 import { Satellite, Map as MapIcon, Crosshair, Ruler, MapPin, Loader2 } from 'lucide-react';
 import 'leaflet/dist/leaflet.css';
 import { useReverseGeocode } from '../hooks/useReverseGeocode';
+import { resolveFileUrl } from '../utils/fileUrl';
 
 type LatLng = [number, number];
+
+export interface BoundaryEvidencePoint {
+    sequence: number;
+    lat: number;
+    lng: number;
+    accuracy?: number;
+    timestamp?: string;
+    photoUrl: string;
+}
 
 interface FarmMapProps {
     location: any; // GeoJSON Point or Polygon
@@ -22,6 +32,12 @@ interface FarmMapProps {
     dragging?: boolean;
     zoomControl?: boolean;
     defaultLayer?: 'satellite' | 'street';
+    /**
+     * EUDR-style geotagged boundary evidence points (one photo per captured
+     * corner). When provided, each point is rendered as a numbered marker on
+     * the map with a popup showing its coordinates, timestamp and photo.
+     */
+    boundaryEvidence?: BoundaryEvidencePoint[];
 }
 
 // Esri's free satellite imagery has no real coverage for many rural areas beyond
@@ -65,6 +81,20 @@ const pinIcon = L.divIcon({
     iconAnchor: [13, 13],
 });
 
+// Numbered blue marker used for EUDR boundary evidence points (distinct from
+// the green farm-centroid pin) so it's obvious these are individual geotagged
+// corner photos, not the farm's general location.
+const evidenceIcon = (sequence: number) => L.divIcon({
+    className: '',
+    html: `
+        <div style="position:relative;width:26px;height:26px;">
+            <div style="position:absolute;inset:0;border-radius:50%;background:#2563eb;opacity:.9;border:2px solid white;box-shadow:0 1px 4px rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;color:white;font-size:11px;font-weight:700;">${sequence}</div>
+        </div>
+    `,
+    iconSize: [26, 26],
+    iconAnchor: [13, 13],
+});
+
 const STREET_TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
 const SATELLITE_TILE = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
 const SATELLITE_LABELS_TILE = 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}';
@@ -79,13 +109,26 @@ const FarmMap: React.FC<FarmMapProps> = ({
     dragging = true,
     zoomControl = true,
     defaultLayer = 'satellite',
+    boundaryEvidence,
 }) => {
     const [layer, setLayer] = useState<'satellite' | 'street'>(defaultLayer);
     const [hoverLatLng, setHoverLatLng] = useState<LatLng | null>(null);
     const { result: hoverPlace, loading: hoverPlaceLoading } = useReverseGeocode(hoverLatLng);
 
+    const evidencePositions: LatLng[] = useMemo(
+        () => (boundaryEvidence || []).map((p) => [p.lat, p.lng] as LatLng),
+        [boundaryEvidence]
+    );
+
     const { center, polygonPositions, hasLocation, areaHa } = useMemo(() => {
         if (!location || !location.coordinates) {
+            if (evidencePositions.length > 0) {
+                // No location geometry yet, but we do have evidence points —
+                // center on their average so they're still visible.
+                const avgLat = evidencePositions.reduce((s, p) => s + p[0], 0) / evidencePositions.length;
+                const avgLng = evidencePositions.reduce((s, p) => s + p[1], 0) / evidencePositions.length;
+                return { center: [avgLat, avgLng] as LatLng, polygonPositions: null as LatLng[] | null, hasLocation: true, areaHa: null as number | null };
+            }
             return { center: null as LatLng | null, polygonPositions: null as LatLng[] | null, hasLocation: false, areaHa: null as number | null };
         }
         const coords = location.coordinates as any;
@@ -166,6 +209,32 @@ const FarmMap: React.FC<FarmMapProps> = ({
                         <FitBounds positions={polygonPositions} />
                     </>
                 )}
+
+                {!polygonPositions && evidencePositions.length > 1 && (
+                    <FitBounds positions={evidencePositions} />
+                )}
+
+                {boundaryEvidence && boundaryEvidence.length > 0 && boundaryEvidence.map((p) => (
+                    <Marker key={p.sequence} position={[p.lat, p.lng]} icon={evidenceIcon(p.sequence)}>
+                        <Popup>
+                            <div style={{ minWidth: 160 }}>
+                                <p style={{ fontWeight: 700, marginBottom: 4 }}>Boundary Point #{p.sequence}</p>
+                                <img
+                                    src={resolveFileUrl(p.photoUrl)}
+                                    alt={`Boundary evidence point ${p.sequence}`}
+                                    style={{ width: '100%', height: 90, objectFit: 'cover', borderRadius: 6, marginBottom: 6 }}
+                                />
+                                <p style={{ fontFamily: 'monospace', fontSize: 11 }}>{p.lat.toFixed(6)}, {p.lng.toFixed(6)}</p>
+                                {p.accuracy !== undefined && (
+                                    <p style={{ fontSize: 11, color: '#666' }}>Accuracy: ±{p.accuracy.toFixed(1)}m</p>
+                                )}
+                                {p.timestamp && (
+                                    <p style={{ fontSize: 11, color: '#666' }}>{new Date(p.timestamp).toLocaleString()}</p>
+                                )}
+                            </div>
+                        </Popup>
+                    </Marker>
+                ))}
 
                 <ScaleControl position="bottomleft" imperial={false} />
                 {showHoverReadout && <HoverTracker onMove={setHoverLatLng} />}

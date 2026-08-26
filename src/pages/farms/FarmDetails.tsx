@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { getFarm, type FarmWithFarmer } from '../../api/farms';
-import { ArrowLeft, Loader2, MapPin, Calendar, FileText, User, Sprout, Ruler } from 'lucide-react';
+import { ArrowLeft, Loader2, MapPin, Calendar, FileText, User, Sprout, Ruler, Camera } from 'lucide-react';
 import FarmMap from '../../components/FarmMap';
 import FarmRiskPanel from '../../components/FarmRiskPanel';
+import { resolveFileUrl } from '../../utils/fileUrl';
 
 interface FarmDocument {
     id: string;
@@ -109,7 +110,7 @@ const FarmDetails: React.FC = () => {
                         <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{boundaryType}</span>
                     </div>
                     <div className="h-96">
-                        <FarmMap location={farm.location} height="100%" />
+                        <FarmMap location={farm.location} height="100%" boundaryEvidence={farm.boundaryEvidence} />
                     </div>
                 </div>
 
@@ -175,7 +176,7 @@ const FarmDetails: React.FC = () => {
                             {farm.farmPhotos.map((url, idx) => (
                                 <img
                                     key={idx}
-                                    src={url}
+                                    src={resolveFileUrl(url)}
                                     alt={`Farm photo ${idx + 1}`}
                                     className="h-32 w-full object-cover rounded-lg border border-gray-200"
                                 />
@@ -186,6 +187,49 @@ const FarmDetails: React.FC = () => {
                     )}
                 </div>
             </div>
+
+            {/* EUDR Boundary Evidence: geotagged photo per captured boundary point */}
+            {farm.boundaryEvidence && farm.boundaryEvidence.length > 0 && (
+                <div className="bg-white shadow-md rounded-xl overflow-hidden border border-gray-100">
+                    <div className="px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                            <Camera className="h-4 w-4 text-blue-600" />
+                            <h3 className="text-lg font-medium leading-6 text-gray-900">Boundary Evidence (EUDR)</h3>
+                        </div>
+                        <span className="text-xs font-semibold text-blue-700 bg-blue-50 border border-blue-100 px-2.5 py-1 rounded-full">
+                            {farm.boundaryEvidence.length} geotagged points
+                        </span>
+                    </div>
+                    <div className="p-6">
+                        <p className="text-xs text-gray-500 mb-4">
+                            Each boundary corner was captured with a live GPS fix and a photo taken on-site,
+                            matching EUDR due-diligence evidence requirements. Points are also plotted on the
+                            map above (numbered blue markers).
+                        </p>
+                        <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                            {[...farm.boundaryEvidence]
+                                .sort((a, b) => a.sequence - b.sequence)
+                                .map((p) => (
+                                    <div key={p.sequence} className="relative rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
+                                        <img
+                                            src={resolveFileUrl(p.photoUrl)}
+                                            alt={`Boundary point ${p.sequence}`}
+                                            className="h-32 w-full object-cover"
+                                        />
+                                        <span className="absolute top-1.5 left-1.5 bg-blue-600 text-white text-[11px] font-bold rounded-full h-5 w-5 flex items-center justify-center shadow">
+                                            {p.sequence}
+                                        </span>
+                                        <div className="p-2 text-[11px] text-gray-600 space-y-0.5">
+                                            <p className="font-mono truncate">{p.lat.toFixed(6)}, {p.lng.toFixed(6)}</p>
+                                            {p.accuracy !== undefined && <p>Accuracy: ±{p.accuracy.toFixed(1)}m</p>}
+                                            {p.timestamp && <p>{new Date(p.timestamp).toLocaleString()}</p>}
+                                        </div>
+                                    </div>
+                                ))}
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {farm.farmAddress && (
                 <div className="bg-white shadow-md rounded-xl p-6 flex items-start gap-3 border border-gray-100">

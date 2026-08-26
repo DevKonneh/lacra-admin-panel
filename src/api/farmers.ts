@@ -24,6 +24,19 @@ export interface Farm {
     extensionServices?: boolean;
     farmAddress?: string;
     farmPhotos?: string[];
+    /**
+     * EUDR-style boundary evidence: one geotagged photo per captured
+     * boundary point (minimum 4), attached via the mobile app's
+     * "Point + Photo" mapping mode (see PUT /farms/:id/boundary-evidence).
+     */
+    boundaryEvidence?: {
+        sequence: number;
+        lat: number;
+        lng: number;
+        accuracy?: number;
+        timestamp?: string;
+        photoUrl: string;
+    }[];
     riskLevel?: 'Low' | 'Medium' | 'High';
     lastRiskAssessmentDate?: string;
     createdAt: string;
