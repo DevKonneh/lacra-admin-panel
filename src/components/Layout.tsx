@@ -12,7 +12,7 @@ const pageMeta: Record<string, { title: string; subtitle: string }> = {
     '/farmers/register': { title: 'Register Farmer', subtitle: 'Capture farmer identity and biodata for EUDR compliance.' },
     '/farms': { title: 'Farms', subtitle: 'Mapped farm plots and boundary data.' },
     '/farms/new': { title: 'Add Farm', subtitle: 'Draw a farm boundary and capture cultivation details.' },
-    '/map': { title: 'Farm Mapping', subtitle: 'National view of all mapped farm boundaries.' },
+    '/map': { title: 'Farm Mapping', subtitle: 'EUDR-aligned national traceability map.' },
     '/risk-analysis': { title: 'Risk Analysis', subtitle: 'Deforestation and compliance risk overview.' },
 };
 

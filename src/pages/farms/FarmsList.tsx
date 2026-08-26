@@ -102,11 +102,20 @@ const FarmsList: React.FC = () => {
                                         </span>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                        {/* {farm.location.type} - location might be object */}
-                                        Polygon
+                                        {farm.location?.type === 'Polygon' ? (
+                                            <span className="inline-flex items-center gap-1 text-green-700 font-medium">
+                                                <MapPin className="h-3.5 w-3.5" /> GPS Polygon
+                                            </span>
+                                        ) : farm.location?.type === 'Point' ? (
+                                            <span className="inline-flex items-center gap-1 text-amber-600 font-medium">
+                                                <MapPin className="h-3.5 w-3.5" /> Point Only
+                                            </span>
+                                        ) : (
+                                            <span className="text-gray-400">Not mapped</span>
+                                        )}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <Link to="/map" className="text-green-600 hover:text-green-900 inline-flex items-center">
+                                        <Link to={`/map?farmId=${farm.id}`} className="text-green-600 hover:text-green-900 inline-flex items-center">
                                             <ExternalLink className="h-4 w-4 mr-1" /> View on Map
                                         </Link>
                                     </td>
