@@ -270,7 +270,7 @@ const FarmerProfile: React.FC = () => {
         const farmScore = farmFields.length ? farmFields.filter(Boolean).length / farmFields.length : 0;
 
         const gpsScore = geo.points.length > 0 ? 1 : 0;
-        const photosScore = selectedFarm?.farmPhotos && selectedFarm.farmPhotos.length > 0 ? 1 : 0;
+        const photosScore = (!!farmer?.farmSelfie || (!!selectedFarm?.farmPhotos && selectedFarm.farmPhotos.length > 0)) ? 1 : 0;
         const docsScore = documents.length > 0 ? documents.filter(d => d.status === 'Valid').length / documents.length : 0;
 
         const overall = (farmerScore + farmScore + gpsScore + photosScore + docsScore) / 5;
