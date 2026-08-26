@@ -556,26 +556,46 @@ const FarmerProfile: React.FC = () => {
 
                 {/* 4. Farm Photos */}
                 <SectionCard number={4} title="Farm Photos">
-                    {!selectedFarm?.farmPhotos || selectedFarm.farmPhotos.length === 0 ? (
+                    {!farmer.farmSelfie && (!selectedFarm?.farmPhotos || selectedFarm.farmPhotos.length === 0) ? (
                         <p className="text-sm text-gray-400 italic">No farm photos captured yet.</p>
                     ) : (
                         <>
-                            <div className="grid grid-cols-3 gap-2">
-                                {selectedFarm.farmPhotos.slice(0, 6).map((url, idx) => (
-                                    <div key={idx} className="relative rounded-lg overflow-hidden border border-gray-200 aspect-square">
+                            {farmer.farmSelfie && (
+                                <div className="mb-3">
+                                    <p className="text-[11px] font-medium text-gray-500 mb-1.5">Farmer on Farm</p>
+                                    <div className="relative rounded-lg overflow-hidden border border-gray-200 w-28 aspect-square">
                                         <SafeImage
-                                            src={resolveFileUrl(url)}
-                                            alt={`Farm photo ${idx + 1}`}
+                                            src={resolveFileUrl(farmer.farmSelfie)}
+                                            alt="Farmer on farm"
                                             className="w-full h-full object-cover"
                                             fallbackLabel="Photo unavailable"
                                         />
                                     </div>
-                                ))}
-                            </div>
-                            {selectedFarm.farmPhotos.length > 6 && (
-                                <button className="mt-3 text-xs font-medium text-green-700 flex items-center gap-1">
-                                    <ImageIcon className="h-3.5 w-3.5" /> View All Photos ({selectedFarm.farmPhotos.length})
-                                </button>
+                                </div>
+                            )}
+                            {selectedFarm?.farmPhotos && selectedFarm.farmPhotos.length > 0 && (
+                                <>
+                                    {farmer.farmSelfie && (
+                                        <p className="text-[11px] font-medium text-gray-500 mb-1.5">Additional Farm Photos</p>
+                                    )}
+                                    <div className="grid grid-cols-3 gap-2">
+                                        {selectedFarm.farmPhotos.slice(0, 6).map((url, idx) => (
+                                            <div key={idx} className="relative rounded-lg overflow-hidden border border-gray-200 aspect-square">
+                                                <SafeImage
+                                                    src={resolveFileUrl(url)}
+                                                    alt={`Farm photo ${idx + 1}`}
+                                                    className="w-full h-full object-cover"
+                                                    fallbackLabel="Photo unavailable"
+                                                />
+                                            </div>
+                                        ))}
+                                    </div>
+                                    {selectedFarm.farmPhotos.length > 6 && (
+                                        <button className="mt-3 text-xs font-medium text-green-700 flex items-center gap-1">
+                                            <ImageIcon className="h-3.5 w-3.5" /> View All Photos ({selectedFarm.farmPhotos.length})
+                                        </button>
+                                    )}
+                                </>
                             )}
                         </>
                     )}
@@ -608,7 +628,7 @@ const FarmerProfile: React.FC = () => {
                         {[
                             { label: 'GPS verified', ok: geo.points.length > 0 },
                             { label: 'Polygon verified', ok: selectedFarm?.location?.type === 'Polygon' },
-                            { label: 'Photos verified', ok: !!selectedFarm?.farmPhotos && selectedFarm.farmPhotos.length > 0 },
+                            { label: 'Photos verified', ok: !!farmer.farmSelfie || (!!selectedFarm?.farmPhotos && selectedFarm.farmPhotos.length > 0) },
                             { label: 'Documents verified', ok: documents.length > 0 && documents.every(d => d.status === 'Valid') },
                             { label: 'Farm legally owned', ok: !!selectedFarm?.ownershipType },
                             { label: 'No forest overlap', ok: !latestAssessment || latestAssessment.overlapResult !== 'Forest' },
