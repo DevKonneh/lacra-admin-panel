@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getFarmers, type Farmer } from '../../api/farmers';
+import { resolveFileUrl } from '../../utils/fileUrl';
 import { Search, User, MapPin, ShieldCheck, ShieldAlert, ShieldQuestion, Loader2, Sprout, AlertTriangle } from 'lucide-react';
 
 const StatusBadge: React.FC<{ status?: string }> = ({ status }) => {
@@ -149,7 +150,7 @@ const FarmersList: React.FC = () => {
                                                 <div className="flex-shrink-0 h-10 w-10">
                                                     {farmer.profilePhoto ? (
                                                         <img
-                                                            src={farmer.profilePhoto}
+                                                            src={resolveFileUrl(farmer.profilePhoto)}
                                                             alt={`${farmer.firstName} ${farmer.lastName}`}
                                                             className="h-10 w-10 rounded-full object-cover border-2 border-white shadow-sm"
                                                         />

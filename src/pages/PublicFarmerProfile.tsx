@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import apiClient from '../api/client';
+import { resolveFileUrl } from '../utils/fileUrl';
 import { User, Map, CheckCircle, ShieldCheck, Sprout } from 'lucide-react';
 import FarmMap from '../components/FarmMap';
 import lacraLogo from '../assets/lacra_logo.jpg';
@@ -99,7 +100,7 @@ const PublicFarmerProfile: React.FC = () => {
                     <div className="relative flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
                         <div className="relative flex-none">
                             {farmer.profilePhoto ? (
-                                <img src={farmer.profilePhoto} alt="Profile" className="h-24 w-24 rounded-full object-cover border-4 border-white/80 shadow-md" />
+                                <img src={resolveFileUrl(farmer.profilePhoto)} alt="Profile" className="h-24 w-24 rounded-full object-cover border-4 border-white/80 shadow-md" />
                             ) : (
                                 <div className="h-24 w-24 bg-white/15 backdrop-blur-sm rounded-full flex items-center justify-center text-white border-4 border-white/80 shadow-md">
                                     <User className="h-10 w-10" />
@@ -196,7 +197,7 @@ const PublicFarmerProfile: React.FC = () => {
                         <div className="text-center">
                             <span className="block text-gray-500 mb-2">ID Photo</span>
                             {farmer.idPhoto ? (
-                                <img src={farmer.idPhoto} alt="ID Document" className="h-32 w-auto border rounded shadow-sm" />
+                                <img src={resolveFileUrl(farmer.idPhoto)} alt="ID Document" className="h-32 w-auto border rounded shadow-sm" />
                             ) : (
                                 <div className="h-32 w-48 bg-gray-100 flex items-center justify-center text-gray-400 rounded border border-dashed">No ID Photo</div>
                             )}
@@ -204,7 +205,7 @@ const PublicFarmerProfile: React.FC = () => {
                         <div className="text-center">
                             <span className="block text-gray-500 mb-2">Signature</span>
                             {farmer.signature ? (
-                                <img src={farmer.signature} alt="Signature" className="h-20 w-auto border rounded shadow-sm bg-white" />
+                                <img src={resolveFileUrl(farmer.signature)} alt="Signature" className="h-20 w-auto border rounded shadow-sm bg-white" />
                             ) : (
                                 <div className="h-20 w-48 bg-gray-100 flex items-center justify-center text-gray-400 rounded border border-dashed">No Signature</div>
                             )}
