@@ -5,6 +5,7 @@ import { ArrowLeft, Loader2, MapPin, Calendar, FileText, User, Sprout, Ruler, Ca
 import FarmMap from '../../components/FarmMap';
 import FarmRiskPanel from '../../components/FarmRiskPanel';
 import { resolveFileUrl } from '../../utils/fileUrl';
+import SafeImage from '../../components/SafeImage';
 
 interface FarmDocument {
     id: string;
@@ -174,7 +175,7 @@ const FarmDetails: React.FC = () => {
                     {farm.farmPhotos && farm.farmPhotos.length > 0 ? (
                         <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                             {farm.farmPhotos.map((url, idx) => (
-                                <img
+                                <SafeImage
                                     key={idx}
                                     src={resolveFileUrl(url)}
                                     alt={`Farm photo ${idx + 1}`}
@@ -211,7 +212,7 @@ const FarmDetails: React.FC = () => {
                                 .sort((a, b) => a.sequence - b.sequence)
                                 .map((p) => (
                                     <div key={p.sequence} className="relative rounded-lg overflow-hidden border border-gray-200 bg-gray-50">
-                                        <img
+                                        <SafeImage
                                             src={resolveFileUrl(p.photoUrl)}
                                             alt={`Boundary point ${p.sequence}`}
                                             className="h-32 w-full object-cover"

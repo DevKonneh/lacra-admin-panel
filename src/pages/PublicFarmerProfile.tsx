@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import apiClient from '../api/client';
 import { resolveFileUrl } from '../utils/fileUrl';
+import SafeImage from '../components/SafeImage';
 import { User, Map, CheckCircle, ShieldCheck, Sprout } from 'lucide-react';
 import FarmMap from '../components/FarmMap';
 import lacraLogo from '../assets/lacra_logo.jpg';
@@ -99,13 +100,16 @@ const PublicFarmerProfile: React.FC = () => {
                     </div>
                     <div className="relative flex flex-col md:flex-row items-center gap-6 text-center md:text-left">
                         <div className="relative flex-none">
-                            {farmer.profilePhoto ? (
-                                <img src={resolveFileUrl(farmer.profilePhoto)} alt="Profile" className="h-24 w-24 rounded-full object-cover border-4 border-white/80 shadow-md" />
-                            ) : (
-                                <div className="h-24 w-24 bg-white/15 backdrop-blur-sm rounded-full flex items-center justify-center text-white border-4 border-white/80 shadow-md">
-                                    <User className="h-10 w-10" />
-                                </div>
-                            )}
+                            <SafeImage
+                                src={resolveFileUrl(farmer.profilePhoto)}
+                                alt="Profile"
+                                className="h-24 w-24 rounded-full object-cover border-4 border-white/80 shadow-md"
+                                fallback={
+                                    <div className="h-24 w-24 bg-white/15 backdrop-blur-sm rounded-full flex items-center justify-center text-white border-4 border-white/80 shadow-md">
+                                        <User className="h-10 w-10" />
+                                    </div>
+                                }
+                            />
                             <div className={`absolute bottom-0 right-0 h-6 w-6 rounded-full border-2 border-white flex items-center justify-center ${farmer.identityStatus === 'Verified' ? 'bg-green-400' : 'bg-gray-300'}`}>
                                 {farmer.identityStatus === 'Verified' && <CheckCircle className="h-4 w-4 text-white" />}
                             </div>
@@ -196,19 +200,25 @@ const PublicFarmerProfile: React.FC = () => {
                     <div className="flex flex-wrap gap-8 justify-center md:justify-start">
                         <div className="text-center">
                             <span className="block text-gray-500 mb-2">ID Photo</span>
-                            {farmer.idPhoto ? (
-                                <img src={resolveFileUrl(farmer.idPhoto)} alt="ID Document" className="h-32 w-auto border rounded shadow-sm" />
-                            ) : (
-                                <div className="h-32 w-48 bg-gray-100 flex items-center justify-center text-gray-400 rounded border border-dashed">No ID Photo</div>
-                            )}
+                            <SafeImage
+                                src={resolveFileUrl(farmer.idPhoto)}
+                                alt="ID Document"
+                                className="h-32 w-auto border rounded shadow-sm"
+                                fallback={
+                                    <div className="h-32 w-48 bg-gray-100 flex items-center justify-center text-gray-400 rounded border border-dashed">No ID Photo</div>
+                                }
+                            />
                         </div>
                         <div className="text-center">
                             <span className="block text-gray-500 mb-2">Signature</span>
-                            {farmer.signature ? (
-                                <img src={resolveFileUrl(farmer.signature)} alt="Signature" className="h-20 w-auto border rounded shadow-sm bg-white" />
-                            ) : (
-                                <div className="h-20 w-48 bg-gray-100 flex items-center justify-center text-gray-400 rounded border border-dashed">No Signature</div>
-                            )}
+                            <SafeImage
+                                src={resolveFileUrl(farmer.signature)}
+                                alt="Signature"
+                                className="h-20 w-auto border rounded shadow-sm bg-white"
+                                fallback={
+                                    <div className="h-20 w-48 bg-gray-100 flex items-center justify-center text-gray-400 rounded border border-dashed">No Signature</div>
+                                }
+                            />
                         </div>
                         <div className="flex items-center">
                             <div className={`px-4 py-2 rounded-lg border ${farmer.consent ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>

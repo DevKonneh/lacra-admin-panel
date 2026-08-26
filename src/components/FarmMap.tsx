@@ -6,6 +6,7 @@ import { Satellite, Map as MapIcon, Crosshair, Ruler, MapPin, Loader2 } from 'lu
 import 'leaflet/dist/leaflet.css';
 import { useReverseGeocode } from '../hooks/useReverseGeocode';
 import { resolveFileUrl } from '../utils/fileUrl';
+import SafeImage from './SafeImage';
 
 type LatLng = [number, number];
 
@@ -219,10 +220,11 @@ const FarmMap: React.FC<FarmMapProps> = ({
                         <Popup>
                             <div style={{ minWidth: 160 }}>
                                 <p style={{ fontWeight: 700, marginBottom: 4 }}>Boundary Point #{p.sequence}</p>
-                                <img
+                                <SafeImage
                                     src={resolveFileUrl(p.photoUrl)}
                                     alt={`Boundary evidence point ${p.sequence}`}
                                     style={{ width: '100%', height: 90, objectFit: 'cover', borderRadius: 6, marginBottom: 6 }}
+                                    fallbackLabel="Photo unavailable"
                                 />
                                 <p style={{ fontFamily: 'monospace', fontSize: 11 }}>{p.lat.toFixed(6)}, {p.lng.toFixed(6)}</p>
                                 {p.accuracy !== undefined && (

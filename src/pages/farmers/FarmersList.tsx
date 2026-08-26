@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getFarmers, type Farmer } from '../../api/farmers';
 import { resolveFileUrl } from '../../utils/fileUrl';
+import SafeImage from '../../components/SafeImage';
 import { Search, User, MapPin, ShieldCheck, ShieldAlert, ShieldQuestion, Loader2, Sprout, AlertTriangle } from 'lucide-react';
 
 const StatusBadge: React.FC<{ status?: string }> = ({ status }) => {
@@ -148,17 +149,16 @@ const FarmersList: React.FC = () => {
                                         <td className="px-6 py-4 whitespace-nowrap">
                                             <div className="flex items-center">
                                                 <div className="flex-shrink-0 h-10 w-10">
-                                                    {farmer.profilePhoto ? (
-                                                        <img
-                                                            src={resolveFileUrl(farmer.profilePhoto)}
-                                                            alt={`${farmer.firstName} ${farmer.lastName}`}
-                                                            className="h-10 w-10 rounded-full object-cover border-2 border-white shadow-sm"
-                                                        />
-                                                    ) : (
-                                                        <div className="h-10 w-10 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white shadow-sm">
-                                                            <User className="h-5 w-5" />
-                                                        </div>
-                                                    )}
+                                                    <SafeImage
+                                                        src={resolveFileUrl(farmer.profilePhoto)}
+                                                        alt={`${farmer.firstName} ${farmer.lastName}`}
+                                                        className="h-10 w-10 rounded-full object-cover border-2 border-white shadow-sm"
+                                                        fallback={
+                                                            <div className="h-10 w-10 rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white shadow-sm">
+                                                                <User className="h-5 w-5" />
+                                                            </div>
+                                                        }
+                                                    />
                                                 </div>
                                                 <div className="ml-4">
                                                     <div className="text-sm font-medium text-gray-900">{farmer.firstName} {farmer.lastName}</div>

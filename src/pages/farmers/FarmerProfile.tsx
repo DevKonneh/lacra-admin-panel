@@ -3,6 +3,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import * as turf from '@turf/turf';
 import { getFarmer, updateFarmer, setFarmerActiveStatus, type Farmer, type Farm } from '../../api/farmers';
 import { resolveFileUrl } from '../../utils/fileUrl';
+import SafeImage from '../../components/SafeImage';
 import { getFarmDocuments, type FarmDocument } from '../../api/documents';
 import { getRiskHistory, type RiskAnalysisResult } from '../../api/risk';
 import { getAllBatches, type Batch } from '../../api/batches';
@@ -414,15 +415,25 @@ const FarmerProfile: React.FC = () => {
                 <SectionCard number={1} title="Personal Information" badge={statusBadge()}>
                     <div className="flex gap-4">
                         <div className="flex-none">
-                            {farmer.profilePhoto ? (
-                                <img src={resolveFileUrl(farmer.profilePhoto)} alt="Farmer" className="h-24 w-24 rounded-lg object-cover border border-gray-200" />
-                            ) : (
-                                <div className="h-24 w-24 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400 border border-gray-200 text-xs text-center px-1">No Photo</div>
-                            )}
+                            <SafeImage
+                                src={resolveFileUrl(farmer.profilePhoto)}
+                                alt="Farmer"
+                                className="h-24 w-24 rounded-lg object-cover border border-gray-200"
+                                fallback={
+                                    <div className="h-24 w-24 rounded-lg bg-gray-100 flex items-center justify-center text-gray-400 border border-gray-200 text-xs text-center px-1">No Photo</div>
+                                }
+                            />
                             {farmer.signature && (
                                 <div className="mt-2">
                                     <p className="text-[10px] text-gray-400 mb-0.5">Signature</p>
-                                    <img src={resolveFileUrl(farmer.signature)} alt="Signature" className="h-10 w-24 object-contain bg-gray-50 border border-gray-200 rounded" />
+                                    <SafeImage
+                                        src={resolveFileUrl(farmer.signature)}
+                                        alt="Signature"
+                                        className="h-10 w-24 object-contain bg-gray-50 border border-gray-200 rounded"
+                                        fallback={
+                                            <div className="h-10 w-24 flex items-center justify-center text-gray-400 bg-gray-50 border border-gray-200 rounded text-[10px]">No Signature</div>
+                                        }
+                                    />
                                 </div>
                             )}
                         </div>
@@ -552,7 +563,12 @@ const FarmerProfile: React.FC = () => {
                             <div className="grid grid-cols-3 gap-2">
                                 {selectedFarm.farmPhotos.slice(0, 6).map((url, idx) => (
                                     <div key={idx} className="relative rounded-lg overflow-hidden border border-gray-200 aspect-square">
-                                        <img src={resolveFileUrl(url)} alt={`Farm photo ${idx + 1}`} className="w-full h-full object-cover" />
+                                        <SafeImage
+                                            src={resolveFileUrl(url)}
+                                            alt={`Farm photo ${idx + 1}`}
+                                            className="w-full h-full object-cover"
+                                            fallbackLabel="Photo unavailable"
+                                        />
                                     </div>
                                 ))}
                             </div>
