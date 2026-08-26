@@ -40,6 +40,17 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Without this, the browser only checks for a new service worker on
+      // full page navigation - if a tab is left open/backgrounded (common on
+      // an admin dashboard), users can be stuck on a stale cached build
+      // indefinitely even after a new version has been deployed. Polling
+      // periodically means an already-open tab picks up new deploys within
+      // a few minutes instead of only on the next fresh page load.
+      workbox: {
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: true,
+      },
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
         name: 'LACRA Compliance Platform',
