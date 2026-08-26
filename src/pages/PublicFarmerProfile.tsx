@@ -252,7 +252,7 @@ const PublicFarmerProfile: React.FC = () => {
                                     <div className="p-4">
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             <div className="h-64 rounded-lg overflow-hidden border border-gray-200 relative">
-                                                <FarmMap location={farm.location} height="100%" />
+                                                <FarmMap location={farm.location} height="100%" areaHa={farm.totalAreaHa} />
                                             </div>
                                             <div className="grid grid-cols-2 gap-x-4 gap-y-2 text-sm">
                                                 <div className="col-span-2 border-b border-gray-100 mb-2 pb-1 font-semibold text-gray-700">Farm Metrics</div>

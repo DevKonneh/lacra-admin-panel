@@ -39,7 +39,33 @@ interface FarmMapProps {
      * the map with a popup showing its coordinates, timestamp and photo.
      */
     boundaryEvidence?: BoundaryEvidencePoint[];
+    /**
+     * Farm's declared/measured area in hectares (e.g. farm.totalAreaHa).
+     * When the farm's location is a single GPS Point (no walked polygon
+     * boundary), this is used to draw a true-to-scale square footprint
+     * centered on that point, instead of a fixed-pixel decorative circle
+     * that has no relation to the farm's real size. Ignored for Polygon
+     * locations (the real drawn boundary is always used there).
+     */
+    areaHa?: number | null;
 }
+
+// Builds a north-aligned square ring (as [lat,lng] corners, NW->NE->SE->SW)
+// of the given area (hectares), centered on `center`. Used to visualize a
+// farm's declared/measured size on the map when only a single GPS point
+// (not a walked boundary) was captured.
+const squareRingFromCenter = (center: LatLng, areaHectares: number): LatLng[] => {
+    const areaM2 = areaHectares * 10000;
+    const side = Math.sqrt(areaM2);
+    const halfDiagonal = (side / 2) * Math.SQRT2;
+    const centerPoint = turf.point([center[1], center[0]]);
+    // Bearings for NW, NE, SE, SW corners of an axis-aligned square.
+    return [315, 45, 135, 225].map((bearing) => {
+        const dest = turf.destination(centerPoint, halfDiagonal, bearing, { units: 'meters' });
+        const [lng, lat] = dest.geometry.coordinates;
+        return [lat, lng] as LatLng;
+    });
+};
 
 // Esri's free satellite imagery has no real coverage for many rural areas beyond
 // zoom ~18 (tiles come back as blank "Map data not yet available" placeholders).
@@ -111,6 +137,7 @@ const FarmMap: React.FC<FarmMapProps> = ({
     zoomControl = true,
     defaultLayer = 'satellite',
     boundaryEvidence,
+    areaHa: declaredAreaHa,
 }) => {
     const [layer, setLayer] = useState<'satellite' | 'street'>(defaultLayer);
     const [hoverLatLng, setHoverLatLng] = useState<LatLng | null>(null);
@@ -121,21 +148,22 @@ const FarmMap: React.FC<FarmMapProps> = ({
         [boundaryEvidence]
     );
 
-    const { center, polygonPositions, hasLocation, areaHa } = useMemo(() => {
+    const { center, polygonPositions, hasLocation, areaHa, squarePositions } = useMemo(() => {
         if (!location || !location.coordinates) {
             if (evidencePositions.length > 0) {
                 // No location geometry yet, but we do have evidence points —
                 // center on their average so they're still visible.
                 const avgLat = evidencePositions.reduce((s, p) => s + p[0], 0) / evidencePositions.length;
                 const avgLng = evidencePositions.reduce((s, p) => s + p[1], 0) / evidencePositions.length;
-                return { center: [avgLat, avgLng] as LatLng, polygonPositions: null as LatLng[] | null, hasLocation: true, areaHa: null as number | null };
+                return { center: [avgLat, avgLng] as LatLng, polygonPositions: null as LatLng[] | null, hasLocation: true, areaHa: null as number | null, squarePositions: null as LatLng[] | null };
             }
-            return { center: null as LatLng | null, polygonPositions: null as LatLng[] | null, hasLocation: false, areaHa: null as number | null };
+            return { center: null as LatLng | null, polygonPositions: null as LatLng[] | null, hasLocation: false, areaHa: null as number | null, squarePositions: null as LatLng[] | null };
         }
         const coords = location.coordinates as any;
         let c: LatLng;
         let poly: LatLng[] | null = null;
         let area: number | null = null;
+        let square: LatLng[] | null = null;
 
         if (location.type === 'Polygon') {
             const ring: LatLng[] = coords[0].map((pt: any) => [pt[1], pt[0]] as LatLng);
@@ -149,9 +177,16 @@ const FarmMap: React.FC<FarmMapProps> = ({
             }
         } else {
             c = [coords[1], coords[0]];
+            // Single GPS point (no walked boundary) — if we know the farm's
+            // declared/measured area, draw a true-to-scale square footprint
+            // centered on the point instead of a decorative fixed-size circle.
+            if (declaredAreaHa && declaredAreaHa > 0) {
+                square = squareRingFromCenter(c, declaredAreaHa);
+                area = declaredAreaHa;
+            }
         }
-        return { center: c, polygonPositions: poly, hasLocation: true, areaHa: area };
-    }, [location]);
+        return { center: c, polygonPositions: poly, hasLocation: true, areaHa: area, squarePositions: square };
+    }, [location, declaredAreaHa]);
 
     if (!hasLocation || !center) {
         return (
@@ -193,9 +228,25 @@ const FarmMap: React.FC<FarmMapProps> = ({
                     />
                 )}
 
-                {location.type === 'Point' && (
+                {location.type === 'Point' && squarePositions && (
                     <>
-                        <CircleMarker center={center} radius={22} pathOptions={{ color: '#F59E0B', fillColor: '#FBBF24', fillOpacity: 0.35, weight: 2 }} />
+                        {/* True-to-scale square footprint representing the farm's
+                            declared/measured area, centered on the captured GPS
+                            point (used when no walked boundary polygon exists). */}
+                        <Polygon
+                            positions={squarePositions}
+                            pathOptions={{ color: '#F59E0B', weight: 2.5, fillColor: '#FBBF24', fillOpacity: 0.3, dashArray: '5 4' }}
+                        />
+                        <Marker position={center} icon={pinIcon} />
+                        <FitBounds positions={squarePositions} />
+                    </>
+                )}
+
+                {location.type === 'Point' && !squarePositions && (
+                    <>
+                        {/* No declared area available — fall back to a plain
+                            marker without implying any specific footprint size. */}
+                        <CircleMarker center={center} radius={10} pathOptions={{ color: '#F59E0B', fillColor: '#FBBF24', fillOpacity: 0.5, weight: 2 }} />
                         <Marker position={center} icon={pinIcon} />
                     </>
                 )}
@@ -211,7 +262,7 @@ const FarmMap: React.FC<FarmMapProps> = ({
                     </>
                 )}
 
-                {!polygonPositions && evidencePositions.length > 1 && (
+                {!polygonPositions && !squarePositions && evidencePositions.length > 1 && (
                     <FitBounds positions={evidencePositions} />
                 )}
 
@@ -265,7 +316,8 @@ const FarmMap: React.FC<FarmMapProps> = ({
             {/* Area badge */}
             {areaHa !== null && (
                 <div className="absolute top-2 left-2 z-[1000] bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 px-2.5 py-1.5 flex items-center gap-1.5 text-xs font-semibold text-green-800">
-                    <Ruler className="h-3.5 w-3.5 text-green-600" /> {areaHa.toFixed(2)} ha
+                    <Ruler className="h-3.5 w-3.5 text-green-600" />
+                    {areaHa.toFixed(2)} ha{squarePositions ? ' (declared, est. footprint)' : ''}
                 </div>
             )}
 

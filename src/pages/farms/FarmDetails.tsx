@@ -111,7 +111,7 @@ const FarmDetails: React.FC = () => {
                         <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded-full">{boundaryType}</span>
                     </div>
                     <div className="h-96">
-                        <FarmMap location={farm.location} height="100%" boundaryEvidence={farm.boundaryEvidence} />
+                        <FarmMap location={farm.location} height="100%" boundaryEvidence={farm.boundaryEvidence} areaHa={farm.totalAreaHa} />
                     </div>
                 </div>
 

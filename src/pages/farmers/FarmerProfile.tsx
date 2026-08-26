@@ -488,7 +488,7 @@ const FarmerProfile: React.FC = () => {
                             </div>
                             <div className="flex-none w-40">
                                 <div className="h-32 w-40 rounded-lg overflow-hidden border border-gray-200">
-                                    <FarmMap location={selectedFarm.location} height="100%" showLayerToggle={false} showHoverReadout={false} scrollWheelZoom={false} dragging={false} zoomControl={false} />
+                                    <FarmMap location={selectedFarm.location} height="100%" showLayerToggle={false} showHoverReadout={false} scrollWheelZoom={false} dragging={false} zoomControl={false} areaHa={selectedFarm.totalAreaHa} />
                                 </div>
                                 <p className="text-[10px] text-gray-400 mt-1">Farm GPS Center</p>
                                 <p className="text-[11px] font-mono text-gray-600">{geo.center ? `${geo.center[0].toFixed(4)}, ${geo.center[1].toFixed(4)}` : 'N/A'}</p>
@@ -509,7 +509,7 @@ const FarmerProfile: React.FC = () => {
                     ) : (
                         <div className="flex flex-col md:flex-row gap-4">
                             <div className="h-56 w-full md:w-1/2 rounded-lg overflow-hidden border border-gray-200 flex-none">
-                                <FarmMap location={selectedFarm.location} height="100%" />
+                                <FarmMap location={selectedFarm.location} height="100%" areaHa={selectedFarm.totalAreaHa} />
                             </div>
                             <div className="flex-1">
                                 <div className="max-h-44 overflow-y-auto border border-gray-100 rounded-lg">
