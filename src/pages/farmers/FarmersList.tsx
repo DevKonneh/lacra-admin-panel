@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { getFarmers, type Farmer } from '../../api/farmers';
+import { getFarmers, downloadFarmersFarmsCsv, type Farmer } from '../../api/farmers';
 import { resolveFileUrl } from '../../utils/fileUrl';
 import SafeImage from '../../components/SafeImage';
-import { Search, User, MapPin, ShieldCheck, ShieldAlert, ShieldQuestion, Loader2, Sprout, AlertTriangle } from 'lucide-react';
+import { useAuth } from '../../context/AuthContext';
+import { Search, User, MapPin, ShieldCheck, ShieldAlert, ShieldQuestion, Loader2, Sprout, AlertTriangle, Download } from 'lucide-react';
 
 const StatusBadge: React.FC<{ status?: string }> = ({ status }) => {
     if (status === 'Verified') {
@@ -28,11 +29,32 @@ const StatusBadge: React.FC<{ status?: string }> = ({ status }) => {
 };
 
 const FarmersList: React.FC = () => {
+    const { user } = useAuth();
+    const isAdmin = user?.role === 'ADMIN';
     const [farmers, setFarmers] = useState<Farmer[]>([]);
     const [searchTerm, setSearchTerm] = useState('');
     const [loading, setLoading] = useState(true);
     const [genderFilter, setGenderFilter] = useState<string>('All');
     const [error, setError] = useState<string | null>(null);
+    const [exporting, setExporting] = useState(false);
+    const [exportError, setExportError] = useState<string | null>(null);
+
+    const handleExportCsv = async () => {
+        try {
+            setExporting(true);
+            setExportError(null);
+            await downloadFarmersFarmsCsv();
+        } catch (err: any) {
+            console.error('Error exporting farmers/farms CSV', err);
+            if (err?.response?.status === 403) {
+                setExportError('You do not have permission to generate this report.');
+            } else {
+                setExportError('Failed to generate report. Please try again.');
+            }
+        } finally {
+            setExporting(false);
+        }
+    };
 
     const fetchFarmers = async () => {
         try {
@@ -76,9 +98,31 @@ const FarmersList: React.FC = () => {
                     <h1 className="text-2xl font-bold text-gray-900">Farmers Directory</h1>
                     <p className="text-sm text-gray-500">{farmers.length} registered farmer{farmers.length !== 1 ? 's' : ''}</p>
                 </div>
-                <Link to="/farmers/register" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700">
-                    + Register New Farmer
-                </Link>
+                <div className="flex flex-col items-end gap-2">
+                    <div className="flex items-center gap-2">
+                        {isAdmin && (
+                            <button
+                                type="button"
+                                onClick={handleExportCsv}
+                                disabled={exporting}
+                                className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                                {exporting ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                    <Download className="h-4 w-4" />
+                                )}
+                                {exporting ? 'Generating…' : 'Generate Farmer Report'}
+                            </button>
+                        )}
+                        <Link to="/farmers/register" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700">
+                            + Register New Farmer
+                        </Link>
+                    </div>
+                    {exportError && (
+                        <p className="text-xs text-red-600">{exportError}</p>
+                    )}
+                </div>
             </div>
 
             <div className="bg-white shadow rounded-lg overflow-hidden">
