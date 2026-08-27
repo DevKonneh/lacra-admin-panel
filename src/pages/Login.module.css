@@ -1,19 +1,145 @@
 .page {
     min-height: 100vh;
     display: grid;
+    grid-template-columns: 1fr;
+    background: linear-gradient(135deg, #0b3d1f 0%, #0b7a33 55%, #16a34a 100%);
+}
+
+@media (min-width: 960px) {
+    .page {
+        grid-template-columns: 1.05fr 1fr;
+    }
+}
+
+/* Left hero panel - brand storytelling, hidden on small screens */
+.hero {
+    display: none;
+    position: relative;
+    overflow: hidden;
+    padding: 56px 64px;
+    color: #ffffff;
+    flex-direction: column;
+    justify-content: space-between;
+}
+
+@media (min-width: 960px) {
+    .hero {
+        display: flex;
+    }
+}
+
+.heroCircleLg {
+    position: absolute;
+    width: 420px;
+    height: 420px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.06);
+    top: -120px;
+    right: -140px;
+}
+
+.heroCircleSm {
+    position: absolute;
+    width: 260px;
+    height: 260px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.05);
+    bottom: -80px;
+    left: -60px;
+}
+
+.heroTop {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    position: relative;
+    z-index: 1;
+}
+
+.heroLogo {
+    width: 52px;
+    height: 52px;
+    border-radius: 14px;
+    object-fit: cover;
+    border: 2px solid rgba(255, 255, 255, 0.5);
+}
+
+.heroBrandName {
+    font-size: 18px;
+    font-weight: 800;
+    letter-spacing: 0.02em;
+}
+
+.heroBrandSub {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.75);
+}
+
+.heroBody {
+    position: relative;
+    z-index: 1;
+    max-width: 440px;
+}
+
+.heroTitle {
+    font-size: 34px;
+    font-weight: 800;
+    line-height: 1.2;
+    margin: 0 0 16px;
+}
+
+.heroSubtitle {
+    font-size: 15px;
+    line-height: 1.6;
+    color: rgba(255, 255, 255, 0.85);
+    margin: 0;
+}
+
+.heroStats {
+    display: flex;
+    gap: 32px;
+    margin-top: 32px;
+}
+
+.heroStat {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.heroStatValue {
+    font-size: 22px;
+    font-weight: 800;
+}
+
+.heroStatLabel {
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.7);
+}
+
+.heroFooter {
+    position: relative;
+    z-index: 1;
+    font-size: 12px;
+    color: rgba(255, 255, 255, 0.6);
+}
+
+/* Right panel - the actual sign-in form */
+.formPanel {
+    display: grid;
     place-items: center;
-    background: #f5f6f8;
     padding: 24px;
+    background: #f6fbf7;
 }
 
 .card {
     width: 100%;
-    max-width: 380px;
+    max-width: 400px;
     background: #ffffff;
     border: 1px solid #e5e7eb;
-    border-radius: 12px;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.06);
-    padding: 32px 28px;
+    border-radius: 20px;
+    box-shadow: 0 20px 45px rgba(15, 23, 42, 0.10);
+    padding: 36px 32px;
 }
 
 .brand {
@@ -24,9 +150,9 @@
 }
 
 .logo {
-    width: 40px;
-    height: 40px;
-    border-radius: 8px;
+    width: 44px;
+    height: 44px;
+    border-radius: 12px;
     object-fit: cover;
 }
 
@@ -44,13 +170,13 @@
 
 .title {
     margin: 0;
-    font-size: 22px;
-    font-weight: 700;
-    color: #111827;
+    font-size: 24px;
+    font-weight: 800;
+    color: #0f172a;
 }
 
 .subtitle {
-    margin: 4px 0 24px;
+    margin: 4px 0 26px;
     font-size: 13px;
     color: #6b7280;
 }
@@ -58,7 +184,7 @@
 .form {
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 18px;
 }
 
 .field {
@@ -69,25 +195,56 @@
 
 .label {
     font-size: 13px;
-    font-weight: 500;
+    font-weight: 600;
     color: #374151;
+}
+
+.inputWrap {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.inputIcon {
+    position: absolute;
+    left: 12px;
+    color: #9ca3af;
+    display: flex;
+    align-items: center;
+    pointer-events: none;
 }
 
 .input {
     width: 100%;
-    padding: 10px 12px;
+    padding: 12px 14px 12px 40px;
     font-size: 14px;
     border: 1px solid #d1d5db;
-    border-radius: 8px;
+    border-radius: 10px;
     background: #fff;
     color: #111827;
     outline: none;
     transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
 
+.togglePasswordBtn {
+    position: absolute;
+    right: 10px;
+    background: none;
+    border: none;
+    padding: 4px;
+    color: #9ca3af;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+}
+
+.togglePasswordBtn:hover {
+    color: #374151;
+}
+
 .input:focus {
-    border-color: #16a34a;
-    box-shadow: 0 0 0 3px rgba(22, 163, 74, 0.12);
+    border-color: #0b7a33;
+    box-shadow: 0 0 0 3px rgba(11, 122, 51, 0.14);
 }
 
 .input::placeholder {
@@ -95,38 +252,44 @@
 }
 
 .error {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
     font-size: 13px;
     color: #dc2626;
     background: #fef2f2;
     border: 1px solid #fecaca;
-    border-radius: 8px;
-    padding: 8px 12px;
+    border-radius: 10px;
+    padding: 10px 12px;
 }
 
 .submit {
     width: 100%;
-    padding: 10px 0;
+    padding: 12px 0;
     margin-top: 4px;
-    background: #16a34a;
+    background: #0b7a33;
     color: #fff;
     font-size: 14px;
-    font-weight: 600;
+    font-weight: 700;
     border: none;
-    border-radius: 8px;
+    border-radius: 10px;
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: background 0.15s ease;
+    box-shadow: 0 10px 20px rgba(11, 122, 51, 0.25);
+    transition: background 0.15s ease, transform 0.1s ease;
 }
 
 .submit:hover:not(:disabled) {
-    background: #15803d;
+    background: #0f8f3d;
+    transform: translateY(-1px);
 }
 
 .submit:disabled {
     opacity: 0.7;
     cursor: not-allowed;
+    transform: none;
 }
 
 .spinner {
@@ -142,7 +305,7 @@
 .links {
     display: flex;
     align-items: center;
-    justify-content: space-between;
+    justify-content: center;
     margin-top: 4px;
 }
 
@@ -151,12 +314,19 @@
     border: none;
     padding: 0;
     font-size: 13px;
-    color: #16a34a;
-    font-weight: 500;
+    color: #0b7a33;
+    font-weight: 600;
     cursor: pointer;
     text-decoration: none;
 }
 
 .linkBtn:hover {
     text-decoration: underline;
+}
+
+.footerNote {
+    margin-top: 24px;
+    text-align: center;
+    font-size: 11.5px;
+    color: #94a3b8;
 }
