@@ -13,7 +13,7 @@ import AnimatedCounter from '../components/AnimatedCounter';
 
 import RegisterFarmer from './RegisterFarmer';
 
-const COLORS = ['#10B981', '#EF4444']; // Green, Red
+const COLORS = ['#10B981', '#F59E0B', '#EF4444']; // Green (Compliant), Amber (Needs Review), Red (High Risk)
 const SHIPMENT_colors = {
     DRAFT: '#9CA3AF',
     VALIDATED: '#60A5FA',
@@ -72,6 +72,7 @@ const Dashboard: React.FC = () => {
 
     const riskData = [
         { name: 'Compliant', value: stats.compliantFarms },
+        { name: 'Needs Review', value: stats.mediumRisks },
         { name: 'High Risk', value: stats.activeRisks },
     ];
 

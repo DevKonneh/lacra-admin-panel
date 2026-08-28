@@ -5,6 +5,7 @@ export interface DashboardStats {
     totalFarmers: number;
     totalFarms: number;
     activeRisks: number;
+    mediumRisks: number;
     compliantFarms: number;
     complianceRate: number;
     shipmentStats: {
