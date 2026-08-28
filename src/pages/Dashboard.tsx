@@ -83,15 +83,12 @@ const Dashboard: React.FC = () => {
 
     return (
         <div className="space-y-8">
-            {/* Page header */}
-            <div className="animate-fade-up">
-                <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-                <p className="text-sm text-gray-500 mt-1">EUDR farm mapping &amp; compliance overview</p>
-            </div>
+            {/* The page topbar (Layout.tsx) already shows "Dashboard" + subtitle, so this
+                page starts directly with the live stats rather than repeating the title. */}
 
             {/* 1. Header & Quick Stats */}
             <div>
-                <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">Platform Overview</h2>
+                <h2 className="text-[11px] font-semibold text-brand-muted tracking-wide uppercase mb-4">Platform Overview</h2>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                     <StatCard
                         icon={<UserPlus className="h-6 w-6" />}
@@ -111,7 +108,7 @@ const Dashboard: React.FC = () => {
             {/* EUDR Farm Mapping Overview */}
             {mappingStats && (
                 <div>
-                    <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">EUDR Farm Mapping Overview</h2>
+                    <h2 className="text-[11px] font-semibold text-brand-muted tracking-wide uppercase mb-4">EUDR Farm Mapping Overview</h2>
                     <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
                         <StatCard
                             icon={<Users2 className="h-6 w-6" />}
@@ -152,8 +149,8 @@ const Dashboard: React.FC = () => {
                     </div>
 
                     <div className="bg-white shadow-md rounded-xl p-6 border border-gray-100 animate-fade-up animate-fade-up-5">
-                        <h3 className="text-base font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                            <Sprout className="h-5 w-5 text-green-600" /> Crop Type Breakdown (by number of farms)
+                        <h3 className="text-[15px] font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                            <Sprout className="h-4.5 w-4.5 text-green-600" /> Crop Type Breakdown
                         </h3>
                         {mappingStats.cropBreakdown.length === 0 ? (
                             <p className="text-gray-500 text-sm">No farms with crop data yet.</p>
@@ -169,16 +166,22 @@ const Dashboard: React.FC = () => {
                                     const style = palette[idx % palette.length];
                                     return (
                                         <div key={c.cropType} className={`p-4 bg-gradient-to-br ${style.split(' ').slice(0, 2).join(' ')} rounded-xl text-center border ${style.split(' ')[2]}`}>
-                                            <p className={`text-2xl font-bold ${style.split(' ')[3]}`}>{c.count}</p>
-                                            <p className="text-xs text-gray-600 mt-1">{c.cropType} Farmer{c.count !== 1 ? 's' : ''}</p>
+                                            <p className={`text-[22px] font-bold leading-none ${style.split(' ')[3]}`}>{c.count}</p>
+                                            <p className="text-[11.5px] text-gray-600 mt-1.5">{c.cropType} Farmer{c.count !== 1 ? 's' : ''}</p>
                                         </div>
                                     );
                                 })}
                             </div>
                         )}
-                        <div className="mt-4 pt-4 border-t border-gray-100 flex gap-6 text-xs text-gray-500">
-                            <span>🟢 Farms with GPS Polygon Boundary: <b className="text-gray-800">{mappingStats.farmsWithPolygon}</b></span>
-                            <span>🟡 Farms with Point Only: <b className="text-gray-800">{mappingStats.farmsWithPointOnly}</b></span>
+                        <div className="mt-4 pt-4 border-t border-gray-100 flex gap-6 text-[12px] text-gray-500">
+                            <span className="inline-flex items-center gap-1.5">
+                                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                                GPS Polygon Boundary: <b className="text-gray-800 font-semibold">{mappingStats.farmsWithPolygon}</b>
+                            </span>
+                            <span className="inline-flex items-center gap-1.5">
+                                <span className="h-2 w-2 rounded-full bg-amber-500" />
+                                Point Only: <b className="text-gray-800 font-semibold">{mappingStats.farmsWithPointOnly}</b>
+                            </span>
                         </div>
                     </div>
                 </div>
@@ -199,12 +202,12 @@ const Dashboard: React.FC = () => {
 
             {/* 2. Analytical Charts */}
             <div>
-                <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-4">Analytics &amp; Trends</h2>
+                <h2 className="text-[11px] font-semibold text-brand-muted tracking-wide uppercase mb-4">Analytics &amp; Trends</h2>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
                 {/* Farmer Growth Trend */}
                 <div className="bg-white shadow-md rounded-xl p-6 border border-gray-100 animate-fade-up animate-fade-up-1">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Farmer Registration Growth</h3>
+                    <h3 className="text-[15px] font-semibold text-gray-900 mb-4">Farmer Registration Growth</h3>
                     <div className="h-64">
                         <ResponsiveContainer width="100%" height="100%">
                             <AreaChart data={stats.registrationTrend}>
@@ -226,7 +229,7 @@ const Dashboard: React.FC = () => {
 
                 {/* Risk Distribution Pie */}
                 <div className="bg-white shadow-md rounded-xl p-6 border border-gray-100 animate-fade-up animate-fade-up-2">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Farm Risk Distribution</h3>
+                    <h3 className="text-[15px] font-semibold text-gray-900 mb-4">Farm Risk Distribution</h3>
                     <div className="h-64 flex items-center justify-center">
                         <ResponsiveContainer width="100%" height="100%">
                             <PieChart>
@@ -252,7 +255,7 @@ const Dashboard: React.FC = () => {
 
                 {/* Shipment Status Bar */}
                 <div className="bg-white shadow-md rounded-xl p-6 border border-gray-100 lg:col-span-2 animate-fade-up animate-fade-up-3">
-                    <h3 className="text-lg font-medium text-gray-900 mb-4">Active Shipment Status</h3>
+                    <h3 className="text-[15px] font-semibold text-gray-900 mb-4">Active Shipment Status</h3>
                     <div className="h-64">
                         <ResponsiveContainer width="100%" height="100%">
                             <BarChart data={shipmentData} layout="vertical">
@@ -291,8 +294,8 @@ const StatCard = ({ icon, title, value, link, linkText, iconBg = "bg-green-600",
                 <div className={`flex-shrink-0 h-12 w-12 rounded-xl ${iconBg} text-white flex items-center justify-center shadow-sm`}>{icon}</div>
                 <div className="ml-4 w-0 flex-1">
                     <dl>
-                        <dt className="text-xs font-semibold text-gray-500 truncate uppercase tracking-wide">{title}</dt>
-                        <dd className="text-2xl font-bold text-gray-900 mt-0.5">
+                        <dt className="text-[11px] font-semibold text-gray-500 truncate tracking-wide uppercase">{title}</dt>
+                        <dd className="text-[26px] font-bold text-gray-900 mt-1 leading-none tracking-tight">
                             {typeof value === 'number' ? <AnimatedCounter value={value} suffix={suffix} /> : value}
                         </dd>
                     </dl>

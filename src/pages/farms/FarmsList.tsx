@@ -41,15 +41,17 @@ const FarmsList: React.FC = () => {
     return (
         <div className="space-y-6">
             <div className="flex justify-between items-center">
-                <h1 className="text-2xl font-bold text-gray-900">Registered Farms</h1>
+                <p className="text-sm text-brand-muted">
+                    <span className="font-semibold text-brand-text">{farms.length}</span> registered farm{farms.length !== 1 ? 's' : ''}
+                </p>
                 {user?.role === UserRole.FARMER && (
-                    <Link to="/farms/new" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700">
-                        <Plus className="h-4 w-4 mr-2" /> Add New Farm
+                    <Link to="/farms/new" className="inline-flex items-center px-3.5 py-2 border border-transparent text-sm font-semibold rounded-lg text-white bg-brand-green hover:bg-brand-green-hover transition-colors">
+                        <Plus className="h-4 w-4 mr-2" /> Add Farm
                     </Link>
                 )}
             </div>
 
-            <div className="bg-white shadow rounded-lg overflow-hidden">
+            <div className="bg-white shadow-md rounded-xl border border-gray-100 overflow-hidden">
                 <div className="p-4 border-b border-gray-200">
                     <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">

@@ -93,11 +93,12 @@ const FarmersList: React.FC = () => {
 
     return (
         <div className="space-y-6">
+            {/* The page topbar (Layout.tsx) already shows "Farmers" as the section title,
+                so this row focuses on the live count + actions rather than repeating it. */}
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Farmers Directory</h1>
-                    <p className="text-sm text-gray-500">{farmers.length} registered farmer{farmers.length !== 1 ? 's' : ''}</p>
-                </div>
+                <p className="text-sm text-brand-muted">
+                    <span className="font-semibold text-brand-text">{farmers.length}</span> registered farmer{farmers.length !== 1 ? 's' : ''}
+                </p>
                 <div className="flex flex-col items-end gap-2">
                     <div className="flex items-center gap-2">
                         {isAdmin && (
@@ -105,18 +106,18 @@ const FarmersList: React.FC = () => {
                                 type="button"
                                 onClick={handleExportCsv}
                                 disabled={exporting}
-                                className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                                className="inline-flex items-center gap-2 px-3.5 py-2 border border-gray-300 text-sm font-medium rounded-lg shadow-sm text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
                             >
                                 {exporting ? (
                                     <Loader2 className="h-4 w-4 animate-spin" />
                                 ) : (
                                     <Download className="h-4 w-4" />
                                 )}
-                                {exporting ? 'Generating…' : 'Generate Farmer Report'}
+                                {exporting ? 'Generating…' : 'Export Report'}
                             </button>
                         )}
-                        <Link to="/farmers/register" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700">
-                            + Register New Farmer
+                        <Link to="/farmers/register" className="inline-flex items-center px-3.5 py-2 border border-transparent text-sm font-semibold rounded-lg shadow-sm text-white bg-brand-green hover:bg-brand-green-hover transition-colors">
+                            + Register Farmer
                         </Link>
                     </div>
                     {exportError && (
@@ -173,12 +174,12 @@ const FarmersList: React.FC = () => {
                         <table className="min-w-full divide-y divide-gray-100">
                             <thead className="bg-gray-50/80">
                                 <tr>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Farmer</th>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact</th>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Location</th>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Farms</th>
-                                    <th scope="col" className="px-6 py-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wider">Verification</th>
-                                    <th scope="col" className="px-6 py-3 text-right text-xs font-semibold text-gray-500 uppercase tracking-wider">Actions</th>
+                                    <th scope="col" className="px-6 py-2.5 text-left text-[11px] font-semibold text-gray-500 tracking-wide">Farmer</th>
+                                    <th scope="col" className="px-6 py-2.5 text-left text-[11px] font-semibold text-gray-500 tracking-wide">Contact</th>
+                                    <th scope="col" className="px-6 py-2.5 text-left text-[11px] font-semibold text-gray-500 tracking-wide">Location</th>
+                                    <th scope="col" className="px-6 py-2.5 text-left text-[11px] font-semibold text-gray-500 tracking-wide">Farms</th>
+                                    <th scope="col" className="px-6 py-2.5 text-left text-[11px] font-semibold text-gray-500 tracking-wide">Verification</th>
+                                    <th scope="col" className="px-6 py-2.5 text-right text-[11px] font-semibold text-gray-500 tracking-wide">Actions</th>
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-100">
@@ -205,11 +206,16 @@ const FarmersList: React.FC = () => {
                                                     />
                                                 </div>
                                                 <div className="ml-4">
-                                                    <div className="text-sm font-medium text-gray-900">{farmer.firstName} {farmer.lastName}</div>
-                                                    <div className="text-xs text-gray-500 font-mono">{farmer.farmerId || 'N/A'}</div>
-                                                    {farmer.gender && (
-                                                        <span className="text-xs text-gray-400">{farmer.gender}</span>
-                                                    )}
+                                                    <div className="text-[13.5px] font-semibold text-gray-900 leading-tight">{farmer.firstName} {farmer.lastName}</div>
+                                                    <div className="flex items-center gap-1.5 mt-0.5">
+                                                        <span className="text-[11px] text-gray-400 tracking-wide">{farmer.farmerId || 'Pending ID'}</span>
+                                                        {farmer.gender && (
+                                                            <>
+                                                                <span className="text-gray-300">&middot;</span>
+                                                                <span className="text-[11px] text-gray-400">{farmer.gender}</span>
+                                                            </>
+                                                        )}
+                                                    </div>
                                                 </div>
                                             </div>
                                         </td>

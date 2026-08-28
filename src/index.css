@@ -8,6 +8,16 @@
             radial-gradient(1000px 500px at 10% 0%, rgba(22, 163, 74, .12), transparent 60%),
             radial-gradient(1000px 500px at 90% 0%, rgba(11, 122, 51, .10), transparent 60%),
             #f6fbf7;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        font-feature-settings: "cv11", "ss01";
+        letter-spacing: -0.01em;
+    }
+
+    /* Slightly tighter tracking on headings reads as a designed product,
+       not a default-font AI scaffold. */
+    h1, h2, h3 {
+        letter-spacing: -0.02em;
     }
 }
 
