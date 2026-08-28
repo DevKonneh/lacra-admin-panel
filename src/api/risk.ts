@@ -143,6 +143,7 @@ export interface RiskAnalysisResult {
     details: {
         assessedAt: string;
         notes: string;
+        narrative?: string;
         commodities?: string[];
     };
     farm?: RiskAnalysisFarm;

@@ -147,11 +147,23 @@ const RiskAnalysis: React.FC = () => {
                                 )}
                             </div>
 
+                            {/* Deforestation narrative - plain-language, evidence-cited explanation of WHY */}
+                            {(riskResult.details?.narrative || riskResult.details?.notes) && (
+                                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                                    <h3 className="text-sm font-semibold text-blue-900 flex items-center gap-2 mb-2">
+                                        <FileText className="h-4 w-4" />
+                                        Why this verdict? (satellite evidence)
+                                    </h3>
+                                    <p className="text-sm text-blue-900 leading-relaxed whitespace-pre-line">
+                                        {riskResult.details?.narrative || riskResult.details?.notes}
+                                    </p>
+                                </div>
+                            )}
+
                             {/* Assessment details */}
                             <Section title="Assessment details" icon={<FileText className="h-4 w-4" />}>
                                 <div className="space-y-1">
                                     <DataRow label="Assessed at" value={formatDate(riskResult.details?.assessedAt)} />
-                                    <DataRow label="Notes" value={riskResult.details?.notes} />
                                     {riskResult.details?.commodities?.length ? (
                                         <DataRow label="Commodities" value={riskResult.details.commodities.join(', ')} />
                                     ) : null}
