@@ -4,6 +4,7 @@ import { getFarm, type FarmWithFarmer } from '../../api/farms';
 import { ArrowLeft, Loader2, MapPin, Calendar, FileText, User, Sprout, Ruler, Camera } from 'lucide-react';
 import FarmMap from '../../components/FarmMap';
 import FarmRiskPanel from '../../components/FarmRiskPanel';
+import FarmWeatherPanel from '../../components/FarmWeatherPanel';
 import { resolveFileUrl } from '../../utils/fileUrl';
 import SafeImage from '../../components/SafeImage';
 
@@ -164,6 +165,8 @@ const FarmDetails: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            <FarmWeatherPanel farmId={farm.id} />
 
             {/* Farm Photos */}
             <div className="bg-white shadow-md rounded-xl overflow-hidden border border-gray-100">
