@@ -7,10 +7,17 @@ import 'leaflet-draw';
 import * as turf from '@turf/turf';
 import { Satellite, Map as MapIcon, Crosshair, LocateFixed, MapPin, Loader2 } from 'lucide-react';
 import { useReverseGeocode } from '../hooks/useReverseGeocode';
-
-const STREET_TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-const SATELLITE_TILE = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-const SATELLITE_LABELS_TILE = 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}';
+import {
+    STREET_TILE,
+    STREET_ATTRIBUTION,
+    SATELLITE_TILE,
+    SATELLITE_LABELS_TILE,
+    SATELLITE_ATTRIBUTION,
+    SATELLITE_MAX_NATIVE_ZOOM,
+    SATELLITE_MAX_ZOOM,
+    SATELLITE_TILE_SIZE,
+    SATELLITE_ZOOM_OFFSET,
+} from '../config/mapTiles';
 
 // Fix default marker icon paths for Vite bundling
 // @ts-ignore
@@ -53,9 +60,10 @@ const DrawControl: React.FC<DrawControlProps> = ({ onCreated, onDeleted, initial
                 layer.eachLayer((l) => drawnItems.addLayer(l));
                 const bounds = layer.getBounds();
                 if (bounds.isValid()) {
-                    // Cap at 18: Esri's free satellite tiles have no real coverage past this
-                    // zoom in many rural areas, so zooming further just shows blank tiles.
-                    map.fitBounds(bounds, { padding: [30, 30], maxZoom: 18 });
+                    // Cap at the active satellite source's genuine detail limit (see
+                    // src/config/mapTiles.ts) so zooming further doesn't just show
+                    // upscaled/blank tiles.
+                    map.fitBounds(bounds, { padding: [30, 30], maxZoom: SATELLITE_MAX_NATIVE_ZOOM });
                 }
             } catch (e) {
                 console.warn('Failed to render initial polygon', e);
@@ -80,7 +88,15 @@ const DrawControl: React.FC<DrawControlProps> = ({ onCreated, onDeleted, initial
                 rectangle: false,
                 polygon: {
                     allowIntersection: false,
-                    showArea: true,
+                    // NOTE: showArea intentionally false — leaflet-draw 1.0.4's
+                    // built-in live-area tooltip (L.GeometryUtil.readableArea)
+                    // has a known upstream bug that throws "type is not defined"
+                    // on every vertex added while drawing (harmless — it only
+                    // breaks the WHILE-DRAWING tooltip text, not shape creation
+                    // or the final area, which we compute ourselves via
+                    // turf.area() in computeAndEmit below). Disabling avoids the
+                    // console errors without losing any real functionality.
+                    showArea: false,
                     shapeOptions: {
                         color: '#0f7a3a',
                         weight: 2,
@@ -204,15 +220,15 @@ const PolygonMapSelector: React.FC<PolygonMapSelectorProps> = ({
 
     return (
         <div style={{ position: 'relative', height, width: '100%' }} className="rounded-lg overflow-hidden border border-gray-200">
-            <MapContainer center={center} zoom={initialGeoJson ? 17 : 13} maxZoom={20} style={{ height: '100%', width: '100%' }}>
+            <MapContainer center={center} zoom={initialGeoJson ? 17 : 13} maxZoom={SATELLITE_MAX_ZOOM} style={{ height: '100%', width: '100%' }}>
                 {layer === 'satellite' ? (
                     <>
-                        <TileLayer attribution='Tiles &copy; Esri' url={SATELLITE_TILE} maxZoom={20} maxNativeZoom={18} />
-                        <TileLayer url={SATELLITE_LABELS_TILE} opacity={0.85} maxZoom={20} maxNativeZoom={18} />
+                        <TileLayer attribution={SATELLITE_ATTRIBUTION} url={SATELLITE_TILE} maxZoom={SATELLITE_MAX_ZOOM} maxNativeZoom={SATELLITE_MAX_NATIVE_ZOOM} tileSize={SATELLITE_TILE_SIZE} zoomOffset={SATELLITE_ZOOM_OFFSET} />
+                        <TileLayer url={SATELLITE_LABELS_TILE} opacity={0.85} maxZoom={SATELLITE_MAX_ZOOM} maxNativeZoom={SATELLITE_MAX_NATIVE_ZOOM} tileSize={SATELLITE_TILE_SIZE} zoomOffset={SATELLITE_ZOOM_OFFSET} />
                     </>
                 ) : (
                     <TileLayer
-                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+                        attribution={STREET_ATTRIBUTION}
                         url={STREET_TILE}
                         maxZoom={19}
                     />

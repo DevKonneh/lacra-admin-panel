@@ -7,6 +7,18 @@ import 'leaflet/dist/leaflet.css';
 import { useReverseGeocode } from '../hooks/useReverseGeocode';
 import { resolveFileUrl } from '../utils/fileUrl';
 import SafeImage from './SafeImage';
+import {
+    STREET_TILE,
+    STREET_ATTRIBUTION,
+    SATELLITE_TILE,
+    SATELLITE_LABELS_TILE,
+    SATELLITE_ATTRIBUTION,
+    SATELLITE_MAX_NATIVE_ZOOM,
+    SATELLITE_MAX_ZOOM,
+    SATELLITE_MAX_AUTO_FIT_ZOOM,
+    SATELLITE_TILE_SIZE,
+    SATELLITE_ZOOM_OFFSET,
+} from '../config/mapTiles';
 
 type LatLng = [number, number];
 
@@ -67,11 +79,11 @@ const squareRingFromCenter = (center: LatLng, areaHectares: number): LatLng[] =>
     });
 };
 
-// Esri's free satellite imagery has no real coverage for many rural areas beyond
-// zoom ~18 (tiles come back as blank "Map data not yet available" placeholders).
-// Capping the auto-fit zoom keeps the view on real imagery instead of blank tiles,
-// even for very small (e.g. 50m x 50m) farm boundaries.
-const MAX_AUTO_FIT_ZOOM = 18;
+// Caps the auto-fit zoom to whatever the active satellite source can
+// actually show real detail at (18 for the Esri fallback, higher once a
+// Mapbox token is configured - see src/config/mapTiles.ts) instead of
+// blank/upscaled tiles, even for very small (e.g. 50m x 50m) farm boundaries.
+const MAX_AUTO_FIT_ZOOM = SATELLITE_MAX_AUTO_FIT_ZOOM;
 
 const FitBounds: React.FC<{ positions: LatLng[] }> = ({ positions }) => {
     const map = useMap();
@@ -121,10 +133,6 @@ const evidenceIcon = (sequence: number) => L.divIcon({
     iconSize: [26, 26],
     iconAnchor: [13, 13],
 });
-
-const STREET_TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-const SATELLITE_TILE = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-const SATELLITE_LABELS_TILE = 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}';
 
 const FarmMap: React.FC<FarmMapProps> = ({
     location,
@@ -209,20 +217,23 @@ const FarmMap: React.FC<FarmMapProps> = ({
             >
                 {layer === 'satellite' ? (
                     <>
-                        {/* maxNativeZoom caps real tile requests at 18 and lets Leaflet upscale
-                            that imagery for closer zooms, instead of requesting non-existent
-                            z19+ tiles that come back as blank "Map data not yet available" placeholders. */}
+                        {/* maxNativeZoom caps real tile requests at the active source's genuine
+                            detail limit and lets Leaflet upscale for closer zooms beyond that,
+                            instead of requesting non-existent tiles that come back blank. See
+                            src/config/mapTiles.ts for the Esri-vs-Mapbox source selection. */}
                         <TileLayer
-                            attribution='Tiles &copy; Esri'
+                            attribution={SATELLITE_ATTRIBUTION}
                             url={SATELLITE_TILE}
-                            maxZoom={20}
-                            maxNativeZoom={18}
+                            maxZoom={SATELLITE_MAX_ZOOM}
+                            maxNativeZoom={SATELLITE_MAX_NATIVE_ZOOM}
+                            tileSize={SATELLITE_TILE_SIZE}
+                            zoomOffset={SATELLITE_ZOOM_OFFSET}
                         />
-                        <TileLayer url={SATELLITE_LABELS_TILE} opacity={0.85} maxZoom={20} maxNativeZoom={18} />
+                        <TileLayer url={SATELLITE_LABELS_TILE} opacity={0.85} maxZoom={SATELLITE_MAX_ZOOM} maxNativeZoom={SATELLITE_MAX_NATIVE_ZOOM} tileSize={SATELLITE_TILE_SIZE} zoomOffset={SATELLITE_ZOOM_OFFSET} />
                     </>
                 ) : (
                     <TileLayer
-                        attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+                        attribution={STREET_ATTRIBUTION}
                         url={STREET_TILE}
                         maxZoom={19}
                     />

@@ -7,6 +7,13 @@ services:
     envVars:
       - key: VITE_API_BASE_URL
         value: https://lacra-eudr-backend.onrender.com/api
+      # Enables high-resolution Mapbox satellite imagery (see src/config/mapTiles.ts).
+      # Set this in the Render dashboard's "Environment" tab for this service
+      # (not here - never commit the real token value to git). sync: false
+      # tells Render this var is managed manually per-environment rather than
+      # driven by this file.
+      - key: VITE_MAPBOX_TOKEN
+        sync: false
     routes:
       - type: rewrite
         source: /*

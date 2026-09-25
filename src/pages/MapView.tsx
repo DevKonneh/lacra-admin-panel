@@ -11,14 +11,23 @@ import {
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 import { useReverseGeocode } from '../hooks/useReverseGeocode';
+import {
+    STREET_TILE,
+    STREET_ATTRIBUTION,
+    SATELLITE_TILE,
+    SATELLITE_LABELS_TILE,
+    SATELLITE_ATTRIBUTION,
+    SATELLITE_MAX_NATIVE_ZOOM,
+    SATELLITE_MAX_ZOOM,
+    SATELLITE_MAX_AUTO_FIT_ZOOM,
+    SATELLITE_TILE_SIZE,
+    SATELLITE_ZOOM_OFFSET,
+} from '../config/mapTiles';
 
 type LatLng = [number, number];
 type RiskLevel = 'Low' | 'Medium' | 'High' | undefined;
 
-const STREET_TILE = 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
-const SATELLITE_TILE = 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}';
-const SATELLITE_LABELS_TILE = 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}';
-const MAX_AUTO_FIT_ZOOM = 18;
+const MAX_AUTO_FIT_ZOOM = SATELLITE_MAX_AUTO_FIT_ZOOM;
 
 // ---------------------------------------------------------------------------
 // Risk styling — single source of truth for the EUDR-style color language
@@ -481,12 +490,12 @@ const MapView: React.FC = () => {
                     <MapContainer center={defaultCenter} zoom={7} scrollWheelZoom={true} style={{ height: '100%', width: '100%' }}>
                         {layer === 'satellite' ? (
                             <>
-                                <TileLayer attribution='Tiles &copy; Esri' url={SATELLITE_TILE} maxZoom={20} maxNativeZoom={18} />
-                                <TileLayer url={SATELLITE_LABELS_TILE} opacity={0.85} maxZoom={20} maxNativeZoom={18} />
+                                <TileLayer attribution={SATELLITE_ATTRIBUTION} url={SATELLITE_TILE} maxZoom={SATELLITE_MAX_ZOOM} maxNativeZoom={SATELLITE_MAX_NATIVE_ZOOM} tileSize={SATELLITE_TILE_SIZE} zoomOffset={SATELLITE_ZOOM_OFFSET} />
+                                <TileLayer url={SATELLITE_LABELS_TILE} opacity={0.85} maxZoom={SATELLITE_MAX_ZOOM} maxNativeZoom={SATELLITE_MAX_NATIVE_ZOOM} tileSize={SATELLITE_TILE_SIZE} zoomOffset={SATELLITE_ZOOM_OFFSET} />
                             </>
                         ) : (
                             <TileLayer
-                                attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> &copy; <a href="https://carto.com/attributions">CARTO</a>'
+                                attribution={STREET_ATTRIBUTION}
                                 url={STREET_TILE}
                                 maxZoom={19}
                             />

@@ -3,6 +3,17 @@ import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContai
 import apiClient from '../api/client';
 import { MapContainer, TileLayer } from 'react-leaflet';
 import 'leaflet/dist/leaflet.css';
+import {
+    STREET_TILE,
+    STREET_ATTRIBUTION,
+    SATELLITE_TILE,
+    SATELLITE_LABELS_TILE,
+    SATELLITE_ATTRIBUTION,
+    SATELLITE_MAX_NATIVE_ZOOM,
+    SATELLITE_MAX_ZOOM,
+    SATELLITE_TILE_SIZE,
+    SATELLITE_ZOOM_OFFSET,
+} from '../config/mapTiles';
 
 const SatelliteAnalysis: React.FC = () => {
     const [data, setData] = useState<any>(null);
@@ -91,11 +102,14 @@ const SatelliteAnalysis: React.FC = () => {
                         Satellite layer
                     </label>
                 </div>
-                <MapContainer center={[6.5, -9.5]} zoom={6} className="h-full">
+                <MapContainer center={[6.5, -9.5]} zoom={6} maxZoom={SATELLITE_MAX_ZOOM} className="h-full">
                     {satelliteMode ? (
-                        <TileLayer url="https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}" />
+                        <>
+                            <TileLayer attribution={SATELLITE_ATTRIBUTION} url={SATELLITE_TILE} maxZoom={SATELLITE_MAX_ZOOM} maxNativeZoom={SATELLITE_MAX_NATIVE_ZOOM} tileSize={SATELLITE_TILE_SIZE} zoomOffset={SATELLITE_ZOOM_OFFSET} />
+                            <TileLayer url={SATELLITE_LABELS_TILE} opacity={0.85} maxZoom={SATELLITE_MAX_ZOOM} maxNativeZoom={SATELLITE_MAX_NATIVE_ZOOM} tileSize={SATELLITE_TILE_SIZE} zoomOffset={SATELLITE_ZOOM_OFFSET} />
+                        </>
                     ) : (
-                        <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                        <TileLayer attribution={STREET_ATTRIBUTION} url={STREET_TILE} maxZoom={19} />
                     )}
                 </MapContainer>
             </div>
