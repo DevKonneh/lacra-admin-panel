@@ -8,6 +8,7 @@ import FarmWeatherPanel from '../../components/FarmWeatherPanel';
 import FarmSoilPanel from '../../components/FarmSoilPanel';
 import { resolveFileUrl } from '../../utils/fileUrl';
 import SafeImage from '../../components/SafeImage';
+import { estimateTreeCount, formatTreeCount } from '../../utils/treeEstimate';
 
 interface FarmDocument {
     id: string;
@@ -69,6 +70,11 @@ const FarmDetails: React.FC = () => {
     const areaLabel = farm.totalAreaHa ? `${farm.totalAreaHa} ha` : 'Not measured';
     const boundaryType = farm.location?.type === 'Polygon' ? 'GPS Polygon Boundary' : farm.location?.type === 'Point' ? 'Single GPS Point' : 'Not captured';
 
+    const hasRealTreeCount = farm.numberOfTrees !== null && farm.numberOfTrees !== undefined;
+    const treeEstimate = hasRealTreeCount
+        ? { estimatedCount: null, densityPerHa: null }
+        : estimateTreeCount(farm.cropType, farm.totalAreaHa);
+
     return (
         <div className="max-w-5xl mx-auto space-y-6">
             <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-green-800 via-green-700 to-emerald-600 shadow-lg">
@@ -128,9 +134,26 @@ const FarmDetails: React.FC = () => {
                             <p className="text-xl font-bold text-orange-700">{areaLabel}</p>
                             <p className="text-xs text-orange-500/80 mt-0.5">Total Area</p>
                         </div>
-                        <div className="p-3 bg-gradient-to-br from-purple-50 to-purple-100/60 rounded-xl border border-purple-100">
-                            <p className="text-xl font-bold text-purple-700">{farm.numberOfTrees ?? '-'}</p>
-                            <p className="text-xs text-purple-500/80 mt-0.5">Number of Trees</p>
+                        <div className="p-3 bg-gradient-to-br from-purple-50 to-purple-100/60 rounded-xl border border-purple-100" title={
+                            !hasRealTreeCount && treeEstimate.estimatedCount !== null
+                                ? `Estimated from ${farm.totalAreaHa} ha x ~${treeEstimate.densityPerHa} trees/ha typical for ${farm.cropType}. Not an actual count.`
+                                : undefined
+                        }>
+                            {hasRealTreeCount ? (
+                                <p className="text-xl font-bold text-purple-700">{formatTreeCount(farm.numberOfTrees as number)}</p>
+                            ) : treeEstimate.estimatedCount !== null ? (
+                                <p className="text-xl font-bold text-purple-700">
+                                    ~{formatTreeCount(treeEstimate.estimatedCount)}
+                                </p>
+                            ) : (
+                                <p className="text-xl font-bold text-purple-700">-</p>
+                            )}
+                            <p className="text-xs text-purple-500/80 mt-0.5">
+                                Number of Trees
+                                {!hasRealTreeCount && treeEstimate.estimatedCount !== null && (
+                                    <span className="block text-[10px] text-purple-400 italic">(estimated)</span>
+                                )}
+                            </p>
                         </div>
                         <div className="p-3 bg-gradient-to-br from-green-50 to-green-100/60 rounded-xl border border-green-100">
                             <p className="text-xl font-bold text-green-700">{farm.yearsInCultivation ?? '-'}</p>
