@@ -5,6 +5,7 @@ import { ArrowLeft, Loader2, MapPin, Calendar, FileText, User, Sprout, Ruler, Ca
 import FarmMap from '../../components/FarmMap';
 import FarmRiskPanel from '../../components/FarmRiskPanel';
 import FarmWeatherPanel from '../../components/FarmWeatherPanel';
+import FarmSoilPanel from '../../components/FarmSoilPanel';
 import { resolveFileUrl } from '../../utils/fileUrl';
 import SafeImage from '../../components/SafeImage';
 
@@ -166,7 +167,10 @@ const FarmDetails: React.FC = () => {
                 </div>
             </div>
 
-            <FarmWeatherPanel farmId={farm.id} />
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                <FarmWeatherPanel farmId={farm.id} />
+                <FarmSoilPanel farmId={farm.id} />
+            </div>
 
             {/* Farm Photos */}
             <div className="bg-white shadow-md rounded-xl overflow-hidden border border-gray-100">
