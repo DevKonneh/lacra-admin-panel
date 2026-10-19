@@ -34,3 +34,21 @@ export interface Cooperative {
 export const getCooperatives = async (params?: { county?: string; commodity?: string }) => {
     return apiClient.get<ApiResponse<Cooperative[]>>('/cooperatives', { params });
 };
+
+export interface CooperativeSeedResult {
+    created: number;
+    updated: number;
+    total: number;
+}
+
+/**
+ * ADMIN-only: (re-)seeds the Cooperative table on the backend from its
+ * embedded CDA registry data. See
+ * gh-backend-clone/src/controllers/CooperativeController.ts#seed for the
+ * server-side implementation - exists so production can be seeded with
+ * one click from here instead of needing direct database/shell access.
+ * Idempotent: safe to click more than once.
+ */
+export const seedCooperatives = async () => {
+    return apiClient.post<ApiResponse<CooperativeSeedResult>>('/cooperatives/seed');
+};

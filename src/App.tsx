@@ -12,6 +12,7 @@ import RiskAnalysis from './pages/RiskAnalysis';
 import MapView from './pages/MapView';
 import LicenseDashboard from './pages/licenses/LicenseDashboard';
 import AdminLicenseList from './pages/admin/LicenseList';
+import CooperativeRegistry from './pages/admin/CooperativeRegistry';
 import BatchManager from './pages/logistics/BatchManager';
 import ExportManager from './pages/export/ExportManager';
 import ChainOfCustody from './pages/custody/ChainOfCustody';
@@ -67,6 +68,7 @@ function App() {
               <Route path="map" element={<MapView />} />
               <Route path="licenses" element={<LicenseDashboard />} />
               <Route path="admin/licenses" element={<AdminLicenseList />} />
+              <Route path="admin/cooperatives" element={<CooperativeRegistry />} />
               <Route path="logistics" element={<BatchManager />} />
               <Route path="custody" element={<ChainOfCustody />} />
               <Route path="custody/batch/:batchId" element={<CustodyHistoryPage />} />
