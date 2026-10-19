@@ -1,12 +1,49 @@
-import React, { useState } from 'react';
-import { useForm, useFieldArray } from 'react-hook-form';
+import React, { useEffect, useRef, useState } from 'react';
+import { useForm, useFieldArray, type Control, type UseFormRegister, type UseFormSetValue, type UseFormWatch } from 'react-hook-form';
 import { createFarmer } from '../api/farmers';
+import type { CommodityFormEntry, CommodityRole, CroppingSystem, ProductionStatus } from '../api/farmers';
 import PolygonMapSelector, { type PolygonResult } from '../components/PolygonMapSelector';
-import { useNavigate } from 'react-router-dom';
+import CooperativeField from '../components/forms/CooperativeField';
+import { useNavigate, useLocation, Link } from 'react-router-dom';
+import { OfflineDataService } from '../services/OfflineDataService';
+import { ArrowLeft, Plus, Trash2, Sprout, MapPin, AlertTriangle } from 'lucide-react';
+
+// One "Add Commodity" row for a farm. Numeric-looking fields are kept as
+// plain strings (native <input type="number"> via register() without
+// valueAsNumber) and converted in buildFarmsPayload() below.
+interface CommodityRow {
+    commodityName: string;
+    role: CommodityRole;
+    croppingSystem: CroppingSystem;
+    plantedAreaHa?: string;
+    plantingYear?: string;
+    numberOfTrees?: string;
+    estimatedAnnualProduction?: string;
+    unitOfMeasurement?: string;
+    productionStatus: ProductionStatus;
+    expectedHarvestPeriod?: string;
+    // If true, this commodity occupies its OWN separately drawn physical
+    // area of the farm (its own subplot polygon) rather than sharing the
+    // farm's overall boundary. Commodities entering the SAME subplotName
+    // are grouped onto one shared plot (its area counted once), so this
+    // also supports two commodities occupying one shared, separately
+    // drawn subplot without double-counting area.
+    separateArea?: boolean;
+    subplotName?: string;
+    subplotBoundaryGeoJson?: string;
+    subplotAreaHa?: number;
+}
+
+const DEFAULT_COMMODITY_ROW: CommodityRow = {
+    commodityName: '',
+    role: 'Primary',
+    croppingSystem: 'Monocrop',
+    productionStatus: 'Producing',
+    separateArea: false,
+};
 
 interface FarmForm {
     name: string;
-    cropType: string;
     // Real GPS boundary, captured via polygon drawing on the map (GeoJSON Polygon, stringified)
     boundaryGeoJson?: string;
     // Fallback single point (used only if no polygon has been drawn yet)
@@ -23,7 +60,229 @@ interface FarmForm {
     useChemicals?: boolean;
     extensionServices?: boolean;
     farmAddress?: string;
+    commodities: CommodityRow[];
 }
+
+const toNum = (v: string | undefined): number | undefined => {
+    if (v === undefined || v === null || v === '') return undefined;
+    const n = parseFloat(v);
+    return Number.isFinite(n) ? n : undefined;
+};
+
+/**
+ * Per-farm "Add Commodity" repeating group, with optional per-commodity
+ * separate-subplot drawing. Extracted into its own component because
+ * react-hook-form's useFieldArray must be called inside a component, and
+ * each farm card needs its own independent nested `commodities` array
+ * (farms.${farmIndex}.commodities).
+ */
+const FarmCommoditiesSection: React.FC<{
+    control: Control<FarmerForm>;
+    register: UseFormRegister<FarmerForm>;
+    setValue: UseFormSetValue<FarmerForm>;
+    watch: UseFormWatch<FarmerForm>;
+    farmIndex: number;
+}> = ({ control, register, setValue, watch, farmIndex }) => {
+    const { fields, append, remove } = useFieldArray({
+        control,
+        name: `farms.${farmIndex}.commodities` as const,
+    });
+
+    return (
+        <div className="md:col-span-3 bg-white rounded-md border border-gray-200 p-4 mt-2">
+            <div className="flex items-center justify-between mb-4">
+                <h6 className="text-sm font-semibold text-gray-800 flex items-center gap-2">
+                    <Sprout className="h-4 w-4 text-green-600" /> Commodities *
+                </h6>
+                <button
+                    type="button"
+                    onClick={() => append({ ...DEFAULT_COMMODITY_ROW })}
+                    className="inline-flex items-center gap-1 text-sm font-medium text-green-700 hover:text-green-800"
+                >
+                    <Plus className="h-4 w-4" /> Add Commodity
+                </button>
+            </div>
+
+            <div className="space-y-4">
+                {fields.map((field, cIndex) => {
+                    const separateArea = watch(`farms.${farmIndex}.commodities.${cIndex}.separateArea`);
+                    const subplotBoundary = watch(`farms.${farmIndex}.commodities.${cIndex}.subplotBoundaryGeoJson`);
+                    const subplotAreaHa = watch(`farms.${farmIndex}.commodities.${cIndex}.subplotAreaHa`);
+                    return (
+                        <div key={field.id} className="relative bg-gray-50 border border-gray-200 rounded-md p-4">
+                            {fields.length > 1 && (
+                                <button
+                                    type="button"
+                                    onClick={() => remove(cIndex)}
+                                    className="absolute top-3 right-3 text-red-500 hover:text-red-700"
+                                    title="Remove commodity"
+                                >
+                                    <Trash2 className="h-4 w-4" />
+                                </button>
+                            )}
+                            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <div className="md:col-span-2">
+                                    <label className="block text-xs font-medium text-gray-700">Commodity Name *</label>
+                                    <input
+                                        {...register(`farms.${farmIndex}.commodities.${cIndex}.commodityName` as const, { required: true })}
+                                        list="commodity-suggestions"
+                                        placeholder="e.g. Cocoa"
+                                        className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 sm:text-sm border p-2"
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-700">Primary / Secondary</label>
+                                    <select {...register(`farms.${farmIndex}.commodities.${cIndex}.role` as const)} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 sm:text-sm border p-2">
+                                        <option value="Primary">Primary</option>
+                                        <option value="Secondary">Secondary</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-700">Cropping System</label>
+                                    <select {...register(`farms.${farmIndex}.commodities.${cIndex}.croppingSystem` as const)} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 sm:text-sm border p-2">
+                                        <option value="Monocrop">Monocrop</option>
+                                        <option value="Mixed">Mixed</option>
+                                        <option value="Intercropped">Intercropped</option>
+                                    </select>
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-700">Planted Area (ha)</label>
+                                    <input type="number" step="0.01" {...register(`farms.${farmIndex}.commodities.${cIndex}.plantedAreaHa` as const)} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 sm:text-sm border p-2" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-700">Planting Year</label>
+                                    <input type="number" {...register(`farms.${farmIndex}.commodities.${cIndex}.plantingYear` as const)} placeholder="e.g. 2018" className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 sm:text-sm border p-2" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-700">No. of Trees (if applicable)</label>
+                                    <input type="number" {...register(`farms.${farmIndex}.commodities.${cIndex}.numberOfTrees` as const)} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 sm:text-sm border p-2" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-700">Est. Annual Production</label>
+                                    <input type="number" step="0.01" {...register(`farms.${farmIndex}.commodities.${cIndex}.estimatedAnnualProduction` as const)} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 sm:text-sm border p-2" />
+                                </div>
+
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-700">Unit of Measurement</label>
+                                    <input {...register(`farms.${farmIndex}.commodities.${cIndex}.unitOfMeasurement` as const)} list="unit-suggestions" placeholder="e.g. kg, MT, bags" className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 sm:text-sm border p-2" />
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-700">Production Status</label>
+                                    <select {...register(`farms.${farmIndex}.commodities.${cIndex}.productionStatus` as const)} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 sm:text-sm border p-2">
+                                        <option value="Not Yet Productive">Not Yet Productive</option>
+                                        <option value="Producing">Producing</option>
+                                        <option value="Declining">Declining</option>
+                                        <option value="Dormant / Off-season">Dormant / Off-season</option>
+                                        <option value="Abandoned">Abandoned</option>
+                                    </select>
+                                </div>
+                                <div>
+                                    <label className="block text-xs font-medium text-gray-700">Expected Harvest Period</label>
+                                    <input {...register(`farms.${farmIndex}.commodities.${cIndex}.expectedHarvestPeriod` as const)} placeholder="e.g. Sept - Dec" className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 sm:text-sm border p-2" />
+                                </div>
+
+                                <div className="md:col-span-4">
+                                    <label className="flex items-center gap-2">
+                                        <input type="checkbox" {...register(`farms.${farmIndex}.commodities.${cIndex}.separateArea` as const)} className="h-4 w-4 text-green-600 focus:ring-green-500 border-gray-300 rounded" />
+                                        <span className="text-xs font-medium text-gray-700 flex items-center gap-1">
+                                            <MapPin className="h-3.5 w-3.5 text-gray-400" /> This commodity occupies its own separate physical area (draw a subplot)
+                                        </span>
+                                    </label>
+                                    <p className="text-[11px] text-gray-500 mt-1 ml-6">
+                                        Leave unchecked if this commodity is intercropped or mixed on the same land as
+                                        others — it will use the farm's shared boundary below with no double-counted area.
+                                    </p>
+                                </div>
+
+                                {separateArea && (
+                                    <div className="md:col-span-4 bg-white border border-gray-200 rounded-md p-3">
+                                        <label className="block text-xs font-medium text-gray-700">Subplot Name</label>
+                                        <input
+                                            {...register(`farms.${farmIndex}.commodities.${cIndex}.subplotName` as const)}
+                                            placeholder="e.g. Coffee Block (commodities sharing the same name share one subplot)"
+                                            className="mt-1 mb-3 block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 sm:text-sm border p-2"
+                                        />
+                                        <div className="rounded-md overflow-hidden border">
+                                            <PolygonMapSelector
+                                                height="260px"
+                                                onPolygonChange={(result: PolygonResult | null) => {
+                                                    if (result) {
+                                                        setValue(`farms.${farmIndex}.commodities.${cIndex}.subplotBoundaryGeoJson`, JSON.stringify(result.geojson));
+                                                        setValue(`farms.${farmIndex}.commodities.${cIndex}.subplotAreaHa`, result.areaHa);
+                                                    } else {
+                                                        setValue(`farms.${farmIndex}.commodities.${cIndex}.subplotBoundaryGeoJson`, undefined);
+                                                        setValue(`farms.${farmIndex}.commodities.${cIndex}.subplotAreaHa`, undefined);
+                                                    }
+                                                }}
+                                            />
+                                        </div>
+                                        <div className="mt-2 text-xs">
+                                            {subplotBoundary ? (
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full font-medium bg-green-100 text-green-800">
+                                                    ✓ Boundary Captured{subplotAreaHa ? ` — ${subplotAreaHa.toFixed(2)} ha` : ''}
+                                                </span>
+                                            ) : (
+                                                <span className="inline-flex items-center px-2 py-0.5 rounded-full font-medium bg-yellow-100 text-yellow-800">
+                                                    No boundary drawn yet
+                                                </span>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })}
+            </div>
+
+            <datalist id="commodity-suggestions">
+                <option value="Cocoa" />
+                <option value="Coffee" />
+                <option value="Oil Palm" />
+                <option value="Rubber" />
+                <option value="Cassava" />
+                <option value="Plantain" />
+                <option value="Vegetables" />
+            </datalist>
+            <datalist id="unit-suggestions">
+                <option value="kg" />
+                <option value="Metric Tons (MT)" />
+                <option value="Bags" />
+                <option value="Liters" />
+            </datalist>
+        </div>
+    );
+};
+
+/**
+ * Shows a live total of separately-drawn subplot areas for one farm, and a
+ * warning if that total exceeds the farm's own calculated/declared total
+ * area — a client-side mirror of the backend's computeAreaWarning() logic,
+ * which deliberately excludes the shared/default plot (it always mirrors
+ * the farm's own totalAreaHa) from this sum.
+ */
+const FarmAreaWarning: React.FC<{ watch: UseFormWatch<FarmerForm>; farmIndex: number }> = ({ watch, farmIndex }) => {
+    const commodities = watch(`farms.${farmIndex}.commodities`) || [];
+    const totalAreaHa = watch(`farms.${farmIndex}.totalAreaHa`);
+    const seen = new Map<string, number>();
+    commodities.forEach((c) => {
+        if (c.separateArea && c.subplotName && c.subplotAreaHa) {
+            seen.set(c.subplotName.trim(), c.subplotAreaHa);
+        }
+    });
+    const separateSubplotAreaHa = Array.from(seen.values()).reduce((a, b) => a + b, 0);
+    if (!totalAreaHa || separateSubplotAreaHa <= totalAreaHa + 0.0001) return null;
+    return (
+        <div className="md:col-span-3 flex items-start gap-2 bg-red-50 border border-red-200 rounded-md px-3 py-2 text-sm text-red-700">
+            <AlertTriangle className="h-4 w-4 mt-0.5 flex-shrink-0" />
+            <span>
+                Total subplot area ({separateSubplotAreaHa.toFixed(2)} ha) exceeds the farm's calculated total area
+                ({totalAreaHa.toFixed(2)} ha). Please review the drawn subplot boundaries.
+            </span>
+        </div>
+    );
+};
 
 interface FarmerForm {
     firstName: string;
@@ -41,6 +300,7 @@ interface FarmerForm {
     region: string;
     cooperativeName: string;
     cooperativeId: string;
+    cooperativeSource: string;
     enumeratorName: string;
     enumeratorId: string;
     consent: boolean;
@@ -52,10 +312,22 @@ interface FarmerForm {
     farms: FarmForm[];
 }
 
+// Fields that are safe to persist to a local "incomplete mapping" draft.
+// File inputs (profilePhoto, idPhoto, signature, farmSelfie, farmPhotos)
+// are deliberately excluded — browsers do not allow re-hydrating a file
+// input's value programmatically for security reasons, so a resumed draft
+// will always need those re-attached; everything else resumes exactly as
+// it was left.
+const DRAFT_FIELDS: (keyof FarmerForm)[] = [
+    'firstName', 'lastName', 'email', 'phoneNumber', 'gender', 'dob', 'nationality',
+    'nationalId', 'otherId', 'address', 'community', 'district', 'region',
+    'cooperativeName', 'cooperativeId', 'cooperativeSource', 'enumeratorName', 'enumeratorId', 'consent', 'farms',
+];
+
 const RegisterFarmer: React.FC = () => {
     const { register, control, handleSubmit, setValue, watch, formState: { errors } } = useForm<FarmerForm>({
         defaultValues: {
-            farms: [{ name: '', cropType: 'Cocoa', lat: 0, lng: 0 }],
+            farms: [{ name: '', lat: 0, lng: 0, commodities: [{ ...DEFAULT_COMMODITY_ROW }] }],
             consent: false
         }
     });
@@ -66,15 +338,151 @@ const RegisterFarmer: React.FC = () => {
     });
 
     const navigate = useNavigate();
+    const routerLocation = useLocation();
     const [loading, setLoading] = useState(false);
     const [successMsg, setSuccessMsg] = useState('');
     const [qrCode, setQrCode] = useState('');
+
+    // "Continue Incomplete Mapping": if we were routed here with a draftId,
+    // load the saved (non-file) field values back into the form once.
+    const draftIdRef = useRef<string | undefined>((routerLocation.state as any)?.draftId);
+    const [draftLoaded, setDraftLoaded] = useState(false);
+    useEffect(() => {
+        const draftId = draftIdRef.current;
+        if (draftId && !draftLoaded) {
+            const draft = OfflineDataService.getDraft(draftId);
+            if (draft?.formData) {
+                Object.entries(draft.formData).forEach(([key, value]) => {
+                    setValue(key as any, value as any);
+                });
+            }
+            setDraftLoaded(true);
+        }
+    }, [draftLoaded, setValue]);
+
+    // Auto-save a draft of the in-progress form every few seconds so an
+    // enumerator who gets interrupted (or loses connectivity mid-form) can
+    // resume via "Continue Incomplete Mapping" without re-entering
+    // everything already typed. Debounced to avoid hammering localStorage
+    // on every keystroke.
+    const allValues = watch();
+    useEffect(() => {
+        const hasAnyInput = !!(allValues.firstName || allValues.lastName || allValues.phoneNumber);
+        if (!hasAnyInput) return;
+        const timer = setTimeout(() => {
+            const formData: any = {};
+            DRAFT_FIELDS.forEach((f) => { formData[f] = (allValues as any)[f]; });
+            const label = [allValues.firstName, allValues.lastName].filter(Boolean).join(' ') || 'New farmer (unnamed)';
+            const saved = OfflineDataService.saveDraft({
+                id: draftIdRef.current,
+                type: 'new_farmer',
+                label,
+                formData,
+                step: 'personal_info',
+            });
+            draftIdRef.current = saved.id;
+        }, 1500);
+        return () => clearTimeout(timer);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [JSON.stringify(allValues)]);
 
     // Watch for file inputs to show previews if needed (omitted for brevity)
 
     const onSubmit = async (data: FarmerForm) => {
         setLoading(true);
         try {
+            // Prefer the REAL drawn polygon boundary (boundaryGeoJson) captured on
+            // the map. Only fall back to a small synthetic square around a point
+            // if the enumerator has not drawn a boundary yet. Computed up front
+            // since both the online (multipart) and offline (localStorage) paths
+            // below need the same farms payload shape.
+            const farmsPayload = data.farms.map(f => {
+                let location: any;
+                if (f.boundaryGeoJson) {
+                    try {
+                        const parsed = JSON.parse(f.boundaryGeoJson);
+                        location = parsed.geometry ? parsed.geometry : parsed;
+                    } catch (e) {
+                        console.error('Failed to parse drawn boundary, falling back to point square', e);
+                    }
+                }
+                if (!location) {
+                    location = {
+                        type: "Polygon",
+                        coordinates: [[
+                            [f.lng - 0.001, f.lat - 0.001],
+                            [f.lng + 0.001, f.lat - 0.001],
+                            [f.lng + 0.001, f.lat + 0.001],
+                            [f.lng - 0.001, f.lat + 0.001],
+                            [f.lng - 0.001, f.lat - 0.001]
+                        ]]
+                    };
+                }
+                // Convert this farm's "Add Commodity" rows into the
+                // CommodityFormEntry[] shape FarmerController.create() /
+                // buildPlotsForFarm() expects. Commodities with
+                // separateArea checked and a matching subplotName are
+                // grouped onto the SAME plotGroup key, so two commodities
+                // sharing one separately-drawn subplot correctly count
+                // that subplot's area only once (not per-commodity).
+                const commodities: CommodityFormEntry[] = (f.commodities || [])
+                    .filter((c) => c.commodityName && c.commodityName.trim())
+                    .map((c) => {
+                        const entry: CommodityFormEntry = {
+                            commodityName: c.commodityName.trim(),
+                            role: c.role,
+                            croppingSystem: c.croppingSystem,
+                            plantedAreaHa: toNum(c.plantedAreaHa),
+                            plantingYear: toNum(c.plantingYear),
+                            numberOfTrees: toNum(c.numberOfTrees),
+                            estimatedAnnualProduction: toNum(c.estimatedAnnualProduction),
+                            unitOfMeasurement: c.unitOfMeasurement,
+                            productionStatus: c.productionStatus,
+                            expectedHarvestPeriod: c.expectedHarvestPeriod,
+                        };
+                        if (c.separateArea && c.subplotName && c.subplotName.trim()) {
+                            const groupKey = c.subplotName.trim();
+                            entry.plotGroup = groupKey;
+                            entry.plotName = groupKey;
+                            entry.plotAreaHa = c.subplotAreaHa;
+                            if (c.subplotBoundaryGeoJson) {
+                                try {
+                                    const parsed = JSON.parse(c.subplotBoundaryGeoJson);
+                                    entry.plotBoundary = parsed.geometry ? parsed.geometry : parsed;
+                                } catch (e) {
+                                    console.error('Failed to parse subplot boundary', e);
+                                }
+                            }
+                        }
+                        return entry;
+                    });
+                const { boundaryGeoJson, commodities: _rawCommodities, ...rest } = f;
+                return { ...rest, location, commodities, cropType: commodities[0]?.commodityName };
+            });
+
+            // Offline creation: queue the full farmer+farms record locally and
+            // sync later via OfflineBanner's "sync now" action (which posts to
+            // /farmers/offline-sync). File attachments cannot be queued this
+            // way (browsers don't persist File objects across page loads), so
+            // they're simply omitted for offline submissions.
+            if (!navigator.onLine) {
+                OfflineDataService.saveFarmerLocally({
+                    firstName: data.firstName, lastName: data.lastName, email: data.email,
+                    phoneNumber: data.phoneNumber, gender: data.gender, dob: data.dob,
+                    nationality: data.nationality, nationalId: data.nationalId, otherId: data.otherId,
+                    address: data.address, community: data.community, district: data.district,
+                    region: data.region, cooperativeName: data.cooperativeName, cooperativeId: data.cooperativeId,
+                    cooperativeSource: data.cooperativeSource,
+                    enumeratorName: data.enumeratorName, enumeratorId: data.enumeratorId, consent: data.consent,
+                    farms: farmsPayload,
+                });
+                if (draftIdRef.current) OfflineDataService.deleteDraft(draftIdRef.current);
+                alert('You are offline. Farmer & farm data saved locally. It will sync automatically when you are back online.');
+                navigate('/farmers');
+                setLoading(false);
+                return;
+            }
+
             const formData = new FormData();
 
             // Append simple fields
@@ -93,6 +501,7 @@ const RegisterFarmer: React.FC = () => {
             formData.append('region', data.region);
             formData.append('cooperativeName', data.cooperativeName || '');
             formData.append('cooperativeId', data.cooperativeId || '');
+            formData.append('cooperativeSource', data.cooperativeSource || '');
             formData.append('enumeratorName', data.enumeratorName);
             formData.append('enumeratorId', data.enumeratorId);
             formData.append('consent', String(data.consent));
@@ -109,35 +518,7 @@ const RegisterFarmer: React.FC = () => {
                 }
             }
 
-            // Append Farms
-            // Prefer the REAL drawn polygon boundary (boundaryGeoJson) captured on the map.
-            // Only fall back to a small synthetic square around a point if the inspector
-            // has not drawn a boundary yet (e.g. lat/lng captured but polygon skipped).
-            const farmsPayload = data.farms.map(f => {
-                let location: any;
-                if (f.boundaryGeoJson) {
-                    try {
-                        const parsed = JSON.parse(f.boundaryGeoJson);
-                        location = parsed.geometry ? parsed.geometry : parsed; // support Feature or bare geometry
-                    } catch (e) {
-                        console.error('Failed to parse drawn boundary, falling back to point square', e);
-                    }
-                }
-                if (!location) {
-                    location = {
-                        type: "Polygon",
-                        coordinates: [[
-                            [f.lng - 0.001, f.lat - 0.001],
-                            [f.lng + 0.001, f.lat - 0.001],
-                            [f.lng + 0.001, f.lat + 0.001],
-                            [f.lng - 0.001, f.lat + 0.001],
-                            [f.lng - 0.001, f.lat - 0.001]
-                        ]]
-                    };
-                }
-                const { boundaryGeoJson, ...rest } = f;
-                return { ...rest, location };
-            });
+            // Append Farms (payload already computed above, shared with the offline path)
             formData.append('farms', JSON.stringify(farmsPayload));
 
             // Note: Our API client might default to JSON, so we need to make sure we send Multipart
@@ -152,6 +533,8 @@ const RegisterFarmer: React.FC = () => {
                 if (farmerData && farmerData.qrCode) {
                     setQrCode(farmerData.qrCode);
                 }
+                // Registration succeeded — this draft (if any) is now obsolete.
+                if (draftIdRef.current) OfflineDataService.deleteDraft(draftIdRef.current);
                 window.scrollTo(0, 0);
 
                 setTimeout(() => {
@@ -171,6 +554,11 @@ const RegisterFarmer: React.FC = () => {
 
     return (
         <div className="bg-gray-50 min-h-screen py-8">
+            <div className="max-w-4xl mx-auto">
+                <Link to="/farmers/mapping/start" className="inline-flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-3">
+                    <ArrowLeft className="h-4 w-4" /> Back to start
+                </Link>
+            </div>
             <div className="max-w-4xl mx-auto bg-white shadow-lg rounded-lg overflow-hidden">
                 <div className="bg-green-700 px-6 py-4">
                     <h3 className="text-xl font-bold text-white">Farmer Registration Form</h3>
@@ -275,14 +663,17 @@ const RegisterFarmer: React.FC = () => {
                         <section>
                             <h4 className="text-lg font-medium text-gray-900 border-b pb-2 mb-4">3. Group / Cooperative Affiliation</h4>
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">Cooperative Name</label>
-                                    <input {...register("cooperativeName")} type="text" className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 sm:text-sm border p-2" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700">Cooperative ID</label>
-                                    <input {...register("cooperativeId")} type="text" className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 sm:text-sm border p-2" />
-                                </div>
+                                <CooperativeField
+                                    idPrefix="register-farmer"
+                                    cooperativeName={watch('cooperativeName') || ''}
+                                    cooperativeId={watch('cooperativeId') || ''}
+                                    cooperativeSource={watch('cooperativeSource') || ''}
+                                    onChange={(next) => {
+                                        setValue('cooperativeName', next.cooperativeName);
+                                        setValue('cooperativeId', next.cooperativeId);
+                                        setValue('cooperativeSource', next.cooperativeSource);
+                                    }}
+                                />
                             </div>
                         </section>
 
@@ -304,18 +695,6 @@ const RegisterFarmer: React.FC = () => {
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700">Farm Name *</label>
                                                 <input {...register(`farms.${index}.name` as const, { required: "Required" })} type="text" className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 sm:text-sm border p-2" />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-medium text-gray-700">Crop Type</label>
-                                                <select {...register(`farms.${index}.cropType` as const)} className="mt-1 block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500 sm:text-sm border p-2">
-                                                    <option value="Cocoa">Cocoa</option>
-                                                    <option value="Coffee">Coffee</option>
-                                                    <option value="Palm">Oil Palm</option>
-                                                    <option value="Rubber">Rubber</option>
-                                                    <option value="Cassava">Cassava</option>
-                                                    <option value="Vegetables">Vegetables</option>
-                                                    <option value="Other">Other</option>
-                                                </select>
                                             </div>
                                             <div>
                                                 <label className="block text-sm font-medium text-gray-700">Total Area (Ha)</label>
@@ -411,11 +790,20 @@ const RegisterFarmer: React.FC = () => {
                                                 </div>
                                                 <input type="hidden" {...register(`farms.${index}.boundaryGeoJson` as const)} />
                                             </div>
+
+                                            <FarmCommoditiesSection
+                                                control={control}
+                                                register={register}
+                                                setValue={setValue}
+                                                watch={watch}
+                                                farmIndex={index}
+                                            />
+                                            <FarmAreaWarning watch={watch} farmIndex={index} />
                                         </div>
                                     </div>
                                 ))}
 
-                                <button type="button" onClick={() => append({ name: '', cropType: 'Cocoa', lat: 0, lng: 0 })} className="w-full flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-green-700 bg-green-100 hover:bg-green-200 focus:outline-none">
+                                <button type="button" onClick={() => append({ name: '', lat: 0, lng: 0, commodities: [{ ...DEFAULT_COMMODITY_ROW }] })} className="w-full flex justify-center py-2 px-4 border border-transparent shadow-sm text-sm font-medium rounded-md text-green-700 bg-green-100 hover:bg-green-200 focus:outline-none">
                                     + Add Another Farm
                                 </button>
                             </div>
