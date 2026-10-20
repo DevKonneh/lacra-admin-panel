@@ -53,6 +53,10 @@ export const navigationMenu: NavigationItem[] = [
             {
                 label: 'Commodity Registry',
                 path: '/commodities' // Placeholder
+            },
+            {
+                label: 'Cooperative Registry (CDA)',
+                path: '/admin/cooperatives'
             }
         ]
     },
@@ -154,10 +158,6 @@ export const navigationMenu: NavigationItem[] = [
             {
                 label: 'Audit Logs',
                 path: '/audit' // Placeholder
-            },
-            {
-                label: 'Cooperative Registry (CDA)',
-                path: '/admin/cooperatives'
             }
         ]
     }
