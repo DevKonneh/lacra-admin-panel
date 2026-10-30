@@ -3,15 +3,18 @@ import React from 'react';
 // Shared Tailwind classes for text-like inputs/selects/textareas, applied
 // consistently across the entire registration form. `hasError` swaps the
 // border/ring to red so invalid fields are visually obvious immediately
-// next to their inline error message (rendered by FormField).
+// next to their inline error message (rendered by FormField). The
+// slightly taller padding, subtle hover state and smooth multi-property
+// transition are deliberate - this is what reads as a polished,
+// production-grade form rather than a bare default-styled one.
 export function inputClasses(hasError?: boolean) {
     return [
-        'block w-full rounded-lg border px-3 py-2.5 text-sm shadow-sm transition-colors',
+        'block w-full rounded-lg border px-3.5 py-2.5 text-sm text-slate-800 shadow-sm transition-all duration-150',
         'placeholder:text-slate-400',
-        'focus:outline-none focus:ring-2 focus:ring-offset-0',
+        'focus:outline-none focus:ring-4 focus:ring-offset-0',
         hasError
-            ? 'border-red-400 focus:border-red-500 focus:ring-red-200'
-            : 'border-slate-300 focus:border-brand-green focus:ring-brand-green/25',
+            ? 'border-red-400 focus:border-red-500 focus:ring-red-100'
+            : 'border-slate-300 hover:border-slate-400 focus:border-brand-green focus:ring-brand-green/15',
     ].join(' ');
 }
 

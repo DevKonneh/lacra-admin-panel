@@ -57,13 +57,13 @@ const Step4Warehouse: React.FC<Step4Props> = ({ errors }) => {
         <div className="space-y-8">
             {isExporter && (
                 <section>
-                    <h2 className="text-base font-semibold text-slate-800 mb-4">Export Operations</h2>
+                    <h2 className="text-base font-bold text-slate-800 tracking-tight mb-4">Export Operations</h2>
                     <ExportOperationsFields errors={errors} />
                 </section>
             )}
 
             <section>
-                <h2 className="text-base font-semibold text-slate-800 mb-4">{isExporter ? 'Export Warehouse' : 'Warehouse Information'}</h2>
+                <h2 className="text-base font-bold text-slate-800 tracking-tight mb-4">{isExporter ? 'Export Warehouse' : 'Warehouse Information'}</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField label="Warehouse Name" required error={errors.name}>
                         <TextInput value={w.name} onChange={(e) => update({ name: e.target.value })} />

@@ -21,9 +21,9 @@ const FormField: React.FC<FormFieldProps> = ({ label, required, error, hint, too
 
     return (
         <div className={full ? 'sm:col-span-2' : ''}>
-            <div className="flex items-center gap-1.5 mb-1">
-                <label htmlFor={htmlFor} className="block text-sm font-medium text-slate-700">
-                    {label} {required && <span className="text-red-500" aria-hidden="true">*</span>}
+            <div className="flex items-center gap-1.5 mb-1.5">
+                <label htmlFor={htmlFor} className="block text-[13px] font-semibold text-slate-700 tracking-wide">
+                    {label} {required && <span className="text-red-500 font-normal" aria-hidden="true">*</span>}
                 </label>
                 {tooltip && (
                     <span className="relative inline-flex">
@@ -48,9 +48,9 @@ const FormField: React.FC<FormFieldProps> = ({ label, required, error, hint, too
                 )}
             </div>
             {children}
-            {hint && !error && <p className="mt-1 text-xs text-slate-500">{hint}</p>}
+            {hint && !error && <p className="mt-1.5 text-xs text-slate-500 leading-snug">{hint}</p>}
             {error && (
-                <p className="mt-1 text-xs text-red-600 flex items-center gap-1" role="alert">
+                <p className="mt-1.5 text-xs font-medium text-red-600 flex items-center gap-1" role="alert">
                     {error}
                 </p>
             )}

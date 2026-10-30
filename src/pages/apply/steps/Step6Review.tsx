@@ -27,7 +27,7 @@ export function validateStep6(state: ReturnType<typeof useRegistration>['state']
 const ReviewSection: React.FC<{ title: string; onEdit: () => void; children: React.ReactNode }> = ({ title, onEdit, children }) => (
     <div className="rounded-xl border border-slate-200 bg-white p-5">
         <div className="flex items-center justify-between mb-3">
-            <h3 className="text-sm font-semibold text-slate-800">{title}</h3>
+            <h3 className="text-sm font-bold text-slate-800 tracking-tight">{title}</h3>
             <button type="button" onClick={onEdit} className="inline-flex items-center gap-1 text-xs font-medium text-brand-green hover:underline">
                 <Pencil size={12} /> Edit
             </button>
@@ -207,7 +207,7 @@ const Step6Review: React.FC<Step6Props> = ({ errors, onEditStep, captchaA, captc
             )}
 
             <div className="rounded-xl border border-slate-200 bg-white p-5">
-                <h3 className="text-sm font-semibold text-slate-800 mb-4">Declaration</h3>
+                <h3 className="text-sm font-bold text-slate-800 tracking-tight mb-4">Declaration</h3>
                 <div className="space-y-3 mb-5">
                     <DeclarationItem
                         checked={d.confirmTrue}

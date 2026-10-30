@@ -54,8 +54,8 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
             </button>
 
             {open && !disabled && (
-                <div className="absolute z-30 mt-1 w-full rounded-lg border border-slate-200 bg-white shadow-lg overflow-hidden">
-                    <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2">
+                <div className="absolute z-30 mt-1.5 w-full rounded-xl border border-slate-200 bg-white shadow-xl overflow-hidden animate-fade-up">
+                    <div className="flex items-center gap-2 border-b border-slate-100 px-3 py-2.5 bg-slate-50/60">
                         <Search size={14} className="text-slate-400 flex-shrink-0" />
                         <input
                             autoFocus
@@ -73,9 +73,9 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
                             }}
                         />
                     </div>
-                    <ul className="max-h-56 overflow-y-auto py-1" role="listbox">
+                    <ul className="max-h-56 overflow-y-auto py-1.5" role="listbox">
                         {filtered.length === 0 && (
-                            <li className="px-3 py-2 text-sm text-slate-400">No matches found</li>
+                            <li className="px-3.5 py-3 text-sm text-slate-400 text-center">No matches found</li>
                         )}
                         {filtered.map((opt) => (
                             <li key={opt}>
@@ -88,8 +88,8 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
                                         setOpen(false);
                                         setQuery('');
                                     }}
-                                    className={`w-full flex items-center justify-between px-3 py-2 text-sm text-left hover:bg-brand-green/8 ${
-                                        opt === value ? 'text-brand-green font-medium' : 'text-slate-700'
+                                    className={`w-full flex items-center justify-between px-3.5 py-2.5 text-sm text-left transition-colors hover:bg-brand-green/8 ${
+                                        opt === value ? 'text-brand-green font-semibold bg-brand-green/5' : 'text-slate-700'
                                     }`}
                                 >
                                     {opt}

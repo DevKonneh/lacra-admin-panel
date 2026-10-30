@@ -129,7 +129,7 @@ const Step2BusinessInfo: React.FC<Step2Props> = ({ errors }) => {
         return (
             <div className="space-y-8">
                 <section>
-                    <h2 className="text-base font-semibold text-slate-800 mb-4">Personal Information</h2>
+                    <h2 className="text-base font-bold text-slate-800 tracking-tight mb-4">Personal Information</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <FormField label="Full Name" required error={errors.fullName}>
                             <TextInput value={b.fullName} onChange={(e) => update({ fullName: e.target.value })} />
@@ -183,7 +183,7 @@ const Step2BusinessInfo: React.FC<Step2Props> = ({ errors }) => {
                 </section>
 
                 <section>
-                    <h2 className="text-base font-semibold text-slate-800 mb-4">Business Information</h2>
+                    <h2 className="text-base font-bold text-slate-800 tracking-tight mb-4">Business Information</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <FormField label="Business / Trading Name" required error={errors.businessName}>
                             <TextInput value={b.businessName} onChange={(e) => update({ businessName: e.target.value })} />
@@ -223,7 +223,7 @@ const Step2BusinessInfo: React.FC<Step2Props> = ({ errors }) => {
         const update = (patch: Partial<AgencyInfo>) => setAgency({ ...a, ...patch });
         return (
             <section>
-                <h2 className="text-base font-semibold text-slate-800 mb-4">Organization Information</h2>
+                <h2 className="text-base font-bold text-slate-800 tracking-tight mb-4">Organization Information</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField label="Business Name" required error={errors.legalName}>
                         <TextInput value={a.legalName} onChange={(e) => update({ legalName: e.target.value })} />
@@ -272,7 +272,7 @@ const Step2BusinessInfo: React.FC<Step2Props> = ({ errors }) => {
         const update = (patch: Partial<CooperativeInfo>) => setCooperative({ ...c, ...patch });
         return (
             <section>
-                <h2 className="text-base font-semibold text-slate-800 mb-4">Cooperative Information</h2>
+                <h2 className="text-base font-bold text-slate-800 tracking-tight mb-4">Cooperative Information</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <CooperativeLegalNameField
                         value={c.legalName}
@@ -337,7 +337,7 @@ const Step2BusinessInfo: React.FC<Step2Props> = ({ errors }) => {
         const update = (patch: Partial<ExporterInfo>) => setExporter({ ...x, ...patch });
         return (
             <section>
-                <h2 className="text-base font-semibold text-slate-800 mb-4">Company Information</h2>
+                <h2 className="text-base font-bold text-slate-800 tracking-tight mb-4">Company Information</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField label="Organization's Legal Name" required error={errors.legalName}>
                         <TextInput value={x.legalName} onChange={(e) => update({ legalName: e.target.value })} />

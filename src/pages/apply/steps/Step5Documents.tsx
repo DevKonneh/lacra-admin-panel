@@ -40,9 +40,9 @@ const Step5Documents: React.FC<Step5Props> = ({ errors }) => {
     const missingCount = Object.keys(errors).length;
 
     return (
-        <div className="space-y-4">
-            <p className="text-sm text-slate-500">
-                Upload the documents required for your application. Files marked <span className="font-medium text-amber-700">Required</span> must be
+        <div className="space-y-5">
+            <p className="text-sm text-slate-500 leading-relaxed">
+                Upload the documents required for your application. Files marked <span className="font-semibold text-amber-700">Required</span> must be
                 uploaded successfully before you can submit your application.
             </p>
 

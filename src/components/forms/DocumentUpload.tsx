@@ -92,20 +92,20 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
     };
 
     return (
-        <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <div className="flex items-start justify-between gap-3 mb-2 flex-wrap">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-shadow hover:shadow">
+            <div className="flex items-start justify-between gap-3 mb-3 flex-wrap">
                 <div>
                     <div className="flex items-center gap-2">
-                        <p className="text-sm font-semibold text-slate-800">{label}</p>
+                        <p className="text-sm font-semibold text-slate-800 tracking-tight">{label}</p>
                         <span
-                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                            className={`inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wide ${
                                 required ? 'bg-amber-100 text-amber-800' : 'bg-slate-100 text-slate-600'
                             }`}
                         >
                             {required ? 'Required' : 'Optional'}
                         </span>
                     </div>
-                    {helpText && <p className="text-xs text-slate-500 mt-0.5">{helpText}</p>}
+                    {helpText && <p className="text-xs text-slate-500 mt-0.5 leading-snug">{helpText}</p>}
                     <p className="text-xs text-slate-400 mt-0.5">
                         Accepted: {acceptDisplay} &middot; Max {maxSizeMb} MB
                     </p>
@@ -121,13 +121,15 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
                     role="button"
                     tabIndex={0}
                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') inputRef.current?.click(); }}
-                    className={`flex flex-col items-center justify-center gap-1.5 rounded-lg border-2 border-dashed py-6 px-4 text-center cursor-pointer transition-colors ${
-                        dragOver ? 'border-brand-green bg-brand-green/5' : 'border-slate-300 hover:border-brand-green/60 hover:bg-slate-50'
+                    className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed py-7 px-4 text-center cursor-pointer transition-all duration-150 focus:outline-none focus:ring-4 focus:ring-brand-green/15 ${
+                        dragOver ? 'border-brand-green bg-brand-green/[0.06] scale-[1.01]' : 'border-slate-300 hover:border-brand-green/60 hover:bg-slate-50/80'
                     }`}
                 >
-                    <UploadCloud size={22} className="text-slate-400" />
+                    <span className={`flex items-center justify-center h-10 w-10 rounded-full transition-colors ${dragOver ? 'bg-brand-green/15' : 'bg-slate-100'}`}>
+                        <UploadCloud size={20} className={dragOver ? 'text-brand-green' : 'text-slate-400'} />
+                    </span>
                     <p className="text-sm text-slate-600">
-                        <span className="text-brand-green font-medium">Click to upload</span> or drag and drop
+                        <span className="text-brand-green font-semibold">Click to upload</span> or drag and drop
                     </p>
                 </div>
             )}
@@ -135,13 +137,13 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
             <input ref={inputRef} type="file" accept={accept} className="hidden" onChange={handleFileSelect} />
 
             {localError && (
-                <p className="mt-2 text-xs text-red-600 flex items-center gap-1">
+                <p className="mt-2 text-xs font-medium text-red-600 flex items-center gap-1">
                     <AlertTriangle size={13} /> {localError}
                 </p>
             )}
 
             {value && (
-                <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 p-3">
+                <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/80 p-3 animate-fade-up">
                     {value.previewUrl || value.url ? (
                         <img src={value.previewUrl || value.url} alt="" className="h-12 w-12 rounded-md object-cover flex-shrink-0 border border-slate-200" />
                     ) : (
@@ -151,7 +153,7 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
                     )}
 
                     <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-800 truncate">{value.name}</p>
+                        <p className="text-sm font-semibold text-slate-800 truncate">{value.name}</p>
                         <p className="text-xs text-slate-500">{formatBytes(value.size)}</p>
 
                         {value.status === 'uploading' && (
@@ -163,12 +165,12 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
                             </div>
                         )}
                         {value.status === 'done' && (
-                            <p className="mt-1 text-xs text-green-700 flex items-center gap-1">
+                            <p className="mt-1 text-xs font-medium text-green-700 flex items-center gap-1">
                                 <CheckCircle2 size={13} /> Upload complete
                             </p>
                         )}
                         {value.status === 'error' && (
-                            <p className="mt-1 text-xs text-red-600 flex items-center gap-1">
+                            <p className="mt-1 text-xs font-medium text-red-600 flex items-center gap-1">
                                 <XCircle size={13} /> {value.errorMessage || 'Upload failed'} - click the retry icon to try again.
                             </p>
                         )}
@@ -179,7 +181,7 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
                             type="button"
                             title="Replace document"
                             onClick={() => inputRef.current?.click()}
-                            className="p-2 rounded-lg text-slate-500 hover:bg-white hover:text-brand-green transition-colors"
+                            className="p-2 rounded-lg text-slate-500 transition-colors hover:bg-white hover:text-brand-green hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-brand-green/20"
                         >
                             <RefreshCw size={16} />
                         </button>
@@ -187,7 +189,7 @@ const DocumentUpload: React.FC<DocumentUploadProps> = ({
                             type="button"
                             title="Delete document"
                             onClick={handleRemove}
-                            className="p-2 rounded-lg text-slate-500 hover:bg-white hover:text-red-600 transition-colors"
+                            className="p-2 rounded-lg text-slate-500 transition-colors hover:bg-white hover:text-red-600 hover:shadow-sm focus:outline-none focus:ring-2 focus:ring-red-200"
                         >
                             <Trash2 size={16} />
                         </button>

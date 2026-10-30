@@ -34,8 +34,8 @@ const PhoneInput: React.FC<PhoneInputProps> = ({ value, onChange, hasError, disa
     const localDigits = toLocalDigits(value);
 
     return (
-        <div className={`flex ${inputClasses(hasError)} !p-0 overflow-hidden items-stretch`}>
-            <span className="flex items-center px-3 bg-slate-50 text-slate-600 text-sm font-medium border-r border-slate-300 select-none flex-shrink-0">
+        <div className={`flex ${inputClasses(hasError)} !p-0 overflow-hidden items-stretch focus-within:ring-4`}>
+            <span className="flex items-center px-3.5 bg-slate-50 text-slate-600 text-sm font-semibold border-r border-slate-300 select-none flex-shrink-0 tracking-wide">
                 {COUNTRY_CODE}
             </span>
             <input
@@ -47,7 +47,7 @@ const PhoneInput: React.FC<PhoneInputProps> = ({ value, onChange, hasError, disa
                 onChange={(e) => onChange(`${COUNTRY_CODE}${e.target.value.replace(/\D/g, '').slice(0, MAX_LOCAL_DIGITS)}`)}
                 placeholder={placeholder}
                 maxLength={MAX_LOCAL_DIGITS}
-                className="flex-1 min-w-0 px-3 py-2.5 text-sm outline-none placeholder:text-slate-400 disabled:bg-slate-50 disabled:text-slate-400"
+                className="flex-1 min-w-0 px-3.5 py-2.5 text-sm outline-none placeholder:text-slate-400 disabled:bg-slate-50 disabled:text-slate-400"
             />
         </div>
     );

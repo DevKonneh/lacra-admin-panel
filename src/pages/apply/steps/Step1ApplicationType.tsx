@@ -98,6 +98,30 @@ interface Step1Props {
     errors: Step1Errors;
 }
 
+// Shared pill-style toggle button used for both the "Applying as" and
+// "Application type" choices - a single polished implementation instead
+// of two near-duplicate inline button blocks, consistent spacing/
+// transition/active-state styling throughout.
+const ToggleButton: React.FC<{ selected: boolean; onClick: () => void; children: React.ReactNode; icon?: React.ReactNode }> = ({
+    selected, onClick, children, icon,
+}) => (
+    <button
+        type="button"
+        onClick={onClick}
+        aria-pressed={selected}
+        className={[
+            'flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border-2 px-4 py-2.5 text-sm font-semibold transition-all duration-150',
+            'focus:outline-none focus:ring-4 focus:ring-brand-green/15',
+            selected
+                ? 'border-brand-green bg-brand-green text-white shadow-sm'
+                : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50',
+        ].join(' ')}
+    >
+        {icon}
+        {children}
+    </button>
+);
+
 // Step 1: Application Type - the applicant selects a single commodity, a
 // single application category, applicant kind, and whether this is a new
 // application or a renewal. Selecting a category here drives which
@@ -161,7 +185,7 @@ const Step1ApplicationType: React.FC<Step1Props> = ({ errors }) => {
     return (
         <div className="space-y-8">
             <div>
-                <h2 className="text-base font-semibold text-slate-800 mb-1">1. Select the commodity you deal in</h2>
+                <h2 className="text-base font-bold text-slate-800 tracking-tight mb-1">1. Select the commodity you deal in</h2>
                 <p className="text-sm text-slate-500 mb-4">You may select only one commodity per registration.</p>
                 {errors.commodity && (
                     <p className="text-xs text-red-600 mb-2" role="alert">{errors.commodity}</p>
@@ -180,7 +204,7 @@ const Step1ApplicationType: React.FC<Step1Props> = ({ errors }) => {
             </div>
 
             <div>
-                <h2 className="text-base font-semibold text-slate-800 mb-1">2. Select your application category</h2>
+                <h2 className="text-base font-bold text-slate-800 tracking-tight mb-1">2. Select your application category</h2>
                 <p className="text-sm text-slate-500 mb-4">Only one category can be selected. Only the fields and documents required for your chosen category will be shown next.</p>
                 {errors.category && (
                     <p className="text-xs text-red-600 mb-2" role="alert">{errors.category}</p>
@@ -221,49 +245,39 @@ const Step1ApplicationType: React.FC<Step1Props> = ({ errors }) => {
             <div className={`grid grid-cols-1 gap-4 ${showApplicantKindChoice ? 'sm:grid-cols-2' : 'sm:grid-cols-1 max-w-sm'}`}>
                 {showApplicantKindChoice && (
                     <FormField label="Applying as" required error={errors.applicantKind}>
-                        <div className="flex gap-3">
-                            <button
-                                type="button"
+                        <div className="flex gap-2.5">
+                            <ToggleButton
+                                selected={step1.applicantKind === 'INDIVIDUAL'}
                                 onClick={() => setStep1({ ...step1, applicantKind: 'INDIVIDUAL' })}
-                                className={`flex-1 rounded-lg border-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-                                    step1.applicantKind === 'INDIVIDUAL' ? 'border-brand-green bg-brand-green/8 text-brand-green' : 'border-slate-200 text-slate-600 hover:border-slate-300'
-                                }`}
                             >
                                 Individual
-                            </button>
-                            <button
-                                type="button"
+                            </ToggleButton>
+                            <ToggleButton
+                                selected={step1.applicantKind === 'ORGANIZATION'}
                                 onClick={() => setStep1({ ...step1, applicantKind: 'ORGANIZATION' })}
-                                className={`flex-1 rounded-lg border-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-                                    step1.applicantKind === 'ORGANIZATION' ? 'border-brand-green bg-brand-green/8 text-brand-green' : 'border-slate-200 text-slate-600 hover:border-slate-300'
-                                }`}
                             >
                                 Organization
-                            </button>
+                            </ToggleButton>
                         </div>
                     </FormField>
                 )}
 
                 <FormField label="Application type" required>
-                    <div className="flex gap-3">
-                        <button
-                            type="button"
+                    <div className="flex gap-2.5">
+                        <ToggleButton
+                            selected={!step1.isRenewal}
                             onClick={() => setStep1({ ...step1, isRenewal: false, previousNumber: '' })}
-                            className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-                                !step1.isRenewal ? 'border-brand-green bg-brand-green/8 text-brand-green' : 'border-slate-200 text-slate-600 hover:border-slate-300'
-                            }`}
+                            icon={<FilePlus size={15} />}
                         >
-                            <FilePlus size={15} /> New Application
-                        </button>
-                        <button
-                            type="button"
+                            New Application
+                        </ToggleButton>
+                        <ToggleButton
+                            selected={step1.isRenewal}
                             onClick={() => setStep1({ ...step1, isRenewal: true })}
-                            className={`flex-1 inline-flex items-center justify-center gap-1.5 rounded-lg border-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-                                step1.isRenewal ? 'border-brand-green bg-brand-green/8 text-brand-green' : 'border-slate-200 text-slate-600 hover:border-slate-300'
-                            }`}
+                            icon={<RefreshCw size={15} />}
                         >
-                            <RefreshCw size={15} /> Renewal
-                        </button>
+                            Renewal
+                        </ToggleButton>
                     </div>
                 </FormField>
             </div>

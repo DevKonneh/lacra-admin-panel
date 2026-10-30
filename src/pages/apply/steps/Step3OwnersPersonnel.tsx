@@ -100,7 +100,7 @@ const Step3OwnersPersonnel: React.FC<Step3Props> = ({ errors }) => {
         return (
             <div className="space-y-8">
                 <section>
-                    <h2 className="text-base font-semibold text-slate-800 mb-4">Owner and Authorized Representative</h2>
+                    <h2 className="text-base font-bold text-slate-800 tracking-tight mb-4">Owner and Authorized Representative</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <FormField label="Owner's Full Name" required error={errors.ownerFullName}>
                             <TextInput value={a.ownerFullName} onChange={(e) => update({ ownerFullName: e.target.value })} />
@@ -167,7 +167,7 @@ const Step3OwnersPersonnel: React.FC<Step3Props> = ({ errors }) => {
                 </section>
 
                 <section>
-                    <h2 className="text-base font-semibold text-slate-800 mb-4">Banking Information</h2>
+                    <h2 className="text-base font-bold text-slate-800 tracking-tight mb-4">Banking Information</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <BankNameField value={a.bankName} onChange={(v) => update({ bankName: v })} error={errors.bankName} idPrefix="agency" />
                         <FormField label="Bank Account Name">
@@ -209,7 +209,7 @@ const Step3OwnersPersonnel: React.FC<Step3Props> = ({ errors }) => {
         return (
             <div className="space-y-8">
                 <section>
-                    <h2 className="text-base font-semibold text-slate-800 mb-4">Authorized Representative</h2>
+                    <h2 className="text-base font-bold text-slate-800 tracking-tight mb-4">Authorized Representative</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <FormField label="Full Name" required error={errors.repFullName}>
                             <TextInput value={c.repFullName} onChange={(e) => update({ repFullName: e.target.value })} />
@@ -250,7 +250,7 @@ const Step3OwnersPersonnel: React.FC<Step3Props> = ({ errors }) => {
                 </section>
 
                 <section>
-                    <h2 className="text-base font-semibold text-slate-800 mb-4">Banking Information</h2>
+                    <h2 className="text-base font-bold text-slate-800 tracking-tight mb-4">Banking Information</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <BankNameField value={c.bankName} onChange={(v) => update({ bankName: v })} error={errors.bankName} idPrefix="coop" />
                         <FormField label="Bank Account Name">
@@ -311,7 +311,7 @@ const Step3OwnersPersonnel: React.FC<Step3Props> = ({ errors }) => {
                 </section>
 
                 <section>
-                    <h2 className="text-base font-semibold text-slate-800 mb-4">Authorized Signatory</h2>
+                    <h2 className="text-base font-bold text-slate-800 tracking-tight mb-4">Authorized Signatory</h2>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                         <FormField label="Full Name" required error={errors.signatoryName}>
                             <TextInput value={x.signatoryName} onChange={(e) => update({ signatoryName: e.target.value })} />
@@ -354,7 +354,7 @@ const Step3OwnersPersonnel: React.FC<Step3Props> = ({ errors }) => {
                 </section>
 
                 <section>
-                    <h2 className="text-base font-semibold text-slate-800 mb-4">Banking Information</h2>
+                    <h2 className="text-base font-bold text-slate-800 tracking-tight mb-4">Banking Information</h2>
                     <Alert variant="info" title="Minimum bank balance requirement">
                         {category === 'LOCAL_EXPORTER' ? 'US$25,000 for a Local Exporter.' : 'US$50,000 for a Foreign Exporter.'}
                     </Alert>

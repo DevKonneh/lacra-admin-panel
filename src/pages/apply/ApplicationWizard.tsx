@@ -192,20 +192,20 @@ const WizardInner: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-brand-bg">
-            <header className="bg-white border-b border-brand-border">
-                <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-3">
-                    <img src={logo} alt="LACRA logo" className="h-11 w-11 rounded-lg object-cover flex-shrink-0" />
-                    <div>
-                        <p className="text-xs font-semibold text-brand-green uppercase tracking-wide">Liberia Agricultural Commodity Regulatory Authority</p>
-                        <h1 className="text-lg sm:text-xl font-bold text-slate-800">Supply Chain Actor Online Registration</h1>
+            <header className="bg-white border-b border-brand-border shadow-sm sticky top-0 z-20">
+                <div className="max-w-5xl mx-auto px-4 sm:px-6 py-4 flex items-center gap-3.5">
+                    <img src={logo} alt="LACRA logo" className="h-11 w-11 rounded-xl object-cover flex-shrink-0 ring-1 ring-black/5" />
+                    <div className="min-w-0">
+                        <p className="text-[11px] font-bold text-brand-green uppercase tracking-wider">Liberia Agricultural Commodity Regulatory Authority</p>
+                        <h1 className="text-lg sm:text-xl font-bold text-slate-800 tracking-tight truncate">Supply Chain Actor Online Registration</h1>
                     </div>
                 </div>
             </header>
 
             <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 sm:py-8 space-y-6">
-                <p className="text-sm text-slate-500 max-w-3xl">
+                <p className="text-sm text-slate-500 leading-relaxed max-w-3xl">
                     Use this portal to apply for a Local Produce Buyer Permit, Agency Permit, Cooperative Permit, Local Export Licence or Foreign
-                    Export Licence. Fields marked with <span className="text-red-500 font-medium">*</span> are required. Your progress is saved
+                    Export Licence. Fields marked with <span className="text-red-500 font-semibold">*</span> are required. Your progress is saved
                     automatically as you move between steps.
                 </p>
 
@@ -239,27 +239,27 @@ const WizardInner: React.FC = () => {
                 )}
 
                 <div className="bg-white rounded-xl border border-brand-border shadow-card p-4 sm:p-6">
-                    <div className="mb-5">
-                        <p className="text-xs font-semibold text-brand-green uppercase tracking-wide">Step {visibleCurrentStep + 1} of {visibleStepIndices.length}</p>
-                        <h2 className="text-lg font-bold text-slate-800">{STEP_META[currentStep].label}</h2>
+                    <div className="mb-5 pb-4 border-b border-slate-100">
+                        <p className="text-[11px] font-bold text-brand-green uppercase tracking-wider">Step {visibleCurrentStep + 1} of {visibleStepIndices.length}</p>
+                        <h2 className="text-lg font-bold text-slate-800 tracking-tight mt-0.5">{STEP_META[currentStep].label}</h2>
                     </div>
                     {stepComponents[currentStep]}
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 bg-white rounded-xl border border-brand-border shadow-card p-3 sm:p-4">
                     <div className="flex gap-2">
                         <button
                             type="button"
                             onClick={handleBack}
                             disabled={isFirstStep}
-                            className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-medium border border-slate-300 text-slate-700 hover:bg-slate-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                            className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-semibold border-2 border-slate-200 text-slate-600 transition-all duration-150 hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-slate-100 disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                             <ChevronLeft size={16} /> Back
                         </button>
                         <button
                             type="button"
                             onClick={handleSaveDraft}
-                            className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-medium border border-slate-300 text-slate-700 hover:bg-slate-50"
+                            className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-semibold border-2 border-slate-200 text-slate-600 transition-all duration-150 hover:border-slate-300 hover:bg-slate-50 focus:outline-none focus:ring-4 focus:ring-slate-100"
                         >
                             <Save size={16} /> Save Draft
                         </button>
@@ -270,7 +270,7 @@ const WizardInner: React.FC = () => {
                             <button
                                 type="button"
                                 onClick={handleReviewApplication}
-                                className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-medium border border-brand-green text-brand-green hover:bg-brand-green/5"
+                                className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-lg text-sm font-semibold border-2 border-brand-green text-brand-green transition-all duration-150 hover:bg-brand-green/5 focus:outline-none focus:ring-4 focus:ring-brand-green/15"
                             >
                                 <ClipboardCheck size={16} /> Review Application
                             </button>
@@ -279,7 +279,7 @@ const WizardInner: React.FC = () => {
                             <button
                                 type="button"
                                 onClick={handleContinue}
-                                className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-medium bg-brand-green text-white hover:bg-brand-green-hover"
+                                className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-semibold bg-brand-green text-white shadow-sm transition-all duration-150 hover:bg-brand-green-hover hover:shadow focus:outline-none focus:ring-4 focus:ring-brand-green/20"
                             >
                                 Continue <ChevronRight size={16} />
                             </button>
@@ -288,7 +288,7 @@ const WizardInner: React.FC = () => {
                                 type="button"
                                 onClick={handleSubmit}
                                 disabled={submitting}
-                                className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-medium bg-brand-green text-white hover:bg-brand-green-hover disabled:opacity-60"
+                                className="inline-flex items-center justify-center gap-1.5 px-5 py-2.5 rounded-lg text-sm font-semibold bg-brand-green text-white shadow-sm transition-all duration-150 hover:bg-brand-green-hover hover:shadow focus:outline-none focus:ring-4 focus:ring-brand-green/20 disabled:opacity-60"
                             >
                                 {submitting ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
                                 {submitting ? 'Submitting...' : 'Submit Application'}

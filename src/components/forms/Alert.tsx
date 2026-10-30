@@ -23,15 +23,18 @@ const VARIANT_STYLES: Record<AlertVariant, { bg: string; border: string; text: s
 const Alert: React.FC<AlertProps> = ({ variant, title, children, onClose }) => {
     const s = VARIANT_STYLES[variant];
     return (
-        <div className={`rounded-lg border-l-4 ${s.border} ${s.bg} p-4`} role={variant === 'error' ? 'alert' : 'status'}>
+        <div className={`rounded-xl border-l-4 shadow-sm ${s.border} ${s.bg} p-4 animate-fade-up`} role={variant === 'error' ? 'alert' : 'status'}>
             <div className="flex items-start gap-3">
-                <div className="flex-shrink-0">{s.icon}</div>
-                <div className={`flex-1 text-sm ${s.text}`}>
-                    {title && <p className="font-semibold mb-0.5">{title}</p>}
+                <div className="flex-shrink-0 mt-0.5">{s.icon}</div>
+                <div className={`flex-1 text-sm leading-relaxed ${s.text}`}>
+                    {title && <p className="font-semibold mb-0.5 tracking-tight">{title}</p>}
                     {children}
                 </div>
                 {onClose && (
-                    <button onClick={onClose} className={`flex-shrink-0 ${s.text} hover:opacity-70`}>
+                    <button
+                        onClick={onClose}
+                        className={`flex-shrink-0 rounded-md p-0.5 transition-colors ${s.text} hover:bg-black/5 focus:outline-none focus:ring-2 focus:ring-black/10`}
+                    >
                         <X size={16} />
                     </button>
                 )}
