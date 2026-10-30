@@ -34,8 +34,19 @@ export const recommendLicense = (id: string) => {
     return api.post<ApiResponse<License>>(`/licenses/${id}/recommend`);
 };
 
-export const approveLicense = (id: string, data?: any) => {
-    return api.post<ApiResponse<License>>(`/licenses/${id}/approve`, data);
+// DG decision on a license that Commercial review has recommended.
+// `decision` must be 'DG_APPROVED' or 'DG_REJECTED' - the backend validates
+// this and will 400 on anything else (and on any other status, since a
+// license must be in RECOMMENDED_TO_DG before a DG decision can be made).
+export const decideLicense = (id: string, decision: 'DG_APPROVED' | 'DG_REJECTED') => {
+    return api.post<ApiResponse<License>>(`/licenses/${id}/approve`, { decision });
+};
+
+// Suspend an already-issued/active license. Separate endpoint from the DG
+// decision above - previously "Suspend" in the admin UI incorrectly called
+// the approve endpoint, which always re-approved the license instead.
+export const suspendLicense = (id: string) => {
+    return api.post<ApiResponse<License>>(`/licenses/${id}/suspend`);
 };
 
 export const issueLicense = (id: string, data: any) => {
