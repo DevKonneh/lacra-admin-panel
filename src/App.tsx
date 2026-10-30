@@ -45,6 +45,16 @@ const PrivateRoute = () => {
 };
 
 import PublicBatchDetails from './pages/PublicBatchDetails';
+import CertificateVerify from './pages/CertificateVerify';
+import ApplicationWizard from './pages/apply/ApplicationWizard';
+import CommercialQueue from './pages/applications/CommercialQueue';
+import DGApprovalQueue from './pages/applications/DGApprovalQueue';
+import ApplicationDetail from './pages/applications/ApplicationDetail';
+import TechnicalReviewQueue from './pages/applications/TechnicalReviewQueue';
+import InspectorQueue from './pages/applications/InspectorQueue';
+import BillingQueue from './pages/applications/BillingQueue';
+import PaymentQueue from './pages/applications/PaymentQueue';
+import ITQueue from './pages/applications/ITQueue';
 
 function App() {
   return (
@@ -55,6 +65,8 @@ function App() {
           <Route path="/register" element={<Register />} />
           <Route path="/public/farmers/:id" element={<PublicFarmerProfile />} />
           <Route path="/public/batches/:id" element={<PublicBatchDetails />} />
+          <Route path="/verify/:certificateNumber" element={<CertificateVerify />} />
+          <Route path="/apply" element={<ApplicationWizard />} />
           <Route element={<PrivateRoute />}>
             <Route path="/" element={<Layout />}>
               <Route index element={<Dashboard />} />
@@ -98,6 +110,24 @@ function App() {
               {/* Permit Management */}
               <Route path="permits" element={<PermitList />} />
               <Route path="permits/apply" element={<PermitApplication />} />
+
+              {/* Application Workflow: Commercial Verification + First DG Approval */}
+              <Route path="applications/commercial-queue" element={<CommercialQueue />} />
+              <Route path="applications/dg-queue" element={<DGApprovalQueue />} />
+
+              {/* Application Workflow Phase 3: Technical Review + Inspector
+                  Assignment + Warehouse Assessment + Second DG Approval */}
+              <Route path="applications/technical-queue" element={<TechnicalReviewQueue />} />
+              <Route path="applications/inspection-queue" element={<InspectorQueue />} />
+
+              {/* Application Workflow Phase 4: Billing Review + Payment
+                  Verification + Final DG Approval + IT Certificate
+                  Printing/Issuance */}
+              <Route path="applications/billing-queue" element={<BillingQueue />} />
+              <Route path="applications/payment-queue" element={<PaymentQueue />} />
+              <Route path="applications/it-queue" element={<ITQueue />} />
+
+              <Route path="applications/:id" element={<ApplicationDetail />} />
             </Route>
           </Route>
         </Routes>

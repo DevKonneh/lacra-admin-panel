@@ -10,7 +10,8 @@ import {
     ShieldCheck,
     UserCog,
     Map as MapIcon,
-    Truck
+    Truck,
+    FileCheck2
 } from 'lucide-react';
 import { UserRole } from '../types';
 
@@ -107,6 +108,54 @@ export const navigationMenu: NavigationItem[] = [
             {
                 label: 'Permit Management',
                 path: '/permits'
+            }
+        ]
+    },
+    {
+        // Review queues for the public /apply wizard's five application
+        // categories (Local Buyer, Agency, Cooperative, Local/Foreign
+        // Exporter) as they move through Commercial -> DG -> Technical ->
+        // Inspector -> Billing -> Payment -> IT stages. Each child is
+        // role-gated so a staff member only sees the queue(s) relevant to
+        // their own department; ADMIN can see every queue via the
+        // per-item role check already supported by hasPermission().
+        label: 'License Applications',
+        icon: FileCheck2,
+        children: [
+            {
+                label: 'Commercial Review',
+                path: '/applications/commercial-queue',
+                roles: [UserRole.COMMERCIAL, UserRole.ADMIN]
+            },
+            {
+                label: 'DG Approval',
+                path: '/applications/dg-queue',
+                roles: [UserRole.DG, UserRole.ADMIN]
+            },
+            {
+                label: 'Technical Review',
+                path: '/applications/technical-queue',
+                roles: [UserRole.TECHNICAL, UserRole.ADMIN]
+            },
+            {
+                label: 'Inspector Assessment',
+                path: '/applications/inspection-queue',
+                roles: [UserRole.INSPECTOR, UserRole.ADMIN]
+            },
+            {
+                label: 'Billing Review',
+                path: '/applications/billing-queue',
+                roles: [UserRole.FINANCE, UserRole.ADMIN]
+            },
+            {
+                label: 'Payment Verification',
+                path: '/applications/payment-queue',
+                roles: [UserRole.FINANCE, UserRole.ADMIN]
+            },
+            {
+                label: 'Certificate Issuance',
+                path: '/applications/it-queue',
+                roles: [UserRole.IT, UserRole.ADMIN]
             }
         ]
     },
