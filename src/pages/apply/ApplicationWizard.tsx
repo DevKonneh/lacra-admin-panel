@@ -43,10 +43,22 @@ const WizardInner: React.FC = () => {
     const category = state.step1.category;
 
     // Local Produce Buyer has no separate "Owner and Responsible Persons"
-    // step (the applicant IS the individual), so that step is skipped
-    // entirely for that category while keeping the same 6-step numbering
-    // for every other category, per the spec's fixed step structure.
+    // step (the applicant IS the individual) and no warehouse/operational
+    // requirements at all, so steps 2 (index 2) and 4 (index 3) are both
+    // skipped entirely for that category while keeping the same 6-step
+    // numbering for every other category, per the spec's fixed step
+    // structure. skippedSteps is a Set so handleStartNew-style logic and
+    // nextStepIndex can both step over any number of consecutive skipped
+    // indices uniformly, regardless of which/how many are skipped for a
+    // given category.
     const skipStep3 = category === 'LOCAL_BUYER';
+    const skipStep4 = category === 'LOCAL_BUYER';
+    const skippedSteps = useMemo(() => {
+        const s = new Set<number>();
+        if (skipStep3) s.add(2);
+        if (skipStep4) s.add(3);
+        return s;
+    }, [skipStep3, skipStep4]);
 
     const runValidation = (step: number): FieldErrors => {
         switch (step) {
@@ -62,7 +74,7 @@ const WizardInner: React.FC = () => {
 
     const nextStepIndex = (from: number, direction: 1 | -1): number => {
         let next = from + direction;
-        if (skipStep3 && next === 2) next += direction;
+        while (skippedSteps.has(next) && next > 0 && next < STEP_META.length - 1) next += direction;
         return Math.max(0, Math.min(STEP_META.length - 1, next));
     };
 
@@ -99,7 +111,7 @@ const WizardInner: React.FC = () => {
 
     const handleSubmit = async () => {
         if (submitting) return; // prevent duplicate submissions
-        const allSteps = skipStep3 ? [0, 1, 3, 4, 5] : [0, 1, 2, 3, 4, 5];
+        const allSteps = [0, 1, 2, 3, 4, 5].filter((s) => !skippedSteps.has(s));
         let combinedErrors: FieldErrors = {};
         for (const step of allSteps) {
             combinedErrors = { ...combinedErrors, ...runValidation(step) };
@@ -162,6 +174,22 @@ const WizardInner: React.FC = () => {
     const isLastStep = currentStep === STEP_META.length - 1;
     const isFirstStep = currentStep === 0;
 
+    // Steps that don't apply to the selected category (see skippedSteps)
+    // are hidden from the progress stepper entirely, rather than shown as
+    // a clickable/skippable bubble, so e.g. a Local Produce Buyer never
+    // sees an "Operations and Warehouse" step in their progress at all.
+    const visibleStepIndices = useMemo(
+        () => [0, 1, 2, 3, 4, 5].filter((i) => !skippedSteps.has(i)),
+        [skippedSteps]
+    );
+    const visibleStepMeta = visibleStepIndices.map((i) => STEP_META[i]);
+    const visibleCurrentStep = Math.max(0, visibleStepIndices.indexOf(currentStep));
+    const visibleCompletedSteps = useMemo(
+        () => new Set(Array.from(completedSteps).map((i) => visibleStepIndices.indexOf(i)).filter((i) => i >= 0)),
+        [completedSteps, visibleStepIndices]
+    );
+    const handleStepperClick = (displayIndex: number) => goToStep(visibleStepIndices[displayIndex]);
+
     return (
         <div className="min-h-screen bg-brand-bg">
             <header className="bg-white border-b border-brand-border">
@@ -183,10 +211,10 @@ const WizardInner: React.FC = () => {
 
                 <div className="bg-white rounded-xl border border-brand-border shadow-card p-4 sm:p-6">
                     <ProgressStepper
-                        steps={STEP_META}
-                        currentStep={currentStep}
-                        completedSteps={completedSteps}
-                        onStepClick={goToStep}
+                        steps={visibleStepMeta}
+                        currentStep={visibleCurrentStep}
+                        completedSteps={visibleCompletedSteps}
+                        onStepClick={handleStepperClick}
                     />
                 </div>
 
@@ -212,7 +240,7 @@ const WizardInner: React.FC = () => {
 
                 <div className="bg-white rounded-xl border border-brand-border shadow-card p-4 sm:p-6">
                     <div className="mb-5">
-                        <p className="text-xs font-semibold text-brand-green uppercase tracking-wide">Step {currentStep + 1} of {STEP_META.length}</p>
+                        <p className="text-xs font-semibold text-brand-green uppercase tracking-wide">Step {visibleCurrentStep + 1} of {visibleStepIndices.length}</p>
                         <h2 className="text-lg font-bold text-slate-800">{STEP_META[currentStep].label}</h2>
                     </div>
                     {stepComponents[currentStep]}

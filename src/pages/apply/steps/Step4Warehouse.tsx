@@ -9,6 +9,12 @@ import Alert from '../../../components/forms/Alert';
 import { isPositiveNumber, type FieldErrors } from '../validators';
 
 export function validateStep4(category: string, state: ReturnType<typeof useRegistration>['state']): FieldErrors {
+    // A Local Produce Buyer has no warehouse/operational requirements at
+    // all - this entire step is skipped for that category by the wizard
+    // (see ApplicationWizard.tsx's skipStep4), so no fields are ever
+    // required here for it.
+    if (category === 'LOCAL_BUYER') return {};
+
     const errors: FieldErrors = {};
     const w = state.warehouse;
     const req = (val: string, key: string, label: string) => { if (!val || !val.trim()) errors[key] = `${label} is required.`; };

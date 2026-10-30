@@ -1,12 +1,11 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Store, Building2, Users, Ship, Leaf, Coffee, Droplet, RefreshCw, FilePlus } from 'lucide-react';
-import type { ApplicationCategory, Commodity } from '../types';
+import type { ApplicationCategory, ApplicantKind, Commodity } from '../types';
 import { COMMODITY_LABELS } from '../types';
 import { useRegistration } from '../RegistrationContext';
 import ListOptionRow from '../../../components/forms/ListOptionRow';
 import FormField from '../../../components/forms/FormField';
 import { TextInput, SelectInput } from '../../../components/forms/inputs';
-import Alert from '../../../components/forms/Alert';
 
 // The 4 top-level category list options shown to the applicant. "Exporter"
 // is a single combined row - Local Export Licence and Foreign Export
@@ -57,6 +56,20 @@ function categoryToListValue(category: ApplicationCategory | ''): CategoryListVa
     return '';
 }
 
+// A Local Produce Buyer is always a single individual applicant; an
+// Agency and a Cooperative are, by definition, always organizations (no
+// one registers a Cooperative "as an individual"). For these three
+// categories the applicant/organization choice is not a real decision -
+// it is fixed by the category itself - so the "Applying as" prompt is
+// hidden entirely and applicantKind is auto-set instead. Exporter
+// categories keep the manual choice since that spec does distinguish
+// individual vs. organization exporters.
+const FIXED_APPLICANT_KIND: Partial<Record<ApplicationCategory, ApplicantKind>> = {
+    LOCAL_BUYER: 'INDIVIDUAL',
+    AGENCY: 'ORGANIZATION',
+    COOPERATIVE: 'ORGANIZATION',
+};
+
 export interface Step1Errors {
     category?: string;
     commodity?: string;
@@ -70,7 +83,13 @@ export function validateStep1(step1: ReturnType<typeof useRegistration>['state']
     const errors: Step1Errors = {};
     if (!step1.category) errors.category = 'Please select an application category.';
     if (!step1.commodity) errors.commodity = 'Please select a commodity.';
-    if (!step1.applicantKind) errors.applicantKind = 'Please select whether you are applying as an individual or an organization.';
+    // Local Produce Buyer/Agency/Cooperative have a fixed applicant kind
+    // (see FIXED_APPLICANT_KIND) that is auto-set by the component rather
+    // than chosen manually, so it is never required here for those
+    // categories - only Exporter categories (and an unset category) still
+    // require an explicit choice.
+    const kindIsFixed = step1.category ? !!FIXED_APPLICANT_KIND[step1.category] : false;
+    if (!kindIsFixed && !step1.applicantKind) errors.applicantKind = 'Please select whether you are applying as an individual or an organization.';
     if (step1.isRenewal && !step1.previousNumber.trim()) errors.previousNumber = 'Enter your previous permit/licence number for a renewal.';
     return errors;
 }
@@ -86,7 +105,6 @@ interface Step1Props {
 const Step1ApplicationType: React.FC<Step1Props> = ({ errors }) => {
     const { state, setStep1 } = useRegistration();
     const { step1 } = state;
-    const [showOrgWarning, setShowOrgWarning] = useState(false);
 
     // Which of the 4 top-level list rows is highlighted as selected. This
     // is tracked as its OWN piece of UI state (rather than being derived
@@ -98,6 +116,20 @@ const Step1ApplicationType: React.FC<Step1Props> = ({ errors }) => {
     // still '' at that point. Initialized from the real category so a
     // reloaded draft still shows the correct row highlighted.
     const [selectedListValue, setSelectedListValue] = useState<CategoryListValue | ''>(() => categoryToListValue(step1.category));
+
+    // Auto-set (and keep correct) applicantKind for categories whose
+    // applicant kind is fixed by definition - Local Produce Buyer is
+    // always Individual, Agency and Cooperative are always Organization -
+    // so the applicant is never asked to choose for these three.
+    useEffect(() => {
+        const fixedKind = step1.category ? FIXED_APPLICANT_KIND[step1.category] : undefined;
+        if (fixedKind && step1.applicantKind !== fixedKind) {
+            setStep1({ ...step1, applicantKind: fixedKind });
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [step1.category]);
+
+    const showApplicantKindChoice = !step1.category || !FIXED_APPLICANT_KIND[step1.category];
 
     const selectCommodity = (c: Commodity) => {
         setStep1({ ...step1, commodity: c });
@@ -113,15 +145,9 @@ const Step1ApplicationType: React.FC<Step1Props> = ({ errors }) => {
             // already an exporter category from a reloaded draft.
             const alreadyExporter = step1.category === 'LOCAL_EXPORTER' || step1.category === 'FOREIGN_EXPORTER';
             if (!alreadyExporter) setStep1({ ...step1, category: '' });
-            setShowOrgWarning(step1.applicantKind === 'INDIVIDUAL');
             return;
         }
         setStep1({ ...step1, category: value });
-        if (value === 'AGENCY' || value === 'COOPERATIVE') {
-            setShowOrgWarning(step1.applicantKind === 'INDIVIDUAL');
-        } else {
-            setShowOrgWarning(false);
-        }
     };
 
     const exporterSubtypeValue: 'LOCAL' | 'FOREIGN' | '' =
@@ -130,7 +156,6 @@ const Step1ApplicationType: React.FC<Step1Props> = ({ errors }) => {
     const selectExporterSubtype = (v: 'LOCAL' | 'FOREIGN' | '') => {
         const resolved: ApplicationCategory | '' = v === 'LOCAL' ? 'LOCAL_EXPORTER' : v === 'FOREIGN' ? 'FOREIGN_EXPORTER' : '';
         setStep1({ ...step1, category: resolved });
-        setShowOrgWarning(step1.applicantKind === 'INDIVIDUAL');
     };
 
     return (
@@ -193,29 +218,31 @@ const Step1ApplicationType: React.FC<Step1Props> = ({ errors }) => {
                 )}
             </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <FormField label="Applying as" required error={errors.applicantKind}>
-                    <div className="flex gap-3">
-                        <button
-                            type="button"
-                            onClick={() => setStep1({ ...step1, applicantKind: 'INDIVIDUAL' })}
-                            className={`flex-1 rounded-lg border-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-                                step1.applicantKind === 'INDIVIDUAL' ? 'border-brand-green bg-brand-green/8 text-brand-green' : 'border-slate-200 text-slate-600 hover:border-slate-300'
-                            }`}
-                        >
-                            Individual
-                        </button>
-                        <button
-                            type="button"
-                            onClick={() => setStep1({ ...step1, applicantKind: 'ORGANIZATION' })}
-                            className={`flex-1 rounded-lg border-2 px-4 py-2.5 text-sm font-medium transition-colors ${
-                                step1.applicantKind === 'ORGANIZATION' ? 'border-brand-green bg-brand-green/8 text-brand-green' : 'border-slate-200 text-slate-600 hover:border-slate-300'
-                            }`}
-                        >
-                            Organization
-                        </button>
-                    </div>
-                </FormField>
+            <div className={`grid grid-cols-1 gap-4 ${showApplicantKindChoice ? 'sm:grid-cols-2' : 'sm:grid-cols-1 max-w-sm'}`}>
+                {showApplicantKindChoice && (
+                    <FormField label="Applying as" required error={errors.applicantKind}>
+                        <div className="flex gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setStep1({ ...step1, applicantKind: 'INDIVIDUAL' })}
+                                className={`flex-1 rounded-lg border-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+                                    step1.applicantKind === 'INDIVIDUAL' ? 'border-brand-green bg-brand-green/8 text-brand-green' : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                                }`}
+                            >
+                                Individual
+                            </button>
+                            <button
+                                type="button"
+                                onClick={() => setStep1({ ...step1, applicantKind: 'ORGANIZATION' })}
+                                className={`flex-1 rounded-lg border-2 px-4 py-2.5 text-sm font-medium transition-colors ${
+                                    step1.applicantKind === 'ORGANIZATION' ? 'border-brand-green bg-brand-green/8 text-brand-green' : 'border-slate-200 text-slate-600 hover:border-slate-300'
+                                }`}
+                            >
+                                Organization
+                            </button>
+                        </div>
+                    </FormField>
+                )}
 
                 <FormField label="Application type" required>
                     <div className="flex gap-3">
@@ -254,13 +281,6 @@ const Step1ApplicationType: React.FC<Step1Props> = ({ errors }) => {
                         placeholder="e.g. LCRA-2023-004521"
                     />
                 </FormField>
-            )}
-
-            {showOrgWarning && (
-                <Alert variant="info" title="Organization details required" onClose={() => setShowOrgWarning(false)}>
-                    This category is typically registered as an organization. You can still continue as an individual applicant, but you will
-                    need to provide the organization's registration details in the next step.
-                </Alert>
             )}
         </div>
     );

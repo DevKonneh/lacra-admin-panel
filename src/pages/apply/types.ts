@@ -161,7 +161,6 @@ export interface BuyerInfo {
 
 export interface AgencyInfo {
     legalName: string;
-    tradingName: string;
     entityType: EntityType | '';
     businessRegNumber: string;
     tin: string;
@@ -196,7 +195,6 @@ export interface AgencyInfo {
 
 export interface CooperativeInfo {
     legalName: string;
-    tradingName: string;
     entityType: EntityType | '';
     cdaNumber: string;
     businessRegNumber: string;
@@ -332,7 +330,7 @@ export const emptyBuyerInfo: BuyerInfo = {
 };
 
 export const emptyAgencyInfo: AgencyInfo = {
-    legalName: '', tradingName: '', entityType: '', businessRegNumber: '', tin: '', taxClearanceNumber: '',
+    legalName: '', entityType: '', businessRegNumber: '', tin: '', taxClearanceNumber: '',
     phone: '', altPhone: '', email: '', county: '', district: '', community: '', address: '',
     ownerFullName: '', ownerNationality: 'Liberian', ownerIdType: '', ownerIdNumber: '', ownerCitizenshipProof: null,
     signatoryName: '', signatoryPosition: '', signatoryPhone: '', signatoryEmail: '', signatoryPhoto: null,
@@ -341,7 +339,7 @@ export const emptyAgencyInfo: AgencyInfo = {
 };
 
 export const emptyCooperativeInfo: CooperativeInfo = {
-    legalName: '', tradingName: '', entityType: 'COOPERATIVE_SOCIETY', cdaNumber: '', businessRegNumber: '', tin: '', taxClearanceNumber: '',
+    legalName: '', entityType: 'COOPERATIVE_SOCIETY', cdaNumber: '', businessRegNumber: '', tin: '', taxClearanceNumber: '',
     dateEstablished: '', phone: '', altPhone: '', email: '', county: '', district: '', community: '', address: '',
     repFullName: '', repPosition: '', repNationalId: '', repPhone: '', repEmail: '', repCounty: '', repDistrict: '',
     repAddress: '', repPhoto: null,

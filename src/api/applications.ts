@@ -13,8 +13,19 @@ import type { ApplicationCategory, ApplicationState } from '../pages/apply/types
 // instance. It still goes through the same Vite dev-server proxy
 // (see vite.config.ts's '/api' -> http://localhost:8100 rule) so no CORS
 // configuration or absolute URL is needed.
+// IMPORTANT: must resolve to the real backend in production, exactly like
+// api/client.ts and api/index.ts do. A plain relative '/api/applications'
+// base URL works fine in local dev (Vite's proxy forwards it to
+// localhost:8100) but on the deployed static site there is no backend at
+// that path - Render's SPA catch-all rewrite (`/* -> /index.html`) quietly
+// returns the index page / an empty 200 instead of a real API response,
+// which is why documents silently "failed" to upload and other calls on
+// this module looked broken in production. VITE_API_BASE_URL is set to the
+// relative '/api' in local .env (routed through the Vite proxy) and to the
+// full backend URL in render.yaml for production, so appending
+// '/applications' to it keeps both environments working correctly.
 const applicationsApi = axios.create({
-    baseURL: '/api/applications',
+    baseURL: `${import.meta.env.VITE_API_BASE_URL || 'https://lacra-eudr-backend.onrender.com/api'}/applications`,
     headers: { 'Content-Type': 'application/json' },
 });
 

@@ -7,12 +7,16 @@ import { TextInput, SelectInput, TextArea } from '../../../components/forms/inpu
 import CountyDistrictFields from '../../../components/forms/CountyDistrictFields';
 import DocumentUpload from '../../../components/forms/DocumentUpload';
 import PhoneInput from '../../../components/forms/PhoneInput';
+import CooperativeLegalNameField from '../../../components/forms/CooperativeLegalNameField';
+import DateField from '../../../components/forms/DateField';
 import { isValidEmail, isValidPhone, type FieldErrors } from '../validators';
 
 // Reusable Entity Type dropdown (Sole Proprietorship / Partnership / LLC /
-// Corporation / Cooperative Society) shared by every category branch below.
-const EntityTypeSelect: React.FC<{ value: EntityType | ''; onChange: (v: EntityType | '') => void; error?: string }> = ({ value, onChange, error }) => (
-    <FormField label="Entity Type" error={error} hint="Legal structure of the business">
+// Corporation / Cooperative Society) shared by every category branch
+// below. `label` defaults to "Entity Type" but Agency calls this with
+// "Business Type" instead, per that category's field naming.
+const EntityTypeSelect: React.FC<{ value: EntityType | ''; onChange: (v: EntityType | '') => void; error?: string; label?: string }> = ({ value, onChange, error, label = 'Entity Type' }) => (
+    <FormField label={label} error={error} hint="Legal structure of the business">
         <SelectInput value={value} onChange={(e) => onChange(e.target.value as EntityType | '')}>
             <option value="">Select...</option>
             {Object.entries(ENTITY_TYPE_LABELS).map(([key, label]) => (
@@ -38,7 +42,7 @@ export function validateStep2(category: string, state: ReturnType<typeof useRegi
         req(b.businessName, 'businessName', 'Business/trading name');
     } else if (category === 'AGENCY') {
         const a = state.agency;
-        req(a.legalName, 'legalName', "Organization's legal name");
+        req(a.legalName, 'legalName', 'Business name');
         req(a.businessRegNumber, 'businessRegNumber', 'Business registration number');
         req(a.tin, 'tin', 'TIN');
         req(a.phone, 'phone', 'Phone number');
@@ -221,13 +225,10 @@ const Step2BusinessInfo: React.FC<Step2Props> = ({ errors }) => {
             <section>
                 <h2 className="text-base font-semibold text-slate-800 mb-4">Organization Information</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <FormField label="Organization's Legal Name" required error={errors.legalName}>
+                    <FormField label="Business Name" required error={errors.legalName}>
                         <TextInput value={a.legalName} onChange={(e) => update({ legalName: e.target.value })} />
                     </FormField>
-                    <FormField label="Trading Name">
-                        <TextInput value={a.tradingName} onChange={(e) => update({ tradingName: e.target.value })} />
-                    </FormField>
-                    <EntityTypeSelect value={a.entityType} onChange={(v) => update({ entityType: v })} />
+                    <EntityTypeSelect label="Business Type" value={a.entityType} onChange={(v) => update({ entityType: v })} />
                     <FormField label="Business Registration Number" required error={errors.businessRegNumber}>
                         <TextInput value={a.businessRegNumber} onChange={(e) => update({ businessRegNumber: e.target.value })} />
                     </FormField>
@@ -273,12 +274,12 @@ const Step2BusinessInfo: React.FC<Step2Props> = ({ errors }) => {
             <section>
                 <h2 className="text-base font-semibold text-slate-800 mb-4">Cooperative Information</h2>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <FormField label="Cooperative's Legal Name" required error={errors.legalName}>
-                        <TextInput value={c.legalName} onChange={(e) => update({ legalName: e.target.value })} />
-                    </FormField>
-                    <FormField label="Trading Name" hint="Where applicable">
-                        <TextInput value={c.tradingName} onChange={(e) => update({ tradingName: e.target.value })} />
-                    </FormField>
+                    <CooperativeLegalNameField
+                        value={c.legalName}
+                        onChange={(v) => update({ legalName: v })}
+                        error={errors.legalName}
+                        idPrefix="coop-info-legal-name"
+                    />
                     <FormField label="Entity Type" hint="Cooperative applications are automatically registered as a Cooperative Society">
                         <TextInput value={ENTITY_TYPE_LABELS.COOPERATIVE_SOCIETY} disabled />
                     </FormField>
@@ -295,7 +296,12 @@ const Step2BusinessInfo: React.FC<Step2Props> = ({ errors }) => {
                         <TextInput value={c.taxClearanceNumber} onChange={(e) => update({ taxClearanceNumber: e.target.value })} />
                     </FormField>
                     <FormField label="Date Established">
-                        <TextInput type="date" value={c.dateEstablished} onChange={(e) => update({ dateEstablished: e.target.value })} />
+                        <DateField
+                            id="coop-date-established"
+                            value={c.dateEstablished}
+                            onChange={(v) => update({ dateEstablished: v })}
+                            max={new Date().toISOString().slice(0, 10)}
+                        />
                     </FormField>
                     <FormField label="Contact Phone Number" required error={errors.phone}>
                         <PhoneInput value={c.phone} onChange={(v) => update({ phone: v })} hasError={!!errors.phone} />

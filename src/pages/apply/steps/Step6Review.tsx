@@ -177,20 +177,22 @@ const Step6Review: React.FC<Step6Props> = ({ errors, onEditStep, captchaA, captc
                 </ReviewSection>
             )}
 
-            <ReviewSection title="Operations and Warehouse" onEdit={() => onEditStep(3)}>
-                <Row label="Warehouse Name" value={state.warehouse.name} />
-                <Row label="County" value={state.warehouse.county} />
-                <Row label="Capacity" value={state.warehouse.capacity ? `${state.warehouse.capacity} ${state.warehouse.capacityUnit}` : undefined} />
-                <Row label="Ownership Status" value={state.warehouse.ownership} />
-                {(category === 'LOCAL_EXPORTER' || category === 'FOREIGN_EXPORTER') && (
-                    <>
-                        <Row label="GPS Coordinates" value={state.warehouse.gps} />
-                        <Row label="Export Volume" value={state.exporter.exportVolume ? `${state.exporter.exportVolume} ${state.exporter.exportUnit}` : undefined} />
-                        <Row label="Destinations" value={state.exporter.destinationCountries} />
-                        <Row label="Suppliers Registered" value={`${state.suppliers.length} record(s)`} />
-                    </>
-                )}
-            </ReviewSection>
+            {category !== 'LOCAL_BUYER' && (
+                <ReviewSection title="Operations and Warehouse" onEdit={() => onEditStep(3)}>
+                    <Row label="Warehouse Name" value={state.warehouse.name} />
+                    <Row label="County" value={state.warehouse.county} />
+                    <Row label="Capacity" value={state.warehouse.capacity ? `${state.warehouse.capacity} ${state.warehouse.capacityUnit}` : undefined} />
+                    <Row label="Ownership Status" value={state.warehouse.ownership} />
+                    {(category === 'LOCAL_EXPORTER' || category === 'FOREIGN_EXPORTER') && (
+                        <>
+                            <Row label="GPS Coordinates" value={state.warehouse.gps} />
+                            <Row label="Export Volume" value={state.exporter.exportVolume ? `${state.exporter.exportVolume} ${state.exporter.exportUnit}` : undefined} />
+                            <Row label="Destinations" value={state.exporter.destinationCountries} />
+                            <Row label="Suppliers Registered" value={`${state.suppliers.length} record(s)`} />
+                        </>
+                    )}
+                </ReviewSection>
+            )}
 
             {showAllDocs && category && (
                 <ReviewSection title="Supporting Documents" onEdit={() => onEditStep(4)}>

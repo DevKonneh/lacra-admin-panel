@@ -34,11 +34,13 @@ const anyDocAccept = {
 // uploads specified for that path. Keys are stable identifiers used
 // throughout Step 5 and the final Review page.
 export const DOCUMENT_REQUIREMENTS: Record<ApplicationCategory, DocumentRequirement[]> = {
+    // Local Produce Buyer has no warehouse/operational requirements at
+    // all (see ApplicationWizard.tsx's skipStep4), so the
+    // warehouse/lease document that used to appear here was removed too.
     LOCAL_BUYER: [
         { key: 'nationalIdOrPassport', label: 'National ID or Passport', required: true, maxSizeMb: 5, ...commonAccept },
         { key: 'businessRegistration', label: 'Valid Business Registration', required: true, maxSizeMb: 5, ...anyDocAccept },
         { key: 'passportPhoto', label: 'Passport-size Photograph', required: true, maxSizeMb: 2, accept: 'JPG, PNG', acceptAttr: '.jpg,.jpeg,.png' },
-        { key: 'warehouseLeaseDoc', label: 'Warehouse or Lease Document', required: false, maxSizeMb: 5, helpText: 'Where applicable', ...anyDocAccept },
         { key: 'otherDocs', label: 'Other Supporting Documents', required: false, maxSizeMb: 10, ...anyDocAccept },
     ],
     AGENCY: [
