@@ -43,11 +43,22 @@ export interface UploadedDocumentResponse {
 // absent (undefined) for applications no officer has reviewed yet.
 export type DocumentVerificationStatus = 'PENDING' | 'VERIFIED' | 'NEEDS_CORRECTION';
 
+// One archived prior version of a replaced document - see replaceDocument()
+// below. `decision` is whatever verification status/comment the document
+// had at the moment it was replaced (null if it had never been reviewed).
+export interface DocumentHistoryEntry {
+    url?: string;
+    name?: string;
+    decision?: { status: DocumentVerificationStatus; comment?: string } | null;
+    replacedAt: string;
+}
+
 export interface CommercialReviewState {
     documents?: Record<string, { status: DocumentVerificationStatus; comment?: string }>;
     checklist?: Record<string, boolean>;
     internalNotes?: string;
     applicantMessageDraft?: string;
+    documentHistory?: Record<string, DocumentHistoryEntry[]>;
 }
 
 export interface ApplicationRecord {
@@ -328,6 +339,26 @@ export const saveCommercialReviewProgress = (id: string, payload: Partial<Commer
     return applicationsApi.post<ApiResponse<ApplicationRecord>>(
         `/${id}/commercial/save-review-progress`,
         payload,
+        { headers: authHeader() }
+    );
+};
+
+/**
+ * Replaces one uploaded document (e.g. a corrected file re-uploaded by/for
+ * the applicant) with a newly-uploaded file. The backend resets that
+ * document's verification status to PENDING and archives the previous
+ * file + decision into commercialReview.documentHistory - it is never
+ * silently discarded. `file` must already have been uploaded via
+ * uploadApplicationDocument() to obtain the url/name/size/type.
+ */
+export const replaceDocument = (
+    id: string,
+    documentKey: string,
+    file: { url: string; name: string; size?: number; type?: string }
+) => {
+    return applicationsApi.post<ApiResponse<ApplicationRecord>>(
+        `/${id}/commercial/replace-document`,
+        { documentKey, ...file },
         { headers: authHeader() }
     );
 };

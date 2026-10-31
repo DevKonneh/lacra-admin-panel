@@ -1,17 +1,33 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
     ClipboardCheck, Search, X, ChevronDown, ChevronUp, ChevronsUpDown,
-    AlertTriangle, Clock, FileEdit, Send, Inbox,
+    AlertTriangle, Clock, FileEdit, Send, Inbox, SlidersHorizontal,
 } from 'lucide-react';
 import { getApplications, type ApplicationListItem } from '../../api/applications';
 import { apiErrorMessage, categoryLabel } from './statusHelpers';
 import {
     commercialBadgeKey, commercialBadgeLabel, commercialBadgeColor,
-    waitingTimeLabel, waitingTimeMs, type CommercialBadgeStatus,
+    timeSinceSubmissionLabel, timeSinceSubmissionMs, formatDateParts, type CommercialBadgeStatus,
 } from './statusHelpers';
 import { COUNTY_NAMES } from '../../data/liberiaCounties';
 import { CATEGORY_LABELS, COMMODITY_LABELS } from '../apply/types';
+
+// Key used to stash the list's scroll position in sessionStorage right
+// before navigating into an application, so returning to the queue (via
+// the review page's "Back to queue" link, or the browser back button)
+// restores the exact scroll position the user left it at - in addition to
+// the filters/search/sort/pagination, which already round-trip through the
+// URL's query string.
+const SCROLL_RESTORE_KEY = 'commercialQueue:scrollY';
+
+// Key used to hand the review page the full filtered+sorted list of
+// application ids (not just the current page), so its Previous
+// Application / Next Application controls can step through the queue in
+// the exact order the officer was viewing it, regardless of pagination.
+// Kept in sessionStorage (not the URL) since it can be a large list -
+// refreshed every time the filtered/sorted result set changes.
+export const QUEUE_ORDER_KEY = 'commercialQueue:orderedIds';
 
 // Every status the Commercial Verification queue surfaces. DG-stage and
 // later statuses never reach this queue; "RETURNED_TO_COMMERCIAL" is
@@ -67,7 +83,11 @@ const CommercialQueue: React.FC = () => {
     const [applications, setApplications] = useState<ApplicationListItem[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [showFilters, setShowFilters] = useState(false);
+    // "More Filters" collapses only category/county/commodity/officer -
+    // Status (summary cards), Submission Date, and Sort stay permanently
+    // visible per the redesign spec.
+    const [showMoreFilters, setShowMoreFilters] = useState(false);
+    const scrollRestoredRef = useRef(false);
 
     // All list-view state (search, filters, sort, pagination) lives in the
     // URL so it survives navigating into an application and back, and is
@@ -99,6 +119,28 @@ const CommercialQueue: React.FC = () => {
         loadQueue();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
+
+    // Restore scroll position once, after the queue has finished its first
+    // load and rendered rows - restoring any earlier (e.g. while still
+    // showing the loading skeleton) would scroll to a position that
+    // doesn't correspond to real content yet.
+    useLayoutEffect(() => {
+        if (loading || scrollRestoredRef.current) return;
+        scrollRestoredRef.current = true;
+        const saved = sessionStorage.getItem(SCROLL_RESTORE_KEY);
+        if (saved) {
+            const y = parseInt(saved, 10);
+            if (!Number.isNaN(y)) {
+                // Deferred one frame so layout has fully settled first.
+                requestAnimationFrame(() => window.scrollTo(0, y));
+            }
+            sessionStorage.removeItem(SCROLL_RESTORE_KEY);
+        }
+    }, [loading]);
+
+    const saveScrollPosition = () => {
+        sessionStorage.setItem(SCROLL_RESTORE_KEY, String(window.scrollY));
+    };
 
     const loadQueue = async () => {
         setLoading(true);
@@ -171,7 +213,7 @@ const CommercialQueue: React.FC = () => {
             const aTime = new Date(a.submittedAt || a.createdAt).getTime();
             const bTime = new Date(b.submittedAt || b.createdAt).getTime();
             if (sortMode === 'LONGEST_WAITING') {
-                const diff = waitingTimeMs(b.submittedAt || b.createdAt) - waitingTimeMs(a.submittedAt || a.createdAt);
+                const diff = timeSinceSubmissionMs(b.submittedAt || b.createdAt) - timeSinceSubmissionMs(a.submittedAt || a.createdAt);
                 if (diff !== 0) return diff;
             } else if (sortMode === 'NEWEST') {
                 if (bTime !== aTime) return bTime - aTime;
@@ -183,6 +225,20 @@ const CommercialQueue: React.FC = () => {
 
         return result;
     }, [applications, searchTerm, summaryFilter, dateFrom, dateTo, categoryFilter, countyFilter, commodityFilter, officerFilter, sortMode]);
+
+    // Keep the review page's Previous/Next Application navigation in sync
+    // with whatever the officer is currently looking at - every time the
+    // filtered/sorted result set changes, refresh the stashed ordered-id
+    // list it reads from.
+    useEffect(() => {
+        if (loading) return;
+        try {
+            sessionStorage.setItem(QUEUE_ORDER_KEY, JSON.stringify(filtered.map((a) => a.id)));
+        } catch {
+            // sessionStorage can throw in rare privacy-mode/quota situations -
+            // Previous/Next Application simply won't be available then.
+        }
+    }, [filtered, loading]);
 
     const totalPages = Math.max(1, Math.ceil(filtered.length / pageSize));
     const currentPage = Math.min(page, totalPages);
@@ -233,34 +289,43 @@ const CommercialQueue: React.FC = () => {
     };
 
     const hasFilters = activeChips.length > 0;
+    const hasMoreFilters = !!(categoryFilter || countyFilter || commodityFilter || officerFilter);
 
     return (
-        <div className="space-y-6">
+        <div className="space-y-5">
             <div>
                 <h1 className="text-2xl font-bold text-brand-text">Commercial Verification</h1>
                 <p className="text-sm text-brand-muted mt-0.5">Review applications and forward verified submissions to the Director-General.</p>
             </div>
 
-            {/* Summary cards */}
-            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* Summary cards - compact (Status filter). The active card is
+                given a solid accent background plus a visible checkmark so
+                the current selection is unambiguous at a glance. */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
                 {SUMMARY_CARDS.map((card) => {
                     const active = summaryFilter === card.key;
                     return (
                         <button
                             key={card.key}
                             type="button"
+                            aria-pressed={active}
                             onClick={() => setParam('summary', active ? null : card.key)}
-                            className={`text-left rounded-xl border p-4 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-1 ${
-                                active ? `${card.accent} ring-1 ring-inset ring-current` : 'bg-white border-brand-border hover:border-brand-green/40'
+                            className={`relative text-left rounded-xl border p-2.5 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-1 ${
+                                active ? `${card.accent} ring-2 ring-inset ring-current shadow-sm` : 'bg-white border-brand-border hover:border-brand-green/40'
                             }`}
                         >
+                            {active && (
+                                <span className="absolute top-1.5 right-1.5 h-4 w-4 rounded-full bg-current flex items-center justify-center text-white">
+                                    <svg viewBox="0 0 16 16" fill="none" className="h-2.5 w-2.5"><path d="M3 8.5L6.5 12L13 4.5" stroke="white" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" /></svg>
+                                </span>
+                            )}
                             <div className="flex items-center justify-between">
-                                <span className={`h-9 w-9 rounded-lg flex items-center justify-center ${active ? '' : 'bg-slate-50 text-slate-500'} ${active ? card.accent : ''}`}>
+                                <span className={`h-7 w-7 rounded-lg flex items-center justify-center ${active ? '' : 'bg-slate-50 text-slate-500'} ${active ? card.accent : ''}`}>
                                     {card.icon}
                                 </span>
-                                <span className="text-2xl font-bold text-brand-text">{loading ? '-' : (summaryCounts[card.key as string] || 0)}</span>
+                                <span className="text-xl font-bold text-brand-text">{loading ? '-' : (summaryCounts[card.key as string] || 0)}</span>
                             </div>
-                            <p className="text-sm font-medium text-brand-text mt-2">{card.label}</p>
+                            <p className="text-xs font-medium text-brand-text mt-1.5 truncate">{card.label}</p>
                         </button>
                     );
                 })}
@@ -277,16 +342,18 @@ const CommercialQueue: React.FC = () => {
             ) : null}
 
             <div className="bg-brand-card shadow-card rounded-xl overflow-hidden border border-brand-border">
-                {/* Search + filter toggle */}
-                <div className="p-4 border-b border-brand-border space-y-3">
-                    <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                {/* Search + always-visible controls (Status is the summary
+                    cards above; Submission Date and Sort stay visible here;
+                    everything else collapses under "More Filters"). */}
+                <div className="p-3 border-b border-brand-border space-y-2.5">
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
                         <div className="relative flex-1">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                                 <Search className="h-5 w-5 text-gray-400" />
                             </div>
                             <input
                                 type="text"
-                                className="block w-full pl-10 pr-9 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                                className="block w-full pl-10 pr-9 py-1.5 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
                                 placeholder="Search by application number, applicant name, business name, or TIN"
                                 value={searchTerm}
                                 onChange={(e) => setParam('q', e.target.value || null)}
@@ -297,13 +364,6 @@ const CommercialQueue: React.FC = () => {
                                 </button>
                             )}
                         </div>
-                        <button
-                            type="button"
-                            onClick={() => setShowFilters((s) => !s)}
-                            className="inline-flex items-center justify-center gap-1.5 px-3 py-2 text-sm font-medium rounded-md border border-gray-300 bg-white text-slate-700 hover:bg-gray-50 flex-shrink-0"
-                        >
-                            Filters {showFilters ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-                        </button>
                         {!loading && !error && (
                             <span className="text-xs font-medium text-slate-500 flex-shrink-0 sm:text-right">
                                 {filtered.length} {filtered.length === 1 ? 'application' : 'applications'}
@@ -311,18 +371,49 @@ const CommercialQueue: React.FC = () => {
                         )}
                     </div>
 
-                    {showFilters && (
-                        <div className="rounded-lg border border-brand-border bg-brand-bg p-4 space-y-3">
-                            <div className="flex flex-wrap gap-2">
-                                <span className="text-xs font-medium text-brand-muted self-center mr-1">Date:</span>
-                                <button onClick={() => applyShortcut('today')} className="px-2.5 py-1 text-xs font-medium rounded-full border border-gray-300 bg-white hover:bg-gray-50">Today</button>
-                                <button onClick={() => applyShortcut('7days')} className="px-2.5 py-1 text-xs font-medium rounded-full border border-gray-300 bg-white hover:bg-gray-50">Last 7 Days</button>
-                                <button onClick={() => applyShortcut('month')} className="px-2.5 py-1 text-xs font-medium rounded-full border border-gray-300 bg-white hover:bg-gray-50">This Month</button>
-                                <input type="date" value={dateFrom} onChange={(e) => setParam('from', e.target.value || null)} className="px-2 py-1 text-xs rounded-md border border-gray-300" />
-                                <span className="text-xs text-brand-muted self-center">to</span>
-                                <input type="date" value={dateTo} onChange={(e) => setParam('to', e.target.value || null)} className="px-2 py-1 text-xs rounded-md border border-gray-300" />
-                            </div>
+                    {/* Submission Date (always visible) */}
+                    <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="text-xs font-medium text-brand-muted mr-0.5">Submission Date:</span>
+                        <button onClick={() => applyShortcut('today')} className={`px-2.5 py-1 text-xs font-medium rounded-full border ${dateFrom && dateFrom === dateTo ? 'border-brand-green text-brand-green bg-brand-green/5' : 'border-gray-300 bg-white hover:bg-gray-50'}`}>Today</button>
+                        <button onClick={() => applyShortcut('7days')} className="px-2.5 py-1 text-xs font-medium rounded-full border border-gray-300 bg-white hover:bg-gray-50">Last 7 Days</button>
+                        <button onClick={() => applyShortcut('month')} className="px-2.5 py-1 text-xs font-medium rounded-full border border-gray-300 bg-white hover:bg-gray-50">This Month</button>
+                        <input type="date" value={dateFrom} onChange={(e) => setParam('from', e.target.value || null)} className="px-2 py-1 text-xs rounded-md border border-gray-300" aria-label="From date" />
+                        <span className="text-xs text-brand-muted">to</span>
+                        <input type="date" value={dateTo} onChange={(e) => setParam('to', e.target.value || null)} className="px-2 py-1 text-xs rounded-md border border-gray-300" aria-label="To date" />
+                        {(dateFrom || dateTo) && (
+                            <button onClick={() => removeChip('daterange')} className="text-xs text-slate-400 hover:text-slate-600" aria-label="Clear date filter"><X size={13} /></button>
+                        )}
 
+                        <span className="hidden sm:inline mx-1 text-slate-200">|</span>
+
+                        {/* Sort (always visible) */}
+                        <span className="text-xs font-medium text-brand-muted">Sort:</span>
+                        <div className="inline-flex rounded-md border border-gray-300 overflow-hidden">
+                            <button
+                                onClick={() => toggleSort('OLDEST')}
+                                className={`px-2.5 py-1 text-xs font-medium inline-flex items-center gap-1 ${sortMode === 'OLDEST' || !sortMode ? 'bg-brand-green/10 text-brand-green' : 'bg-white text-slate-600 hover:bg-gray-50'}`}
+                            >
+                                Oldest First {sortIcon('OLDEST')}
+                            </button>
+                            <button
+                                onClick={() => toggleSort('NEWEST')}
+                                className={`px-2.5 py-1 text-xs font-medium inline-flex items-center gap-1 border-l border-gray-300 ${sortMode === 'NEWEST' ? 'bg-brand-green/10 text-brand-green' : 'bg-white text-slate-600 hover:bg-gray-50'}`}
+                            >
+                                Newest First {sortIcon('NEWEST')}
+                            </button>
+                        </div>
+
+                        <button
+                            type="button"
+                            onClick={() => setShowMoreFilters((s) => !s)}
+                            className={`ml-auto inline-flex items-center justify-center gap-1.5 px-2.5 py-1 text-xs font-medium rounded-md border ${hasMoreFilters ? 'border-brand-green text-brand-green bg-brand-green/5' : 'border-gray-300 bg-white text-slate-700 hover:bg-gray-50'}`}
+                        >
+                            <SlidersHorizontal size={12} /> More Filters {showMoreFilters ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
+                        </button>
+                    </div>
+
+                    {showMoreFilters && (
+                        <div className="rounded-lg border border-brand-border bg-brand-bg p-3">
                             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                                 <div>
                                     <label className="block text-xs font-medium text-brand-muted mb-1">Category</label>
@@ -375,7 +466,7 @@ const CommercialQueue: React.FC = () => {
                 </div>
 
                 {/* Table */}
-                <div className="p-4">
+                <div className="p-2.5">
                     {loading ? (
                         <TableSkeleton />
                     ) : filtered.length === 0 ? (
@@ -397,47 +488,60 @@ const CommercialQueue: React.FC = () => {
                         </div>
                     ) : (
                         <>
-                            {/* Desktop table */}
+                            {/* Desktop table - fixed layout + explicit column
+                                widths so application numbers, status
+                                badges, and action buttons never wrap. */}
                             <div className="hidden lg:block overflow-x-auto rounded-xl border border-slate-200">
-                                <table className="min-w-full divide-y divide-slate-200 text-sm">
+                                <table className="w-full table-fixed divide-y divide-slate-200 text-sm">
+                                    <colgroup>
+                                        <col className="w-[13%]" />
+                                        <col className="w-[18%]" />
+                                        <col className="w-[14%]" />
+                                        <col className="w-[9%]" />
+                                        <col className="w-[11%]" />
+                                        <col className="w-[10%]" />
+                                        <col className="w-[13%]" />
+                                        <col className="w-[10%]" />
+                                        <col className="w-[8%]" />
+                                    </colgroup>
                                     <thead className="bg-slate-50">
                                         <tr>
-                                            <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Application Number</th>
-                                            <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Applicant / Business</th>
-                                            <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Category / Commodity</th>
-                                            <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">County</th>
-                                            <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                                            <th className="px-3 py-1.5 text-left text-[11px] font-semibold text-slate-600 uppercase tracking-wide">App Number</th>
+                                            <th className="px-3 py-1.5 text-left text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Applicant / Business</th>
+                                            <th className="px-3 py-1.5 text-left text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Category / Commodity</th>
+                                            <th className="px-3 py-1.5 text-left text-[11px] font-semibold text-slate-600 uppercase tracking-wide">County</th>
+                                            <th className="px-3 py-1.5 text-left text-[11px] font-semibold text-slate-600 uppercase tracking-wide">
                                                 <button onClick={() => toggleSort(sortMode === 'NEWEST' ? 'OLDEST' : 'NEWEST')} className="inline-flex items-center gap-1 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green rounded">
                                                     Submitted {sortIcon(sortMode === 'LONGEST_WAITING' ? 'OLDEST' : sortMode)}
                                                 </button>
                                             </th>
-                                            <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">
+                                            <th className="px-3 py-1.5 text-left text-[11px] font-semibold text-slate-600 uppercase tracking-wide">
                                                 <button onClick={() => toggleSort('LONGEST_WAITING')} className="inline-flex items-center gap-1 hover:text-slate-900 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green rounded">
-                                                    Waiting Time {sortIcon('LONGEST_WAITING')}
+                                                    Time Since Submission {sortIcon('LONGEST_WAITING')}
                                                 </button>
                                             </th>
-                                            <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Status</th>
-                                            <th className="px-4 py-2.5 text-left text-xs font-semibold text-slate-600 uppercase tracking-wide">Assigned Officer</th>
-                                            <th className="px-4 py-2.5 text-right text-xs font-semibold text-slate-600 uppercase tracking-wide">Action</th>
+                                            <th className="px-3 py-1.5 text-left text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Status</th>
+                                            <th className="px-3 py-1.5 text-left text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Officer</th>
+                                            <th className="px-3 py-1.5 text-right text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Action</th>
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 bg-white">
                                         {pageRows.map((a) => (
-                                            <QueueRow key={a.id} app={a} searchParams={searchParams} />
+                                            <QueueRow key={a.id} app={a} searchParams={searchParams} onNavigate={saveScrollPosition} />
                                         ))}
                                     </tbody>
                                 </table>
                             </div>
 
                             {/* Mobile/tablet stacked cards */}
-                            <div className="lg:hidden space-y-3">
+                            <div className="lg:hidden space-y-2.5">
                                 {pageRows.map((a) => (
-                                    <QueueCard key={a.id} app={a} searchParams={searchParams} />
+                                    <QueueCard key={a.id} app={a} searchParams={searchParams} onNavigate={saveScrollPosition} />
                                 ))}
                             </div>
 
                             {/* Pagination */}
-                            <div className="mt-4 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm">
+                            <div className="mt-3 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm">
                                 <div className="flex items-center gap-2 text-slate-500">
                                     <span>Rows per page:</span>
                                     <select
@@ -506,58 +610,66 @@ function reviewActionLabel(app: ApplicationListItem): string {
     return 'View';
 }
 
-const QueueRow: React.FC<{ app: ApplicationListItem; searchParams: URLSearchParams }> = ({ app, searchParams }) => (
-    <tr className="hover:bg-slate-50 focus-within:bg-slate-50">
-        <td className="px-4 py-2.5 font-medium text-slate-900">{app.applicationNumber}</td>
-        <td className="px-4 py-2.5 text-slate-700">
-            <div>{app.applicantName || 'Not provided'}</div>
-            {app.businessName && app.businessName !== app.applicantName && (
-                <div className="text-xs text-slate-400">{app.businessName}</div>
-            )}
-        </td>
-        <td className="px-4 py-2.5 text-slate-700">
-            <div>{categoryLabel(app.category)}</div>
-            {app.commodity && <div className="text-xs text-slate-400">{COMMODITY_LABELS[app.commodity as keyof typeof COMMODITY_LABELS] || app.commodity}</div>}
-        </td>
-        <td className="px-4 py-2.5 text-slate-700">{app.county || 'Not provided'}</td>
-        <td className="px-4 py-2.5 text-slate-700">
-            <div>{app.submittedAt ? new Date(app.submittedAt).toLocaleString() : '-'}</div>
-            {app.resubmittedAt && <div className="text-xs text-sky-600">Resubmitted {new Date(app.resubmittedAt).toLocaleDateString()}</div>}
-        </td>
-        <td className="px-4 py-2.5 text-slate-700">{waitingTimeLabel(app.submittedAt || app.createdAt)}</td>
-        <td className="px-4 py-2.5"><StatusBadge app={app} /></td>
-        <td className="px-4 py-2.5 text-slate-700">{app.assignedOfficer || <span className="text-slate-400">Unassigned</span>}</td>
-        <td className="px-4 py-2.5 text-right">
-            <Link
-                to={`/applications/commercial/${app.id}?${searchParams.toString()}`}
-                className="text-brand-green hover:text-brand-green-hover font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green rounded"
-            >
-                {reviewActionLabel(app)}
-            </Link>
-        </td>
-    </tr>
-);
+const QueueRow: React.FC<{ app: ApplicationListItem; searchParams: URLSearchParams; onNavigate: () => void }> = ({ app, searchParams, onNavigate }) => {
+    const submitted = formatDateParts(app.submittedAt);
+    return (
+        <tr className="hover:bg-slate-50 focus-within:bg-slate-50">
+            <td className="px-3 py-1.5 font-medium text-slate-900 truncate" title={app.applicationNumber}>{app.applicationNumber}</td>
+            <td className="px-3 py-1.5 text-slate-700 truncate">
+                <div className="truncate" title={app.applicantName || 'Not provided'}>{app.applicantName || 'Not provided'}</div>
+                {app.businessName && app.businessName !== app.applicantName && (
+                    <div className="text-[11px] text-slate-400 truncate" title={app.businessName}>{app.businessName}</div>
+                )}
+            </td>
+            <td className="px-3 py-1.5 text-slate-700 truncate">
+                <div className="truncate">{categoryLabel(app.category)}</div>
+                {app.commodity && <div className="text-[11px] text-slate-400 truncate">{COMMODITY_LABELS[app.commodity as keyof typeof COMMODITY_LABELS] || app.commodity}</div>}
+            </td>
+            <td className="px-3 py-1.5 text-slate-700 truncate">{app.county || 'Not provided'}</td>
+            <td className="px-3 py-1.5 text-slate-700">
+                <div className="truncate">{submitted.date}</div>
+                {submitted.time && <div className="text-[11px] text-slate-400">{submitted.time}</div>}
+                {app.resubmittedAt && <div className="text-[11px] text-sky-600 truncate">Resubmitted {formatDateParts(app.resubmittedAt).date}</div>}
+            </td>
+            <td className="px-3 py-1.5 text-slate-700 truncate">{timeSinceSubmissionLabel(app.submittedAt || app.createdAt)}</td>
+            <td className="px-3 py-1.5"><StatusBadge app={app} /></td>
+            <td className="px-3 py-1.5 text-slate-700 truncate">{app.assignedOfficer || <span className="text-slate-400">Unassigned</span>}</td>
+            <td className="px-3 py-1.5 text-right whitespace-nowrap">
+                <Link
+                    to={`/applications/commercial/${app.id}?${searchParams.toString()}`}
+                    onClick={onNavigate}
+                    className="text-brand-green hover:text-brand-green-hover font-medium text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green rounded"
+                >
+                    {reviewActionLabel(app)}
+                </Link>
+            </td>
+        </tr>
+    );
+};
 
-const QueueCard: React.FC<{ app: ApplicationListItem; searchParams: URLSearchParams }> = ({ app, searchParams }) => (
-    <div className="rounded-xl border border-slate-200 bg-white p-4 space-y-2">
-        <div className="flex items-center justify-between">
-            <span className="font-semibold text-slate-900">{app.applicationNumber}</span>
-            <StatusBadge app={app} />
+const QueueCard: React.FC<{ app: ApplicationListItem; searchParams: URLSearchParams; onNavigate: () => void }> = ({ app, searchParams, onNavigate }) => {
+    const submitted = formatDateParts(app.submittedAt);
+    return (
+        <div className="rounded-xl border border-slate-200 bg-white p-3 space-y-1.5">
+            <div className="flex items-center justify-between">
+                <span className="font-semibold text-slate-900">{app.applicationNumber}</span>
+                <StatusBadge app={app} />
+            </div>
+            <dl className="space-y-1 text-sm">
+                <div className="flex justify-between gap-3"><dt className="text-slate-500">Applicant</dt><dd className="text-slate-800 text-right">{app.applicantName || 'Not provided'}</dd></div>
+                <div className="flex justify-between gap-3"><dt className="text-slate-500">Category</dt><dd className="text-slate-800 text-right">{categoryLabel(app.category)}</dd></div>
+                <div className="flex justify-between gap-3"><dt className="text-slate-500">County</dt><dd className="text-slate-800 text-right">{app.county || 'Not provided'}</dd></div>
+                <div className="flex justify-between gap-3"><dt className="text-slate-500">Submitted</dt><dd className="text-slate-800 text-right">{submitted.date}{submitted.time ? ` ${submitted.time}` : ''}</dd></div>
+                <div className="flex justify-between gap-3"><dt className="text-slate-500">Time Since Submission</dt><dd className="text-slate-800 text-right">{timeSinceSubmissionLabel(app.submittedAt || app.createdAt)}</dd></div>
+                <div className="flex justify-between gap-3"><dt className="text-slate-500">Officer</dt><dd className="text-slate-800 text-right">{app.assignedOfficer || 'Unassigned'}</dd></div>
+            </dl>
+            <div className="pt-1.5 border-t border-slate-100 flex justify-end">
+                <Link to={`/applications/commercial/${app.id}?${searchParams.toString()}`} onClick={onNavigate} className="text-brand-green hover:text-brand-green-hover font-medium text-sm">
+                    {reviewActionLabel(app)}
+                </Link>
+            </div>
         </div>
-        <dl className="space-y-1.5 text-sm">
-            <div className="flex justify-between gap-3"><dt className="text-slate-500">Applicant</dt><dd className="text-slate-800 text-right">{app.applicantName || 'Not provided'}</dd></div>
-            <div className="flex justify-between gap-3"><dt className="text-slate-500">Category</dt><dd className="text-slate-800 text-right">{categoryLabel(app.category)}</dd></div>
-            <div className="flex justify-between gap-3"><dt className="text-slate-500">County</dt><dd className="text-slate-800 text-right">{app.county || 'Not provided'}</dd></div>
-            <div className="flex justify-between gap-3"><dt className="text-slate-500">Submitted</dt><dd className="text-slate-800 text-right">{app.submittedAt ? new Date(app.submittedAt).toLocaleDateString() : '-'}</dd></div>
-            <div className="flex justify-between gap-3"><dt className="text-slate-500">Waiting</dt><dd className="text-slate-800 text-right">{waitingTimeLabel(app.submittedAt || app.createdAt)}</dd></div>
-            <div className="flex justify-between gap-3"><dt className="text-slate-500">Officer</dt><dd className="text-slate-800 text-right">{app.assignedOfficer || 'Unassigned'}</dd></div>
-        </dl>
-        <div className="pt-2 border-t border-slate-100 flex justify-end">
-            <Link to={`/applications/commercial/${app.id}?${searchParams.toString()}`} className="text-brand-green hover:text-brand-green-hover font-medium text-sm">
-                {reviewActionLabel(app)}
-            </Link>
-        </div>
-    </div>
-);
+    );
+};
 
 export default CommercialQueue;

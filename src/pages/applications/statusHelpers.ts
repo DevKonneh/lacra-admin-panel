@@ -146,15 +146,18 @@ export function commercialBadgeColor(status: string, resubmittedAt?: string | nu
     return COMMERCIAL_BADGE_COLORS[commercialBadgeKey(status, resubmittedAt)];
 }
 
-// Formats the elapsed time since a given ISO timestamp as a short
-// "waiting time" string (e.g. "2h 15m", "3d 4h", "just now") for the
-// queue's Waiting Time column. Pure function of "now" vs the timestamp -
-// recomputed on every render rather than stored, so it's always accurate.
-export function waitingTimeLabel(sinceIso?: string | null): string {
+// Formats the elapsed duration between two timestamps (or a timestamp and
+// "now", when `untilIso` is omitted) as a short string (e.g. "2h 15m",
+// "3d 4h", "just now"). Generic building block behind both
+// timeSinceSubmissionLabel() and timeInCommercialReviewLabel() below - pure
+// function of its inputs, recomputed on every render rather than stored.
+export function durationLabel(sinceIso?: string | null, untilIso?: string | null): string {
     if (!sinceIso) return '-';
     const since = new Date(sinceIso).getTime();
     if (Number.isNaN(since)) return '-';
-    const diffMs = Date.now() - since;
+    const until = untilIso ? new Date(untilIso).getTime() : Date.now();
+    if (Number.isNaN(until)) return '-';
+    const diffMs = until - since;
     if (diffMs < 0) return 'just now';
     const minutes = Math.floor(diffMs / 60000);
     if (minutes < 1) return 'just now';
@@ -167,12 +170,62 @@ export function waitingTimeLabel(sinceIso?: string | null): string {
     return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`;
 }
 
-// Raw millisecond "waiting" duration, used for the Longest Waiting sort.
-export function waitingTimeMs(sinceIso?: string | null): number {
+// Raw millisecond duration between two timestamps (or a timestamp and
+// "now"), used for the Longest Waiting sort.
+export function durationMs(sinceIso?: string | null, untilIso?: string | null): number {
     if (!sinceIso) return 0;
     const since = new Date(sinceIso).getTime();
     if (Number.isNaN(since)) return 0;
-    return Math.max(0, Date.now() - since);
+    const until = untilIso ? new Date(untilIso).getTime() : Date.now();
+    if (Number.isNaN(until)) return 0;
+    return Math.max(0, until - since);
+}
+
+// "Time Since Submission" - how long ago the application was originally
+// submitted (never affected by resubmission/review activity). This is the
+// label the redesign spec asks for in place of the former generic
+// "Waiting" column/field name.
+export function timeSinceSubmissionLabel(submittedAtIso?: string | null): string {
+    return durationLabel(submittedAtIso);
+}
+export function timeSinceSubmissionMs(submittedAtIso?: string | null): number {
+    return durationMs(submittedAtIso);
+}
+
+// "Time in Commercial Review" - how long the application has actually been
+// in Commercial's hands, measured from the most recent time Commercial
+// started working on it (COMMERCIAL_REVIEW_IN_PROGRESS via
+// startCommercialReview()/resumeReview, action "REVIEW_STARTED" - see
+// ApplicationController.startCommercialReview()) through to now, or
+// through to the moment it left Commercial's queue (verified/forwarded or
+// correction requested) if that has already happened. Falls back to '-'
+// if Commercial has never actually started reviewing it yet (still sitting
+// untouched in Awaiting Review).
+export function timeInCommercialReviewLabel(history: { action: string; createdAt: string }[]): string {
+    const started = [...history].reverse().find((h) => h.action === 'COMMERCIAL_REVIEW_STARTED');
+    if (!started) return '-';
+    const ended = [...history]
+        .filter((h) => new Date(h.createdAt).getTime() >= new Date(started.createdAt).getTime())
+        .find((h) => ['COMMERCIALLY_VERIFIED', 'CORRECTION_REQUESTED'].includes(h.action));
+    return durationLabel(started.createdAt, ended?.createdAt);
+}
+
+// Deprecated aliases kept temporarily so any remaining call sites keep
+// compiling while the rest of the codebase migrates to the explicit names
+// above - both simply forward to timeSinceSubmission*().
+export const waitingTimeLabel = timeSinceSubmissionLabel;
+export const waitingTimeMs = timeSinceSubmissionMs;
+
+// Formats an ISO timestamp as a short "31 Oct 2026" date string plus a
+// separate "2:45 PM" time string, matching the redesign spec's requested
+// queue/review-page date presentation (date on one line, time beneath).
+export function formatDateParts(iso?: string | null): { date: string; time: string } {
+    if (!iso) return { date: '-', time: '' };
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return { date: '-', time: '' };
+    const date = d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    const time = d.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' });
+    return { date, time };
 }
 
 export const CATEGORY_LABELS: Record<string, string> = {
