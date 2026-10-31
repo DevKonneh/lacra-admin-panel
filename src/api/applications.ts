@@ -38,6 +38,18 @@ export interface UploadedDocumentResponse {
     type: string;
 }
 
+// Per-document verification state saved via saveCommercialReviewProgress()
+// / returned on the Application record. Additive, Commercial-stage-only -
+// absent (undefined) for applications no officer has reviewed yet.
+export type DocumentVerificationStatus = 'PENDING' | 'VERIFIED' | 'NEEDS_CORRECTION';
+
+export interface CommercialReviewState {
+    documents?: Record<string, { status: DocumentVerificationStatus; comment?: string }>;
+    checklist?: Record<string, boolean>;
+    internalNotes?: string;
+    applicantMessageDraft?: string;
+}
+
 export interface ApplicationRecord {
     id: string;
     applicationNumber: string;
@@ -48,8 +60,10 @@ export interface ApplicationRecord {
     status: string;
     data: ApplicationState;
     submittedAt?: string;
+    resubmittedAt?: string;
     createdAt: string;
     updatedAt: string;
+    commercialReview?: CommercialReviewState | null;
 }
 
 export interface ApplicationHistoryEntry {
@@ -174,9 +188,16 @@ export interface ApplicationListItem {
     submissionMethod?: string;
     status: string;
     applicantName?: string;
+    businessName?: string;
+    tin?: string;
     county?: string;
     submittedAt?: string;
+    resubmittedAt?: string;
     createdAt: string;
+    // Best-effort, derived server-side from history (see getAll() on the
+    // backend) - not a tracked assignment record. Undefined means no
+    // Commercial officer has started/resubmitted this application yet.
+    assignedOfficer?: string;
 }
 
 export interface CreateApplicationPayload {
@@ -238,6 +259,7 @@ export const getApplication = (id: string) => {
         invoices: InvoiceRecord[];
         payments: PaymentSubmissionRecord[];
         certificate?: CertificateRecord;
+        assignedOfficer?: string;
     }>>(`/${id}`, {
         headers: authHeader(),
     });
@@ -278,6 +300,34 @@ export const verifyCommercial = (id: string, comments?: string) => {
     return applicationsApi.post<ApiResponse<ApplicationRecord>>(
         `/${id}/commercial/verify`,
         { comments },
+        { headers: authHeader() }
+    );
+};
+
+/**
+ * Commercial officer resubmits an application after the applicant's
+ * correction has been received, moving it from APPLICANT_CORRECTION_REQUIRED
+ * back into AWAITING_COMMERCIAL_VERIFICATION. Additive endpoint - does not
+ * introduce a new approval stage.
+ */
+export const resubmitAfterCorrection = (id: string, comments?: string) => {
+    return applicationsApi.post<ApiResponse<ApplicationRecord>>(
+        `/${id}/commercial/resubmit`,
+        { comments },
+        { headers: authHeader() }
+    );
+};
+
+/**
+ * Saves in-progress Commercial-stage review work (document verification
+ * statuses/comments, checklist, internal notes, draft applicant-visible
+ * message) without changing the application's status. Powers "Save
+ * Progress" on the Application Review page.
+ */
+export const saveCommercialReviewProgress = (id: string, payload: Partial<CommercialReviewState>) => {
+    return applicationsApi.post<ApiResponse<ApplicationRecord>>(
+        `/${id}/commercial/save-review-progress`,
+        payload,
         { headers: authHeader() }
     );
 };

@@ -48,6 +48,7 @@ import PublicBatchDetails from './pages/PublicBatchDetails';
 import CertificateVerify from './pages/CertificateVerify';
 import ApplicationWizard from './pages/apply/ApplicationWizard';
 import CommercialQueue from './pages/applications/CommercialQueue';
+import CommercialApplicationReview from './pages/applications/CommercialApplicationReview';
 import DGApprovalQueue from './pages/applications/DGApprovalQueue';
 import ApplicationDetail from './pages/applications/ApplicationDetail';
 import TechnicalReviewQueue from './pages/applications/TechnicalReviewQueue';
@@ -113,6 +114,7 @@ function App() {
 
               {/* Application Workflow: Commercial Verification + First DG Approval */}
               <Route path="applications/commercial-queue" element={<CommercialQueue />} />
+              <Route path="applications/commercial/:id" element={<CommercialApplicationReview />} />
               <Route path="applications/dg-queue" element={<DGApprovalQueue />} />
 
               {/* Application Workflow Phase 3: Technical Review + Inspector

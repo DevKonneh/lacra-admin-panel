@@ -82,6 +82,99 @@ export function statusLabel(status: string): string {
     return (status || '').replace(/_/g, ' ');
 }
 
+// -----------------------------------------------------------------
+// Commercial Verification queue + review page: short, readable status
+// badges. These map the real backend ApplicationStatus values (see
+// gh-backend-clone's entities/Application.ts) onto the five short labels
+// requested for this stage - they do NOT introduce new statuses, they are
+// purely a display-layer simplification of the existing 41-value enum for
+// the slice of the workflow Commercial actually sees.
+// -----------------------------------------------------------------
+export type CommercialBadgeStatus = 'AWAITING_REVIEW' | 'IN_REVIEW' | 'CORRECTION_REQUESTED' | 'FORWARDED_TO_DG';
+
+export const COMMERCIAL_BADGE_LABELS: Record<CommercialBadgeStatus | 'RESUBMITTED', string> = {
+    AWAITING_REVIEW: 'Awaiting Review',
+    IN_REVIEW: 'In Review',
+    CORRECTION_REQUESTED: 'Correction Requested',
+    RESUBMITTED: 'Resubmitted',
+    FORWARDED_TO_DG: 'Forwarded to DG',
+};
+
+export const COMMERCIAL_BADGE_COLORS: Record<CommercialBadgeStatus | 'RESUBMITTED', string> = {
+    AWAITING_REVIEW: 'bg-amber-100 text-amber-800 border border-amber-200',
+    IN_REVIEW: 'bg-blue-100 text-blue-800 border border-blue-200',
+    CORRECTION_REQUESTED: 'bg-orange-100 text-orange-800 border border-orange-200',
+    RESUBMITTED: 'bg-sky-100 text-sky-800 border border-sky-200',
+    FORWARDED_TO_DG: 'bg-emerald-100 text-emerald-800 border border-emerald-200',
+};
+
+/**
+ * Maps a raw backend status (plus whether the application has ever been
+ * resubmitted, via a non-null resubmittedAt) to the short Commercial badge
+ * label. "Resubmitted" is distinguished from "Awaiting Review" purely by
+ * the presence of resubmittedAt - once Commercial acts on it again
+ * (starts review), it reads as "In Review" like any other application.
+ */
+export function commercialBadgeKey(status: string, resubmittedAt?: string | null): CommercialBadgeStatus | 'RESUBMITTED' {
+    switch (status) {
+        case 'AWAITING_COMMERCIAL_VERIFICATION':
+            return resubmittedAt ? 'RESUBMITTED' : 'AWAITING_REVIEW';
+        case 'COMMERCIAL_REVIEW_IN_PROGRESS':
+            return 'IN_REVIEW';
+        case 'APPLICANT_CORRECTION_REQUIRED':
+            return 'CORRECTION_REQUESTED';
+        // The DG sent this back to Commercial for further work - it needs
+        // action again, so it reads as "Awaiting Review", not "Forwarded".
+        case 'RETURNED_TO_COMMERCIAL':
+            return 'AWAITING_REVIEW';
+        case 'COMMERCIALLY_VERIFIED':
+        case 'AWAITING_FIRST_DG_APPROVAL':
+        case 'COMMERCIAL_STAGE_APPROVED':
+            return 'FORWARDED_TO_DG';
+        default:
+            // Any later-stage status (Technical/Billing/etc.) means the
+            // application has long since left Commercial's hands.
+            return 'FORWARDED_TO_DG';
+    }
+}
+
+export function commercialBadgeLabel(status: string, resubmittedAt?: string | null): string {
+    return COMMERCIAL_BADGE_LABELS[commercialBadgeKey(status, resubmittedAt)];
+}
+
+export function commercialBadgeColor(status: string, resubmittedAt?: string | null): string {
+    return COMMERCIAL_BADGE_COLORS[commercialBadgeKey(status, resubmittedAt)];
+}
+
+// Formats the elapsed time since a given ISO timestamp as a short
+// "waiting time" string (e.g. "2h 15m", "3d 4h", "just now") for the
+// queue's Waiting Time column. Pure function of "now" vs the timestamp -
+// recomputed on every render rather than stored, so it's always accurate.
+export function waitingTimeLabel(sinceIso?: string | null): string {
+    if (!sinceIso) return '-';
+    const since = new Date(sinceIso).getTime();
+    if (Number.isNaN(since)) return '-';
+    const diffMs = Date.now() - since;
+    if (diffMs < 0) return 'just now';
+    const minutes = Math.floor(diffMs / 60000);
+    if (minutes < 1) return 'just now';
+    if (minutes < 60) return `${minutes}m`;
+    const hours = Math.floor(minutes / 60);
+    const remMinutes = minutes % 60;
+    if (hours < 24) return remMinutes > 0 ? `${hours}h ${remMinutes}m` : `${hours}h`;
+    const days = Math.floor(hours / 24);
+    const remHours = hours % 24;
+    return remHours > 0 ? `${days}d ${remHours}h` : `${days}d`;
+}
+
+// Raw millisecond "waiting" duration, used for the Longest Waiting sort.
+export function waitingTimeMs(sinceIso?: string | null): number {
+    if (!sinceIso) return 0;
+    const since = new Date(sinceIso).getTime();
+    if (Number.isNaN(since)) return 0;
+    return Math.max(0, Date.now() - since);
+}
+
 export const CATEGORY_LABELS: Record<string, string> = {
     LOCAL_BUYER: 'Local Produce Buyer',
     AGENCY: 'Agency',
