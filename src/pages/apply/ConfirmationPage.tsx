@@ -10,12 +10,12 @@ interface ConfirmationPageProps {
 }
 
 function getApplicantName(state: ApplicationState): string {
-    const category = state.step1.category;
-    if (category === 'LOCAL_BUYER') return state.buyer.fullName;
-    if (category === 'AGENCY') return state.agency.legalName;
-    if (category === 'COOPERATIVE') return state.cooperative.legalName;
-    if (category === 'LOCAL_EXPORTER' || category === 'FOREIGN_EXPORTER') return state.exporter.legalName;
-    return state.declaration.fullName;
+    const category = state.step1?.category;
+    if (category === 'LOCAL_BUYER') return state.buyer?.fullName || '';
+    if (category === 'AGENCY') return state.agency?.legalName || '';
+    if (category === 'COOPERATIVE') return state.cooperative?.legalName || '';
+    if (category === 'LOCAL_EXPORTER' || category === 'FOREIGN_EXPORTER') return state.exporter?.legalName || '';
+    return state.declaration?.fullName || '';
 }
 
 // The primary applicant/business photo used for identification on the
@@ -24,11 +24,11 @@ function getApplicantName(state: ApplicationState): string {
 // Exporter), matching whichever record represents the person LACRA staff
 // would meet in person to verify identity.
 function getApplicantPhoto(state: ApplicationState): UploadedFile | null {
-    const category = state.step1.category;
-    if (category === 'LOCAL_BUYER') return state.buyer.photo;
-    if (category === 'AGENCY') return state.agency.signatoryPhoto;
-    if (category === 'COOPERATIVE') return state.cooperative.repPhoto;
-    if (category === 'LOCAL_EXPORTER' || category === 'FOREIGN_EXPORTER') return state.exporter.signatoryPhoto;
+    const category = state.step1?.category;
+    if (category === 'LOCAL_BUYER') return state.buyer?.photo ?? null;
+    if (category === 'AGENCY') return state.agency?.signatoryPhoto ?? null;
+    if (category === 'COOPERATIVE') return state.cooperative?.repPhoto ?? null;
+    if (category === 'LOCAL_EXPORTER' || category === 'FOREIGN_EXPORTER') return state.exporter?.signatoryPhoto ?? null;
     return null;
 }
 
@@ -44,10 +44,16 @@ interface RosterEntry {
 // can be displayed for identification purposes on the confirmation page.
 function getPersonnelRoster(state: ApplicationState): RosterEntry[] {
     const roster: RosterEntry[] = [];
-    state.personnel.forEach((p) => roster.push({ name: p.fullName, role: p.role || 'Personnel', idNumber: p.nationalId, photo: p.photo }));
-    state.leadership.forEach((l) => roster.push({ name: l.fullName, role: l.role || 'Leadership', idNumber: l.nationalId, photo: l.photo }));
-    state.owners.forEach((o) => roster.push({ name: o.fullName, role: 'Owner/Shareholder', idNumber: o.idNumber, photo: o.citizenshipProof }));
-    return roster.filter((r) => r.name.trim() !== '');
+    // Defensive against any legacy/unexpectedly-shaped draft record (e.g. a
+    // localStorage draft saved by an older version of this form before a
+    // field was renamed/added) - a crash here previously took down the
+    // entire confirmation page to a blank white screen right after a
+    // successful submission, which is the worst possible place for that to
+    // happen. Every field access below is null-safe and falls back to ''.
+    (state.personnel || []).forEach((p) => roster.push({ name: p?.fullName || '', role: p?.role || 'Personnel', idNumber: p?.nationalId || '', photo: p?.photo ?? null }));
+    (state.leadership || []).forEach((l) => roster.push({ name: l?.fullName || '', role: l?.role || 'Leadership', idNumber: l?.nationalId || '', photo: l?.photo ?? null }));
+    (state.owners || []).forEach((o) => roster.push({ name: o?.fullName || '', role: 'Owner/Shareholder', idNumber: o?.idNumber || '', photo: o?.citizenshipProof ?? null }));
+    return roster.filter((r) => (r.name || '').trim() !== '');
 }
 
 // Professional submission confirmation page shown after a successful
@@ -57,8 +63,8 @@ function getPersonnelRoster(state: ApplicationState): RosterEntry[] {
 // applicants who want a physical copy for their records.
 const ConfirmationPage: React.FC<ConfirmationPageProps> = ({ state, onStartNew }) => {
     const applicantName = getApplicantName(state);
-    const categoryLabel = state.step1.category ? CATEGORY_LABELS[state.step1.category] : '—';
-    const commodity = state.step1.commodity ? COMMODITY_LABELS[state.step1.commodity] : '';
+    const categoryLabel = state.step1?.category ? CATEGORY_LABELS[state.step1.category] : '—';
+    const commodity = state.step1?.commodity ? COMMODITY_LABELS[state.step1.commodity] : '';
     const submittedDate = state.submittedAt ? new Date(state.submittedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—';
     const applicantPhoto = getApplicantPhoto(state);
     const roster = getPersonnelRoster(state);

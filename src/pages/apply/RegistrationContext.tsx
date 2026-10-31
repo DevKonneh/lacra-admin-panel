@@ -103,6 +103,18 @@ interface RegistrationContextType {
     completedSteps: Set<number>;
     lastSavedAt: string | null;
     isDirty: boolean;
+    // Incremented every time resetApplication() runs. Several step
+    // components keep their own local UI state derived from the shared
+    // ApplicationState only once, on mount (e.g. Step1's selectedListValue,
+    // CooperativeLegalNameField's forceOther, the various
+    // Personnel/Farmer/Owner manager's in-progress "editing" record) -
+    // resetting the shared state alone does NOT re-run those initializers
+    // since the components never unmount across a reset, which is exactly
+    // why a previous applicant's selections/in-progress rows could still be
+    // visible after "Start a New Application". ApplicationWizard uses this
+    // counter as a React `key` on the step content to force a full, clean
+    // remount of every step component whenever the application is reset.
+    resetCount: number;
 
     setStep1: (v: StepApplicationType) => void;
     setBuyer: (v: BuyerInfo) => void;
@@ -135,6 +147,7 @@ export const RegistrationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     const [completedSteps, setCompletedSteps] = useState<Set<number>>(new Set());
     const [lastSavedAt, setLastSavedAt] = useState<string | null>(initial.savedAt);
     const [isDirty, setIsDirty] = useState(false);
+    const [resetCount, setResetCount] = useState(0);
 
     // Keep a ref to the latest state so the beforeunload listener (added
     // once) always reads current data without needing to be re-bound on
@@ -199,6 +212,12 @@ export const RegistrationProvider: React.FC<{ children: React.ReactNode }> = ({ 
         setCompletedSteps(new Set());
         setLastSavedAt(null);
         setIsDirty(false);
+        // Bumping resetCount changes the `key` ApplicationWizard puts on
+        // the step content, forcing React to unmount and freshly remount
+        // every step component - clearing any of their own local UI state
+        // that would otherwise silently survive the reset (see the
+        // resetCount doc comment above for why that matters).
+        setResetCount((c) => c + 1);
     }, []);
 
     // Warn before leaving the page with unsaved changes.
@@ -214,7 +233,7 @@ export const RegistrationProvider: React.FC<{ children: React.ReactNode }> = ({ 
     }, []);
 
     const value: RegistrationContextType = {
-        state, currentStep, completedSteps, lastSavedAt, isDirty,
+        state, currentStep, completedSteps, lastSavedAt, isDirty, resetCount,
         setStep1, setBuyer, setAgency, setCooperative, setExporter, setWarehouse,
         setPersonnel, setLeadership, setFarmers, setOwners, setSuppliers,
         setDocument, setDeclaration, setApplicationNumber, setSubmittedAt,

@@ -4,6 +4,7 @@ import logo from '../../assets/lacra_logo.jpg';
 import { RegistrationProvider, useRegistration, clearStoredDraft } from './RegistrationContext';
 import ProgressStepper from '../../components/forms/ProgressStepper';
 import Alert from '../../components/forms/Alert';
+import ErrorBoundary from '../../components/ErrorBoundary';
 import ConfirmationPage from './ConfirmationPage';
 import type { FieldErrors } from './validators';
 import { createApplication } from '../../api/applications';
@@ -32,7 +33,7 @@ function randomCaptchaPair(): [number, number] {
 }
 
 const WizardInner: React.FC = () => {
-    const { state, currentStep, completedSteps, goToStep, markStepComplete, saveDraft, lastSavedAt, setApplicationNumber, setSubmittedAt, resetApplication } = useRegistration();
+    const { state, currentStep, completedSteps, goToStep, markStepComplete, saveDraft, lastSavedAt, setApplicationNumber, setSubmittedAt, resetApplication, resetCount } = useRegistration();
     const [errors, setErrors] = useState<FieldErrors>({});
     const [showDraftSaved, setShowDraftSaved] = useState(false);
     const [submitting, setSubmitting] = useState(false);
@@ -158,17 +159,54 @@ const WizardInner: React.FC = () => {
         setErrors({});
     };
 
+    // CRITICAL: every hook used by this component (both useMemo calls
+    // below) MUST be called unconditionally, in the same order, on every
+    // single render - including the render where `submitted` becomes
+    // true. They previously sat AFTER the `if (submitted) return ...`
+    // early return, which meant the successful-submission render called
+    // fewer hooks than every prior render. React detects that mismatch
+    // and throws "Rendered fewer hooks than expected", and since there is
+    // no error boundary anywhere in the app, React responds by unmounting
+    // the entire tree - i.e. exactly the blank/white screen applicants
+    // were hitting right at the moment their application was submitted
+    // (and clicking "Start a New Application" afterwards would have
+    // thrown the mirror-image "more hooks than during the previous
+    // render" error). Moving both useMemo calls above the early return
+    // fixes this permanently.
+    const visibleStepIndices = useMemo(
+        () => [0, 1, 2, 3, 4, 5].filter((i) => !skippedSteps.has(i)),
+        [skippedSteps]
+    );
+    const visibleCompletedSteps = useMemo(
+        () => new Set(Array.from(completedSteps).map((i) => visibleStepIndices.indexOf(i)).filter((i) => i >= 0)),
+        [completedSteps, visibleStepIndices]
+    );
+
     if (submitted) {
         return <ConfirmationPage state={state} onStartNew={handleStartNew} />;
     }
 
+    // `key={resetCount}` on every step component below is deliberate: several
+    // step components keep their own local UI state derived from the shared
+    // ApplicationState only once, on mount (e.g. Step1's selectedListValue,
+    // CooperativeLegalNameField's forceOther, the Personnel/Farmer/Owner
+    // managers' in-progress "editing" record and duplicate-ID error
+    // messages). Calling resetApplication() clears the shared context state,
+    // but since these components never unmount across that reset, their own
+    // local state silently survived - which is exactly why a previous
+    // applicant's selections, open edit forms or validation messages could
+    // still be visible after clicking "Start a New Application" even though
+    // the underlying data had been cleared. Changing the `key` forces React
+    // to fully unmount and freshly remount the step components whenever
+    // resetApplication() runs (resetCount increments), guaranteeing a truly
+    // clean slate.
     const stepComponents: Record<number, React.ReactNode> = {
-        0: <Step1ApplicationType errors={errors} />,
-        1: <Step2BusinessInfo errors={errors} />,
-        2: <Step3OwnersPersonnel errors={errors} />,
-        3: <Step4Warehouse errors={errors} />,
-        4: <Step5Documents errors={errors} />,
-        5: <Step6Review errors={errors} onEditStep={goToStep} captchaA={captchaPair[0]} captchaB={captchaPair[1]} />,
+        0: <Step1ApplicationType key={`step1-${resetCount}`} errors={errors} />,
+        1: <Step2BusinessInfo key={`step2-${resetCount}`} errors={errors} />,
+        2: <Step3OwnersPersonnel key={`step3-${resetCount}`} errors={errors} />,
+        3: <Step4Warehouse key={`step4-${resetCount}`} errors={errors} />,
+        4: <Step5Documents key={`step5-${resetCount}`} errors={errors} />,
+        5: <Step6Review key={`step6-${resetCount}`} errors={errors} onEditStep={goToStep} captchaA={captchaPair[0]} captchaB={captchaPair[1]} />,
     };
 
     const isLastStep = currentStep === STEP_META.length - 1;
@@ -178,16 +216,8 @@ const WizardInner: React.FC = () => {
     // are hidden from the progress stepper entirely, rather than shown as
     // a clickable/skippable bubble, so e.g. a Local Produce Buyer never
     // sees an "Operations and Warehouse" step in their progress at all.
-    const visibleStepIndices = useMemo(
-        () => [0, 1, 2, 3, 4, 5].filter((i) => !skippedSteps.has(i)),
-        [skippedSteps]
-    );
     const visibleStepMeta = visibleStepIndices.map((i) => STEP_META[i]);
     const visibleCurrentStep = Math.max(0, visibleStepIndices.indexOf(currentStep));
-    const visibleCompletedSteps = useMemo(
-        () => new Set(Array.from(completedSteps).map((i) => visibleStepIndices.indexOf(i)).filter((i) => i >= 0)),
-        [completedSteps, visibleStepIndices]
-    );
     const handleStepperClick = (displayIndex: number) => goToStep(visibleStepIndices[displayIndex]);
 
     return (
@@ -309,9 +339,22 @@ const WizardInner: React.FC = () => {
 
 // Top-level export: wraps the wizard body in its own RegistrationProvider
 // so this module is fully self-contained and can be mounted at a public
-// route without depending on any authenticated app state.
+// route without depending on any authenticated app state. Also wrapped in
+// an ErrorBoundary - a render-time crash anywhere in the wizard (e.g. from
+// a stale/unexpectedly-shaped localStorage draft left over from an older
+// version of this form) previously took down the whole page to a blank
+// white screen with no way to recover. On error, the locally-stored draft
+// is cleared so a reload starts a clean application instead of hitting the
+// exact same crash again every time.
 const ApplicationWizard: React.FC = () => {
-    const provider = useMemo(() => <RegistrationProvider><WizardInner /></RegistrationProvider>, []);
+    const provider = useMemo(
+        () => (
+            <ErrorBoundary label="Application Wizard" onError={() => clearStoredDraft()}>
+                <RegistrationProvider><WizardInner /></RegistrationProvider>
+            </ErrorBoundary>
+        ),
+        []
+    );
     return provider;
 };
 
