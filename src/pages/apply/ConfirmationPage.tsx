@@ -9,6 +9,36 @@ interface ConfirmationPageProps {
     onStartNew: () => void;
 }
 
+// The LACRA mobile app embeds this entire site inside an Android WebView
+// (see the mobile app's webview_screen.dart). Android's WebView has no
+// working `<a download>`/blob-download handling and `window.print()` is a
+// silent no-op there - there's no print renderer wired up by default -
+// which is exactly why these two buttons appeared to do nothing for
+// applicants using the mobile app, even though both work fine in a
+// regular browser. When the mobile app is present it injects a
+// `window.LacraDocument.postMessage(...)` JavaScript channel; when it's
+// there we hand the generated PDF off to it (base64-encoded) so the
+// native app can open Android's print dialog / share sheet instead.
+declare global {
+    interface Window {
+        LacraDocument?: { postMessage: (message: string) => void };
+    }
+}
+
+function isEmbeddedInLacraApp(): boolean {
+    return typeof window !== 'undefined' && !!window.LacraDocument;
+}
+
+// jsPDF's `datauristring` output already gives us a
+// "data:application/pdf;filename=...;base64,<data>" string - this just
+// strips the prefix down to the raw base64 payload the native bridge
+// expects.
+function pdfToBase64(pdf: jsPDF): string {
+    const uri = pdf.output('datauristring');
+    const commaIndex = uri.indexOf(',');
+    return commaIndex >= 0 ? uri.slice(commaIndex + 1) : uri;
+}
+
 function getApplicantName(state: ApplicationState): string {
     const category = state.step1?.category;
     if (category === 'LOCAL_BUYER') return state.buyer?.fullName || '';
@@ -69,7 +99,7 @@ const ConfirmationPage: React.FC<ConfirmationPageProps> = ({ state, onStartNew }
     const applicantPhoto = getApplicantPhoto(state);
     const roster = getPersonnelRoster(state);
 
-    const handleDownloadSummary = () => {
+    const buildSummaryPdf = (): jsPDF => {
         const pdf = new jsPDF();
         const pageWidth = pdf.internal.pageSize.getWidth();
         let y = 20;
@@ -98,10 +128,40 @@ const ConfirmationPage: React.FC<ConfirmationPageProps> = ({ state, onStartNew }
         addText('This document confirms that the application above was successfully submitted to the', { size: 10 });
         addText('Liberia Agricultural Commodity Regulatory Authority (LACRA) and is pending internal review.', { size: 10 });
 
-        pdf.save(`LACRA-Application-${state.applicationNumber || 'summary'}.pdf`);
+        return pdf;
+    };
+
+    const handleDownloadSummary = () => {
+        const pdf = buildSummaryPdf();
+        const filename = `LACRA-Application-${state.applicationNumber || 'summary'}.pdf`;
+
+        if (isEmbeddedInLacraApp()) {
+            // Hand off to the native app's print/share bridge instead of
+            // the browser's own download mechanism, which silently does
+            // nothing inside the Android WebView the mobile app uses.
+            window.LacraDocument!.postMessage(
+                JSON.stringify({ action: 'download', filename, base64: pdfToBase64(pdf) })
+            );
+            return;
+        }
+
+        pdf.save(filename);
     };
 
     const handlePrint = () => {
+        if (isEmbeddedInLacraApp()) {
+            // window.print() is a silent no-op inside the mobile app's
+            // Android WebView (no print renderer is wired up there) - ask
+            // the native app to open Android's print dialog instead,
+            // using the exact same summary PDF as the download button.
+            const pdf = buildSummaryPdf();
+            const filename = `LACRA-Application-${state.applicationNumber || 'summary'}.pdf`;
+            window.LacraDocument!.postMessage(
+                JSON.stringify({ action: 'print', filename, base64: pdfToBase64(pdf) })
+            );
+            return;
+        }
+
         window.print();
     };
 

@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Wallet, Search } from 'lucide-react';
+import { Wallet } from 'lucide-react';
 import { getApplications, type ApplicationListItem } from '../../api/applications';
 import ResponsiveTable, { type ColumnDef } from '../../components/forms/ResponsiveTable';
+import QueueListPage from '../../components/forms/QueueListPage';
 import { statusColor, statusLabel, categoryLabel, apiErrorMessage } from './statusHelpers';
 
 // Finance Officer's Payment work queue: applications awaiting payment
@@ -67,51 +68,33 @@ const PaymentQueue: React.FC = () => {
     ];
 
     return (
-        <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold text-gray-900">Payment Queue</h1>
-                <p className="text-sm text-gray-500">Applications awaiting applicant payment, payment recording/verification, or cheque clearance.</p>
-            </div>
-
-            {error && <div className="rounded-lg border-l-4 border-red-400 bg-red-50 p-4 text-sm text-red-800">{error}</div>}
-
-            <div className="bg-white shadow rounded-lg overflow-hidden">
-                <div className="p-4 border-b border-gray-200">
-                    <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <Search className="h-5 w-5 text-gray-400" />
-                        </div>
-                        <input
-                            type="text"
-                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                            placeholder="Search by application number, applicant name, or county"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                    </div>
-                </div>
-
-                <div className="p-4">
-                    {loading ? (
-                        <div className="text-sm text-gray-500 py-6 text-center">Loading queue...</div>
-                    ) : (
-                        <ResponsiveTable
-                            columns={columns}
-                            rows={filtered}
-                            rowKey={(a) => a.id}
-                            actions={(a) => (
-                                <Link to={`/applications/${a.id}`} className="text-green-600 hover:text-green-900 font-medium">
-                                    Open
-                                </Link>
-                            )}
-                            emptyIcon={<Wallet size={20} />}
-                            emptyTitle="No applications awaiting payment"
-                            emptyDescription="Applications with an approved invoice will appear here awaiting payment from the applicant."
-                        />
-                    )}
-                </div>
-            </div>
-        </div>
+        <QueueListPage
+            title="Payment Queue"
+            description="Applications awaiting applicant payment, payment recording/verification, or cheque clearance."
+            icon={<Wallet size={20} />}
+            searchTerm={searchTerm}
+            onSearchTermChange={setSearchTerm}
+            searchPlaceholder="Search by application number, applicant name, or county"
+            error={error}
+            onRetry={loadQueue}
+            resultCount={filtered.length}
+            loading={loading}
+        >
+            <ResponsiveTable
+                columns={columns}
+                rows={filtered}
+                rowKey={(a) => a.id}
+                loading={loading}
+                actions={(a) => (
+                    <Link to={`/applications/${a.id}`} className="text-green-600 hover:text-green-900 font-medium">
+                        Open
+                    </Link>
+                )}
+                emptyIcon={<Wallet size={20} />}
+                emptyTitle="No applications awaiting payment"
+                emptyDescription="Applications with an approved invoice will appear here awaiting payment from the applicant."
+            />
+        </QueueListPage>
     );
 };
 

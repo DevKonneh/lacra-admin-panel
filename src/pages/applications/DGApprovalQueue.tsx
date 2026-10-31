@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Gavel, Search } from 'lucide-react';
+import { Gavel } from 'lucide-react';
 import { getApplications, type ApplicationListItem } from '../../api/applications';
 import ResponsiveTable, { type ColumnDef } from '../../components/forms/ResponsiveTable';
+import QueueListPage from '../../components/forms/QueueListPage';
 import { statusColor, statusLabel, categoryLabel, apiErrorMessage } from './statusHelpers';
 
 // Director-General's approval work queue, covering ALL THREE approval
@@ -22,6 +23,12 @@ const STAGE_STATUS: Record<Stage, string> = {
     FINAL: 'AWAITING_FINAL_DG_APPROVAL',
 };
 
+const STAGE_TABS: { key: Stage; label: string }[] = [
+    { key: 'FIRST', label: 'Commercial Stage (First Approval)' },
+    { key: 'SECOND', label: 'Technical Stage (Second Approval)' },
+    { key: 'FINAL', label: 'Final Approval' },
+];
+
 const DGApprovalQueue: React.FC = () => {
     const [stage, setStage] = useState<Stage>('FIRST');
     const [applications, setApplications] = useState<ApplicationListItem[]>([]);
@@ -31,6 +38,7 @@ const DGApprovalQueue: React.FC = () => {
 
     useEffect(() => {
         loadQueue(stage);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [stage]);
 
     const loadQueue = async (s: Stage) => {
@@ -71,81 +79,56 @@ const DGApprovalQueue: React.FC = () => {
         { header: 'Submitted', render: (a) => a.submittedAt ? new Date(a.submittedAt).toLocaleDateString() : '-' },
     ];
 
+    const emptyDescription =
+        stage === 'FIRST'
+            ? 'Applications verified by Commercial and Marketing will appear here.'
+            : stage === 'SECOND'
+                ? 'Applications verified by Technical Services will appear here.'
+                : 'Applications with payment verified by Finance will appear here.';
+
     return (
-        <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold text-gray-900">Director-General Approvals</h1>
-                <p className="text-sm text-gray-500">Applications awaiting your approval before proceeding to the next stage.</p>
-            </div>
-
-            <div className="border-b border-gray-200">
-                <nav className="-mb-px flex gap-6">
-                    <button
-                        onClick={() => setStage('FIRST')}
-                        className={`py-2 px-1 border-b-2 text-sm font-medium ${stage === 'FIRST' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-                    >
-                        Commercial Stage (First Approval)
-                    </button>
-                    <button
-                        onClick={() => setStage('SECOND')}
-                        className={`py-2 px-1 border-b-2 text-sm font-medium ${stage === 'SECOND' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-                    >
-                        Technical Stage (Second Approval)
-                    </button>
-                    <button
-                        onClick={() => setStage('FINAL')}
-                        className={`py-2 px-1 border-b-2 text-sm font-medium ${stage === 'FINAL' ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
-                    >
-                        Final Approval
-                    </button>
-                </nav>
-            </div>
-
-            {error && <div className="rounded-lg border-l-4 border-red-400 bg-red-50 p-4 text-sm text-red-800">{error}</div>}
-
-            <div className="bg-white shadow rounded-lg overflow-hidden">
-                <div className="p-4 border-b border-gray-200">
-                    <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <Search className="h-5 w-5 text-gray-400" />
-                        </div>
-                        <input
-                            type="text"
-                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                            placeholder="Search by application number, applicant name, or county"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                    </div>
+        <QueueListPage
+            title="Director-General Approvals"
+            description="Applications awaiting your approval before proceeding to the next stage."
+            icon={<Gavel size={20} />}
+            searchTerm={searchTerm}
+            onSearchTermChange={setSearchTerm}
+            searchPlaceholder="Search by application number, applicant name, or county"
+            error={error}
+            onRetry={() => loadQueue(stage)}
+            resultCount={filtered.length}
+            loading={loading}
+            tabs={
+                <div className="border-b border-gray-200">
+                    <nav className="-mb-px flex gap-6 overflow-x-auto">
+                        {STAGE_TABS.map((tab) => (
+                            <button
+                                key={tab.key}
+                                onClick={() => setStage(tab.key)}
+                                className={`py-2 px-1 border-b-2 text-sm font-medium whitespace-nowrap ${stage === tab.key ? 'border-green-500 text-green-600' : 'border-transparent text-gray-500 hover:text-gray-700'}`}
+                            >
+                                {tab.label}
+                            </button>
+                        ))}
+                    </nav>
                 </div>
-
-                <div className="p-4">
-                    {loading ? (
-                        <div className="text-sm text-gray-500 py-6 text-center">Loading queue...</div>
-                    ) : (
-                        <ResponsiveTable
-                            columns={columns}
-                            rows={filtered}
-                            rowKey={(a) => a.id}
-                            actions={(a) => (
-                                <Link to={`/applications/${a.id}`} className="text-green-600 hover:text-green-900 font-medium">
-                                    Open
-                                </Link>
-                            )}
-                            emptyIcon={<Gavel size={20} />}
-                            emptyTitle="No applications awaiting approval"
-                            emptyDescription={
-                                stage === 'FIRST'
-                                    ? 'Applications verified by Commercial and Marketing will appear here.'
-                                    : stage === 'SECOND'
-                                        ? 'Applications verified by Technical Services will appear here.'
-                                        : 'Applications with payment verified by Finance will appear here.'
-                            }
-                        />
-                    )}
-                </div>
-            </div>
-        </div>
+            }
+        >
+            <ResponsiveTable
+                columns={columns}
+                rows={filtered}
+                rowKey={(a) => a.id}
+                loading={loading}
+                actions={(a) => (
+                    <Link to={`/applications/${a.id}`} className="text-green-600 hover:text-green-900 font-medium">
+                        Open
+                    </Link>
+                )}
+                emptyIcon={<Gavel size={20} />}
+                emptyTitle="No applications awaiting approval"
+                emptyDescription={emptyDescription}
+            />
+        </QueueListPage>
     );
 };
 

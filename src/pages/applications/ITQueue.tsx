@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Printer, Search } from 'lucide-react';
+import { Printer } from 'lucide-react';
 import { getApplications, type ApplicationListItem } from '../../api/applications';
 import ResponsiveTable, { type ColumnDef } from '../../components/forms/ResponsiveTable';
+import QueueListPage from '../../components/forms/QueueListPage';
 import { statusColor, statusLabel, categoryLabel, apiErrorMessage } from './statusHelpers';
 
 // IT Officer's work queue: applications approved for issuance and
@@ -65,51 +66,33 @@ const ITQueue: React.FC = () => {
     ];
 
     return (
-        <div className="space-y-6">
-            <div>
-                <h1 className="text-2xl font-bold text-gray-900">Certificate Printing Queue</h1>
-                <p className="text-sm text-gray-500">Applications approved for issuance, awaiting certificate printing and final issuance to the applicant.</p>
-            </div>
-
-            {error && <div className="rounded-lg border-l-4 border-red-400 bg-red-50 p-4 text-sm text-red-800">{error}</div>}
-
-            <div className="bg-white shadow rounded-lg overflow-hidden">
-                <div className="p-4 border-b border-gray-200">
-                    <div className="relative">
-                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <Search className="h-5 w-5 text-gray-400" />
-                        </div>
-                        <input
-                            type="text"
-                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
-                            placeholder="Search by application number, applicant name, or county"
-                            value={searchTerm}
-                            onChange={(e) => setSearchTerm(e.target.value)}
-                        />
-                    </div>
-                </div>
-
-                <div className="p-4">
-                    {loading ? (
-                        <div className="text-sm text-gray-500 py-6 text-center">Loading queue...</div>
-                    ) : (
-                        <ResponsiveTable
-                            columns={columns}
-                            rows={filtered}
-                            rowKey={(a) => a.id}
-                            actions={(a) => (
-                                <Link to={`/applications/${a.id}`} className="text-green-600 hover:text-green-900 font-medium">
-                                    Open
-                                </Link>
-                            )}
-                            emptyIcon={<Printer size={20} />}
-                            emptyTitle="No applications awaiting certificate printing"
-                            emptyDescription="Applications given final approval by the Director-General will appear here."
-                        />
-                    )}
-                </div>
-            </div>
-        </div>
+        <QueueListPage
+            title="Certificate Printing Queue"
+            description="Applications approved for issuance, awaiting certificate printing and final issuance to the applicant."
+            icon={<Printer size={20} />}
+            searchTerm={searchTerm}
+            onSearchTermChange={setSearchTerm}
+            searchPlaceholder="Search by application number, applicant name, or county"
+            error={error}
+            onRetry={loadQueue}
+            resultCount={filtered.length}
+            loading={loading}
+        >
+            <ResponsiveTable
+                columns={columns}
+                rows={filtered}
+                rowKey={(a) => a.id}
+                loading={loading}
+                actions={(a) => (
+                    <Link to={`/applications/${a.id}`} className="text-green-600 hover:text-green-900 font-medium">
+                        Open
+                    </Link>
+                )}
+                emptyIcon={<Printer size={20} />}
+                emptyTitle="No applications awaiting certificate printing"
+                emptyDescription="Applications given final approval by the Director-General will appear here."
+            />
+        </QueueListPage>
     );
 };
 
