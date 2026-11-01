@@ -34,14 +34,54 @@ export interface Role {
     updatedAt: string;
 }
 
+// Matches the backend UserStatus enum exactly (entities/User.ts).
+// SUSPENDED is distinct from REJECTED: REJECTED only ever applies to a
+// declined PENDING self-registration, while SUSPENDED is an admin
+// deliberately deactivating a previously-ACTIVE account (soft-delete,
+// reversible) without losing the account's history or the records it's
+// still referenced by.
+export const UserStatus = {
+    PENDING: "PENDING",
+    ACTIVE: "ACTIVE",
+    REJECTED: "REJECTED",
+    SUSPENDED: "SUSPENDED",
+} as const;
+
+export type UserStatus = typeof UserStatus[keyof typeof UserStatus];
+
 export interface User {
     id: string;
     email: string;
     name: string;
+    phone?: string | null;
     role: UserRole;
     assignedRole?: Role;
-    status: string;
+    status: UserStatus;
+    lastLoginAt?: string | null;
     createdAt: string;
     updatedAt: string;
+}
+
+// Matches the backend UserAuditAction enum exactly (entities/UserAuditLog.ts).
+export type UserAuditAction =
+    | 'CREATED'
+    | 'ROLE_CHANGED'
+    | 'STATUS_CHANGED'
+    | 'PASSWORD_RESET'
+    | 'PROFILE_UPDATED'
+    | 'APPROVED'
+    | 'REJECTED'
+    | 'LOGIN';
+
+export interface UserAuditLogEntry {
+    id: string;
+    userId: string;
+    action: UserAuditAction;
+    previousValue: string | null;
+    newValue: string | null;
+    performedByUserId: string | null;
+    performedByName: string | null;
+    notes: string | null;
+    createdAt: string;
 }
 
