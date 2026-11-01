@@ -163,7 +163,11 @@ const ApplicationDetail: React.FC = () => {
     useEffect(() => {
         const role = user?.role;
         const isTechnical = role === 'TECHNICAL' || role === 'ADMIN';
-        const canAssign = isTechnical && application && (application.status === 'AWAITING_TECHNICAL_REVIEW' || application.status === 'INSPECTOR_ASSIGNMENT_PENDING');
+        const canAssign = isTechnical && application && (
+            application.status === 'AWAITING_TECHNICAL_REVIEW'
+            || application.status === 'INSPECTOR_ASSIGNMENT_PENDING'
+            || application.status === 'RETURNED_TO_TECHNICAL_SERVICES'
+        );
         if (canAssign && inspectors.length === 0) {
             loadInspectors();
         }
@@ -248,8 +252,12 @@ const ApplicationDetail: React.FC = () => {
 
     // Phase 3: Technical Review + Inspector Assignment + Warehouse
     // Assessment + Second DG Approval.
-    const canStartTechnicalAssignment = isTechnical && application.status === 'AWAITING_TECHNICAL_REVIEW';
-    const canAssignInspector = isTechnical && (application.status === 'AWAITING_TECHNICAL_REVIEW' || application.status === 'INSPECTOR_ASSIGNMENT_PENDING');
+    // Also actionable on RETURNED_TO_TECHNICAL_SERVICES (the DG sent it
+    // back for more work at the second-approval stage) - mirrors how
+    // canStartReview/canCommercialAct above already include
+    // RETURNED_TO_COMMERCIAL for the equivalent first-stage return.
+    const canStartTechnicalAssignment = isTechnical && (application.status === 'AWAITING_TECHNICAL_REVIEW' || application.status === 'RETURNED_TO_TECHNICAL_SERVICES');
+    const canAssignInspector = isTechnical && (application.status === 'AWAITING_TECHNICAL_REVIEW' || application.status === 'INSPECTOR_ASSIGNMENT_PENDING' || application.status === 'RETURNED_TO_TECHNICAL_SERVICES');
     const canScheduleInspection = isInspector && (application.status === 'INSPECTOR_ASSIGNED' || application.status === 'WAREHOUSE_REINSPECTION_REQUIRED');
     const canStartAssessment = isInspector && application.status === 'WAREHOUSE_INSPECTION_SCHEDULED';
     const canSubmitAssessment = isInspector && application.status === 'WAREHOUSE_ASSESSMENT_IN_PROGRESS';
@@ -271,6 +279,22 @@ const ApplicationDetail: React.FC = () => {
     const canVerifyPayment = isFinance && application.status === 'PAYMENT_VERIFICATION_PENDING';
     const canClearCheque = isFinance && application.status === 'PENDING_CHEQUE_CLEARANCE';
     const canDGActFinal = isDG && application.status === 'AWAITING_FINAL_DG_APPROVAL';
+
+    // When the application is currently sitting in one of the three
+    // "returned by DG" statuses, surface the DG's reason prominently here
+    // (this generic page has no dedicated correction-banner the way
+    // CommercialApplicationReview.tsx does for RETURNED_TO_COMMERCIAL) -
+    // otherwise the receiving department sees only the raw, easy-to-miss
+    // Audit History entry at the bottom of the page.
+    const DG_RETURN_ACTION_BY_STATUS: Record<string, string> = {
+        RETURNED_TO_COMMERCIAL: 'DG_RETURNED_TO_COMMERCIAL',
+        RETURNED_TO_TECHNICAL_SERVICES: 'DG_RETURNED_TO_TECHNICAL',
+        RETURNED_TO_FINANCE: 'DG_RETURNED_TO_FINANCE',
+    };
+    const dgReturnAction = DG_RETURN_ACTION_BY_STATUS[application.status];
+    const dgReturnEntry = dgReturnAction
+        ? [...history].reverse().find((h) => h.action === dgReturnAction)
+        : undefined;
     const canPrintCertificate = isIT && application.status === 'AWAITING_IT_CERTIFICATE_PRINTING';
     const canIssueCertificate = isIT && application.status === 'CERTIFICATE_PRINTED';
 
@@ -295,6 +319,20 @@ const ApplicationDetail: React.FC = () => {
                     {statusLabel(application.status)}
                 </span>
             </div>
+
+            {dgReturnAction && (
+                <div className="rounded-xl border border-orange-300 bg-orange-50 p-4">
+                    <h3 className="text-sm font-semibold text-orange-800 mb-1">Returned by the Director-General</h3>
+                    {dgReturnEntry?.reason
+                        ? <p className="text-sm text-orange-800">{dgReturnEntry.reason}</p>
+                        : <p className="text-sm text-orange-700 italic">Not recorded</p>}
+                    {dgReturnEntry?.createdAt && (
+                        <p className="text-xs text-orange-600 mt-1">
+                            Returned {new Date(dgReturnEntry.createdAt).toLocaleString()}
+                        </p>
+                    )}
+                </div>
+            )}
 
             {actionError && <Alert variant="error" onClose={() => setActionError('')}>{actionError}</Alert>}
             {actionSuccess && <Alert variant="success" onClose={() => setActionSuccess('')}>{actionSuccess}</Alert>}

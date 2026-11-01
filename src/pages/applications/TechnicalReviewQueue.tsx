@@ -11,11 +11,16 @@ import { statusColor, statusLabel, categoryLabel, apiErrorMessage } from './stat
 // whose inspector has already submitted findings and are awaiting
 // verification. Same merged-in-memory pattern as CommercialQueue.tsx -
 // one simple (non-composite-index) getApplications({status}) call per
-// relevant status, merged and sorted client-side.
+// relevant status, merged and sorted client-side. RETURNED_TO_TECHNICAL_SERVICES
+// is included here (not previously) so an application the DG rejects at
+// the second-approval stage reappears for Technical Services to resume
+// work on, exactly as RETURNED_TO_COMMERCIAL does for CommercialQueue.tsx
+// and RETURNED_TO_FINANCE does for BillingQueue.tsx.
 const QUEUE_STATUSES = [
     'AWAITING_TECHNICAL_REVIEW',
     'INSPECTOR_ASSIGNMENT_PENDING',
     'AWAITING_TECHNICAL_VERIFICATION',
+    'RETURNED_TO_TECHNICAL_SERVICES',
 ];
 
 const TechnicalReviewQueue: React.FC = () => {
