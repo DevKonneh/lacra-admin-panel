@@ -36,3 +36,21 @@ export const getUserAuditLog = async (id: string) => {
 export const deleteUser = async (id: string) => {
     return apiClient.delete<ApiResponse<any>>(`/users/${id}`);
 };
+
+// --- Pending self-registration approvals ---------------------------------
+// These three hit /auth/* (not /users/*) because that's where the backend
+// keeps the self-registration approval workflow, but they're colocated
+// here since they operate on the same User records and are consumed by
+// the same "User Management" area of the admin panel.
+
+export const getPendingUsers = async () => {
+    return apiClient.get<ApiResponse<User[]>>('/auth/pending');
+};
+
+export const approveUser = async (id: string) => {
+    return apiClient.put<ApiResponse<null>>(`/auth/approve/${id}`);
+};
+
+export const rejectUser = async (id: string) => {
+    return apiClient.put<ApiResponse<null>>(`/auth/reject/${id}`);
+};

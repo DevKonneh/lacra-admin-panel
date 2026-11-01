@@ -194,6 +194,10 @@ export const navigationMenu: NavigationItem[] = [
                 path: '/admin/users'
             },
             {
+                label: 'Pending Approvals',
+                path: '/admin/approvals'
+            },
+            {
                 label: 'Roles & Permissions',
                 path: '/admin/roles'
             }
