@@ -58,6 +58,11 @@ export const navigationMenu: NavigationItem[] = [
             {
                 label: 'Cooperative Registry (CDA)',
                 path: '/admin/cooperatives'
+            },
+            {
+                label: 'Import CDA Records',
+                path: '/admin/cooperatives/import',
+                roles: [UserRole.ADMIN, UserRole.SUPER_ADMIN]
             }
         ]
     },

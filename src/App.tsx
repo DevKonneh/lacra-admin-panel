@@ -13,6 +13,7 @@ import MapView from './pages/MapView';
 import LicenseDashboard from './pages/licenses/LicenseDashboard';
 import AdminLicenseList from './pages/admin/LicenseList';
 import CooperativeRegistry from './pages/admin/CooperativeRegistry';
+import CooperativeRegistryManage from './pages/admin/CooperativeRegistryManage';
 import BatchManager from './pages/logistics/BatchManager';
 import ExportManager from './pages/export/ExportManager';
 import ChainOfCustody from './pages/custody/ChainOfCustody';
@@ -37,11 +38,22 @@ import EnforcementList from './pages/enforcement/EnforcementList';
 import InspectionForm from './pages/inspections/InspectionForm';
 import QualityControlForm from './pages/quality/QualityControlForm';
 import { AuthProvider, useAuth } from './context/AuthContext';
+import { UserRole } from './types';
 
 // Protected Route Component
 const PrivateRoute = () => {
   const { isAuthenticated } = useAuth();
   return isAuthenticated ? <Outlet /> : <Navigate to="/login" />;
+};
+
+// Admin-only route — used for registry maintenance screens (e.g. the
+// Cooperative Registry's "Import CDA Records" workflow) that must stay
+// behind an authorised-staff gate, separate from the registry's regular
+// read/browse page which any authenticated staff member can view.
+const AdminRoute = () => {
+  const { user } = useAuth();
+  const isAdmin = user?.role === UserRole.ADMIN || user?.role === UserRole.SUPER_ADMIN;
+  return isAdmin ? <Outlet /> : <Navigate to="/" />;
 };
 
 import PublicBatchDetails from './pages/PublicBatchDetails';
@@ -83,6 +95,9 @@ function App() {
               <Route path="licenses" element={<LicenseDashboard />} />
               <Route path="admin/licenses" element={<AdminLicenseList />} />
               <Route path="admin/cooperatives" element={<CooperativeRegistry />} />
+              <Route element={<AdminRoute />}>
+                <Route path="admin/cooperatives/import" element={<CooperativeRegistryManage />} />
+              </Route>
               <Route path="logistics" element={<BatchManager />} />
               <Route path="custody" element={<ChainOfCustody />} />
               <Route path="custody/batch/:batchId" element={<CustodyHistoryPage />} />
