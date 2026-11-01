@@ -31,9 +31,26 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     };
 
     const hasPermission = (item: NavigationItem): boolean => {
-        if (!item.roles) return true;
-        if (!user) return false;
-        return item.roles.includes(user.role as UserRole);
+        if (item.roles) {
+            if (!user) return false;
+            if (!item.roles.includes(user.role as UserRole)) return false;
+        }
+
+        // Additional narrowing from the account's assigned Permission
+        // Group (Role.permissions from the "Roles & Permissions" screen).
+        // This only ever NARROWS what the role check above already
+        // allows — it never grants access beyond it. Accounts with no
+        // Permission Group assigned (user.permissions is empty/undefined,
+        // which is the case for most accounts today) are unaffected and
+        // see the item exactly as the role check alone decided.
+        if (item.permissionPrefixes && user?.permissions && user.permissions.length > 0) {
+            const granted = item.permissionPrefixes.some(prefix =>
+                user.permissions!.some(p => p === prefix || p.startsWith(`${prefix}.`) || p === 'all')
+            );
+            if (!granted) return false;
+        }
+
+        return true;
     };
 
     const isActive = (item: NavigationItem): boolean => {

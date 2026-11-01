@@ -21,6 +21,14 @@ export interface NavigationItem {
     icon?: any;
     children?: NavigationItem[];
     roles?: UserRole[];
+    // Optional, additional narrowing on top of `roles`. Only takes effect
+    // for accounts that have an explicit Permission Group assigned (see
+    // Sidebar.tsx's hasPermission()) — accounts without one are unaffected
+    // and see this item exactly as the `roles` check alone would show it.
+    // Matches if the account's permissions include ANY entry starting with
+    // one of these prefixes, e.g. "license" matches "license.view",
+    // "license.approve", etc.
+    permissionPrefixes?: string[];
 }
 
 export const navigationMenu: NavigationItem[] = [
@@ -72,7 +80,8 @@ export const navigationMenu: NavigationItem[] = [
         children: [
             {
                 label: 'Business Registry',
-                path: '/admin/business'
+                path: '/admin/business',
+                permissionPrefixes: ['business']
             },
             {
                 label: 'Chain of Custody',
@@ -80,7 +89,8 @@ export const navigationMenu: NavigationItem[] = [
             },
             {
                 label: 'Export Operations',
-                path: '/export'
+                path: '/export',
+                permissionPrefixes: ['shipment']
             }
         ]
     },
@@ -108,11 +118,13 @@ export const navigationMenu: NavigationItem[] = [
         children: [
             {
                 label: 'License Management',
-                path: '/licenses'
+                path: '/licenses',
+                permissionPrefixes: ['license']
             },
             {
                 label: 'Permit Management',
-                path: '/permits'
+                path: '/permits',
+                permissionPrefixes: ['permit']
             }
         ]
     },
@@ -123,19 +135,24 @@ export const navigationMenu: NavigationItem[] = [
         // Inspector -> Billing -> Payment -> IT stages. Each child is
         // role-gated so a staff member only sees the queue(s) relevant to
         // their own department; ADMIN can see every queue via the
-        // per-item role check already supported by hasPermission().
+        // per-item role check already supported by hasPermission(). Some
+        // also carry permissionPrefixes to further narrow visibility for
+        // accounts that have a specific Permission Group assigned (see
+        // Sidebar.tsx's hasPermission()).
         label: 'License Applications',
         icon: FileCheck2,
         children: [
             {
                 label: 'Commercial Review',
                 path: '/applications/commercial-queue',
-                roles: [UserRole.COMMERCIAL, UserRole.ADMIN]
+                roles: [UserRole.COMMERCIAL, UserRole.ADMIN],
+                permissionPrefixes: ['license.review', 'permit.review']
             },
             {
                 label: 'DG Approval',
                 path: '/applications/dg-queue',
-                roles: [UserRole.DG, UserRole.ADMIN]
+                roles: [UserRole.DG, UserRole.ADMIN],
+                permissionPrefixes: ['license.approve', 'permit.approve']
             },
             {
                 label: 'Technical Review',
@@ -150,12 +167,14 @@ export const navigationMenu: NavigationItem[] = [
             {
                 label: 'Billing Review',
                 path: '/applications/billing-queue',
-                roles: [UserRole.FINANCE, UserRole.ADMIN]
+                roles: [UserRole.FINANCE, UserRole.ADMIN],
+                permissionPrefixes: ['license.issue', 'permit.issue']
             },
             {
                 label: 'Payment Verification',
                 path: '/applications/payment-queue',
-                roles: [UserRole.FINANCE, UserRole.ADMIN]
+                roles: [UserRole.FINANCE, UserRole.ADMIN],
+                permissionPrefixes: ['license.issue', 'permit.issue']
             },
             {
                 label: 'Certificate Issuance',

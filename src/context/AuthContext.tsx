@@ -6,6 +6,12 @@ interface User {
     email: string;
     role: string;
     name: string;
+    // Populated from the assigned "Permission Group" (Role.permissions) at
+    // login, when the account has one assigned. Used only to further
+    // narrow which nav sections are shown within a role — never to grant
+    // access beyond what the role-based route checks already allow. See
+    // Sidebar.tsx's hasPermission() for how this is consumed.
+    permissions?: string[];
 }
 
 interface AuthContextType {

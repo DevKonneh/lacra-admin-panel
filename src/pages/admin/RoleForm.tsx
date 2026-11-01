@@ -2,13 +2,20 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { createRole, getRole, updateRole } from '../../api/roles';
 
-// Example permissions list - in a real app this might come from backend
+// These are the permission strings that actually DO something today: the
+// admin panel sidebar (Sidebar.tsx's hasPermission()) uses them to further
+// narrow which Marketing & Commercial / Permits & Licensing / License
+// Applications nav items are shown to an account that has this Permission
+// Group assigned, on top of whatever its role (ADMIN/COMMERCIAL/DG/etc.)
+// already allows. An account with no Permission Group assigned is
+// unaffected either way. This list intentionally only includes strings
+// with real effect, rather than a long aspirational list, so creating a
+// role here doesn't silently do nothing.
 const AVAILABLE_PERMISSIONS = [
-    'user.create', 'user.read', 'user.update', 'user.delete',
-    'role.create', 'role.read', 'role.update', 'role.delete',
-    'farmer.create', 'farmer.read', 'farmer.update', 'farmer.delete',
-    'farm.create', 'farm.read', 'farm.update', 'farm.delete',
-    'report.view', 'dashboard.view'
+    'business.view', 'business.create',
+    'license.view', 'license.create', 'license.review', 'license.approve', 'license.issue',
+    'permit.view', 'permit.create', 'permit.review', 'permit.approve', 'permit.issue',
+    'shipment.conditionally_create',
 ];
 
 const RoleForm: React.FC = () => {
@@ -109,7 +116,13 @@ const RoleForm: React.FC = () => {
                 </div>
 
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-3">Permissions</label>
+                    <label className="block text-sm font-medium text-gray-700 mb-1">Permissions</label>
+                    <p className="text-xs text-gray-500 mb-3">
+                        Accounts with this Permission Group assigned will only see the matching
+                        Marketing &amp; Commercial / Permits &amp; Licensing / License Application nav
+                        sections, in addition to whatever their account Role already allows. This does
+                        not replace the account Role — it only narrows what's shown within it.
+                    </p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 max-h-80 overflow-y-auto border border-gray-200 p-4 rounded-md bg-gray-50">
                         {AVAILABLE_PERMISSIONS.map(perm => {
                             const isSelected = formData.permissions.includes(perm);
