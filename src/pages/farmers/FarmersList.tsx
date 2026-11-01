@@ -177,16 +177,27 @@ const FarmersList: React.FC = () => {
         fetchFarmers();
     }, []);
 
-    const filteredFarmers = farmers.filter(f => {
-        const matchesSearch =
-            f.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            f.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            f.farmerId?.toLowerCase().includes(searchTerm.toLowerCase());
-        const matchesGender = genderFilter === 'All' || f.gender === genderFilter;
-        const matchesVerification = verificationFilter === 'All' || f.identityStatus === verificationFilter;
-        const matchesCounty = countyFilter === 'All' || (f.region || '').toLowerCase() === countyFilter.toLowerCase();
-        return matchesSearch && matchesGender && matchesVerification && matchesCounty;
-    });
+    const filteredFarmers = farmers
+        .filter(f => {
+            const matchesSearch =
+                f.firstName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                f.lastName.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                f.farmerId?.toLowerCase().includes(searchTerm.toLowerCase());
+            const matchesGender = genderFilter === 'All' || f.gender === genderFilter;
+            const matchesVerification = verificationFilter === 'All' || f.identityStatus === verificationFilter;
+            const matchesCounty = countyFilter === 'All' || (f.region || '').toLowerCase() === countyFilter.toLowerCase();
+            return matchesSearch && matchesGender && matchesVerification && matchesCounty;
+        })
+        // Most recently mapped/registered farmer first, so it's immediately
+        // obvious who was just added. The backend doesn't guarantee an
+        // order, so sort client-side by createdAt (falling back to 0 for
+        // any legacy record missing it, which sinks it to the bottom
+        // rather than letting it jump to the top).
+        .sort((a, b) => {
+            const aTime = a.createdAt ? new Date(a.createdAt).getTime() : 0;
+            const bTime = b.createdAt ? new Date(b.createdAt).getTime() : 0;
+            return bTime - aTime;
+        });
 
     const activeFilterCount = [genderFilter, verificationFilter, countyFilter].filter((v) => v !== 'All').length;
 
