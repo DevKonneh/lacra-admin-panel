@@ -209,6 +209,15 @@ export interface ApplicationListItem {
     // backend) - not a tracked assignment record. Undefined means no
     // Commercial officer has started/resubmitted this application yet.
     assignedOfficer?: string;
+    // Additive, derived server-side from history (see getAll()'s
+    // deriveStageInfo()) for the DG Approvals Queue: when the application
+    // entered its CURRENT status - distinct from submittedAt, which never
+    // changes - and who made the department recommendation immediately
+    // preceding that transition (e.g. the Commercial officer who verified
+    // it just before AWAITING_FIRST_DG_APPROVAL began). Undefined if no
+    // matching history row exists (e.g. very old data).
+    currentStageEnteredAt?: string;
+    recommendedBy?: string;
 }
 
 export interface CreateApplicationPayload {

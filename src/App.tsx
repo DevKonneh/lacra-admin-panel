@@ -50,6 +50,7 @@ import ApplicationWizard from './pages/apply/ApplicationWizard';
 import CommercialQueue from './pages/applications/CommercialQueue';
 import CommercialApplicationReview from './pages/applications/CommercialApplicationReview';
 import DGApprovalQueue from './pages/applications/DGApprovalQueue';
+import DGApplicationReview from './pages/applications/DGApplicationReview';
 import ApplicationDetail from './pages/applications/ApplicationDetail';
 import TechnicalReviewQueue from './pages/applications/TechnicalReviewQueue';
 import InspectorQueue from './pages/applications/InspectorQueue';
@@ -116,6 +117,7 @@ function App() {
               <Route path="applications/commercial-queue" element={<CommercialQueue />} />
               <Route path="applications/commercial/:id" element={<CommercialApplicationReview />} />
               <Route path="applications/dg-queue" element={<DGApprovalQueue />} />
+              <Route path="applications/dg/:id" element={<DGApplicationReview />} />
 
               {/* Application Workflow Phase 3: Technical Review + Inspector
                   Assignment + Warehouse Assessment + Second DG Approval */}
