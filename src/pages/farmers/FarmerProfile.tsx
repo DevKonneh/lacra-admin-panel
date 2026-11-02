@@ -11,7 +11,7 @@ import { getCustodyHistory, type CustodyHistoryData } from '../../api/transfers'
 import {
     ArrowLeft, ShieldCheck, ShieldAlert, ShieldQuestion, Edit2, Save, X, MoreHorizontal,
     QrCode, Share2, FileText, Image as ImageIcon, AlertTriangle, CheckCircle2,
-    Sprout, FolderOpen, Download, Loader2, ChevronDown, Package
+    Sprout, FolderOpen, Download, Loader2, ChevronDown, Package, PlusCircle, User
 } from 'lucide-react';
 import FarmMap from '../../components/FarmMap';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -21,11 +21,11 @@ import { QRCodeCanvas } from 'qrcode.react';
 /* ---------------------------------------------------------------------- */
 
 const SectionCard: React.FC<{ number?: number; title: string; icon?: React.ReactNode; badge?: React.ReactNode; children: React.ReactNode; className?: string }> = ({ number, title, icon, badge, children, className = '' }) => (
-    <div className={`bg-white rounded-xl border border-gray-200 shadow-sm ${className}`}>
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-gray-100">
-            <h2 className="text-sm font-bold text-gray-800 flex items-center gap-2">
+    <div className={`bg-brand-card rounded-xl border border-brand-border shadow-card ${className}`}>
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-brand-border">
+            <h2 className="text-sm font-bold text-brand-text flex items-center gap-2">
                 {icon}
-                {number != null && <span>{number}.</span>} {title}
+                {number != null && <span className="text-brand-green">{number}.</span>} {title}
             </h2>
             {badge}
         </div>
@@ -33,10 +33,16 @@ const SectionCard: React.FC<{ number?: number; title: string; icon?: React.React
     </div>
 );
 
+const FallbackAvatar: React.FC<{ className?: string }> = ({ className = 'h-12 w-12' }) => (
+    <div className={`${className} rounded-full bg-gradient-to-br from-green-500 to-emerald-600 flex items-center justify-center text-white flex-shrink-0`}>
+        <User className="h-[45%] w-[45%]" />
+    </div>
+);
+
 const Field: React.FC<{ label: string; value: React.ReactNode; mono?: boolean }> = ({ label, value, mono }) => (
     <div>
-        <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide">{label}</p>
-        <p className={`text-sm text-gray-900 mt-0.5 ${mono ? 'font-mono' : ''}`}>{value ?? <span className="text-gray-400">N/A</span>}</p>
+        <p className="text-[11px] font-medium text-brand-muted uppercase tracking-wide">{label}</p>
+        <p className={`text-sm text-brand-text mt-0.5 ${mono ? 'font-mono' : ''}`}>{value ?? <span className="text-gray-400">N/A</span>}</p>
     </div>
 );
 
@@ -55,6 +61,8 @@ const RiskPill: React.FC<{ level?: string }> = ({ level }) => {
     const cls = l === 'High' ? 'bg-red-100 text-red-700' : l === 'Medium' ? 'bg-orange-100 text-orange-700' : 'bg-green-100 text-green-700';
     return <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${cls}`}>{l}</span>;
 };
+
+const inputCls = 'border border-brand-border rounded-lg px-2.5 py-1.5 text-sm w-full bg-white text-brand-text focus:outline-none focus:ring-2 focus:ring-brand-green/30 focus:border-brand-green transition-colors';
 
 const fmtDate = (d?: string | Date) => {
     if (!d) return 'N/A';
@@ -261,6 +269,71 @@ const FarmerProfile: React.FC = () => {
     const latestAssessment: RiskAnalysisResult | undefined = riskHistory[0];
     const overallRisk = selectedFarm?.riskLevel || latestAssessment?.overallRisk || 'Low';
 
+    // Calculated area (from real GeoJSON boundary) for EVERY farm this
+    // farmer owns — used by the "Registered Farms" table below. Separate
+    // from `geo` above, which only covers the currently-selected farm.
+    const calcAreaHaFor = (farm: Farm): number | null => {
+        const loc = farm.location;
+        if (!loc || !loc.coordinates) return null;
+        try {
+            if (loc.type === 'Polygon') return turf.area(loc as any) / 10000;
+        } catch {
+            /* ignore malformed geometry */
+        }
+        return null;
+    };
+
+    // Flattens a farm's active Plot -> PlotCommodity rows into the summary
+    // the "Registered Farms" table needs: primary commodity, additional
+    // (secondary) commodities, the set of cropping systems in use, a
+    // human-readable estimated-production rollup, and a per-commodity
+    // eligibility/compliance status. There is no dedicated per-commodity
+    // compliance field in the data model yet, so eligibility is derived
+    // from `productionStatus` as a reasonable, transparent heuristic:
+    // Producing/Declining -> Eligible, Not Yet Productive/Dormant ->
+    // Pending, Abandoned -> Ineligible. Falls back to the legacy single
+    // cropType field for farms with no Plot/PlotCommodity rows yet.
+    type CommodityEligibility = 'Eligible' | 'Pending' | 'Ineligible';
+    const eligibilityForStatus = (status?: string): CommodityEligibility => {
+        if (status === 'Producing' || status === 'Declining') return 'Eligible';
+        if (status === 'Abandoned') return 'Ineligible';
+        return 'Pending'; // Not Yet Productive / Dormant / Off-season / unknown
+    };
+    const getFarmCommoditySummary = (f: Farm) => {
+        const activeCommodities = (f.plots || [])
+            .filter((p) => p.isActive)
+            .flatMap((p) => p.plotCommodities || [])
+            .filter((pc) => pc.isActive);
+
+        if (activeCommodities.length === 0) {
+            return {
+                primary: f.cropType || null,
+                additional: [] as string[],
+                croppingSystems: [] as string[],
+                productionSummary: '\u2014',
+                eligibility: f.cropType ? [{ name: f.cropType, status: 'Pending' as CommodityEligibility }] : [],
+            };
+        }
+
+        const primaryEntry = activeCommodities.find((pc) => pc.role === 'Primary') || activeCommodities[0];
+        const additional = Array.from(new Set(
+            activeCommodities.filter((pc) => pc !== primaryEntry).map((pc) => pc.commodityName)
+        ));
+        const croppingSystems = Array.from(new Set(activeCommodities.map((pc) => pc.croppingSystem).filter(Boolean)));
+        const productionSummary = activeCommodities
+            .filter((pc) => pc.estimatedAnnualProduction != null)
+            .map((pc) => `${pc.estimatedAnnualProduction} ${pc.unitOfMeasurement || ''} (${pc.commodityName})`.trim())
+            .join(', ') || '\u2014';
+        const eligibility = activeCommodities.map((pc) => ({
+            name: pc.commodityName,
+            status: eligibilityForStatus(pc.productionStatus),
+        }));
+
+        return { primary: primaryEntry.commodityName, additional, croppingSystems, productionSummary, eligibility };
+    };
+    const eligibilityBadgeClass = (status: 'Eligible' | 'Pending' | 'Ineligible') =>
+        status === 'Eligible' ? 'bg-green-100 text-green-700' : status === 'Ineligible' ? 'bg-red-100 text-red-700' : 'bg-yellow-100 text-yellow-700';
+
     // --- Data Quality Score: computed from real completeness of captured fields (not fabricated) ---
     const quality = useMemo(() => {
         const farmerFields = farmer ? [farmer.firstName, farmer.lastName, farmer.phoneNumber, farmer.gender, farmer.dob, farmer.nationalId, farmer.community, farmer.district] : [];
@@ -287,14 +360,20 @@ const FarmerProfile: React.FC = () => {
     // --- Early returns for loading/error/no-data states ---
     // IMPORTANT: placed AFTER all hooks above so hook order stays identical on every render.
     if (loading) {
-        return <div className="flex justify-center p-16"><Loader2 className="animate-spin h-8 w-8 text-green-600" /></div>;
+        return (
+            <div className="flex flex-col items-center justify-center gap-3 p-20 text-brand-muted">
+                <Loader2 className="animate-spin h-8 w-8 text-brand-green" />
+                <p className="text-sm">Loading farmer profile…</p>
+            </div>
+        );
     }
 
     if (error || !farmer) {
         return (
-            <div className="p-8 text-center">
-                <p className="text-red-500 mb-4">{error || 'Farmer not found'}</p>
-                <button onClick={fetchFarmer} className="text-green-600 hover:text-green-800 font-medium">Retry</button>
+            <div className="max-w-md mx-auto mt-12 bg-brand-card rounded-xl border border-brand-border shadow-card p-8 text-center">
+                <AlertTriangle className="h-8 w-8 text-red-400 mx-auto mb-3" />
+                <p className="text-sm text-red-600 mb-4">{error || 'Farmer not found'}</p>
+                <button onClick={fetchFarmer} className="px-4 py-2 rounded-lg bg-brand-green text-white text-sm font-semibold hover:bg-brand-green-hover transition-colors">Retry</button>
             </div>
         );
     }
@@ -302,68 +381,78 @@ const FarmerProfile: React.FC = () => {
     const statusBadge = () => {
         const status = farmer.identityStatus;
         if (status === 'Verified') {
-            return <span className="inline-flex items-center gap-1 text-xs font-semibold text-green-700"><ShieldCheck className="h-3.5 w-3.5" /> Verified Farmer</span>;
+            return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-green-50 text-green-700 border border-green-100"><ShieldCheck className="h-3.5 w-3.5" /> Verified Farmer</span>;
         }
         if (status === 'Conflict') {
-            return <span className="inline-flex items-center gap-1 text-xs font-semibold text-red-600"><ShieldAlert className="h-3.5 w-3.5" /> Conflict</span>;
+            return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-red-50 text-red-600 border border-red-100"><ShieldAlert className="h-3.5 w-3.5" /> Conflict</span>;
         }
-        return <span className="inline-flex items-center gap-1 text-xs font-semibold text-yellow-600"><ShieldQuestion className="h-3.5 w-3.5" /> Unverified</span>;
+        return <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold bg-yellow-50 text-yellow-700 border border-yellow-100"><ShieldQuestion className="h-3.5 w-3.5" /> Unverified</span>;
     };
 
     return (
         <div className="max-w-[1400px] mx-auto space-y-4">
             {/* Back link */}
-            <button onClick={() => navigate('/farmers')} className="text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1">
+            <button onClick={() => navigate('/farmers')} className="text-xs font-medium text-brand-muted hover:text-brand-green flex items-center gap-1 transition-colors">
                 <ArrowLeft className="h-3.5 w-3.5" /> Back to Farmers
             </button>
 
             {/* Header bar */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-5 py-4 flex flex-wrap items-start justify-between gap-4">
-                <div>
-                    <div className="flex items-center gap-3 flex-wrap">
-                        <h1 className="text-xl font-bold text-gray-900">Farmer Profile</h1>
-                        {statusBadge()}
-                        {!isActive && (
-                            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-200 text-gray-600">Deactivated</span>
-                        )}
+            <div className="bg-brand-card rounded-xl border border-brand-border shadow-card px-5 py-4 flex flex-wrap items-start justify-between gap-4">
+                <div className="flex items-start gap-3">
+                    <div className="flex-none">
+                        <SafeImage
+                            src={resolveFileUrl(farmer.profilePhoto)}
+                            alt="Farmer"
+                            className="h-12 w-12 rounded-full object-cover border border-brand-border"
+                            fallback={<FallbackAvatar className="h-12 w-12" />}
+                        />
                     </div>
-                    <p className="text-xs text-gray-500 mt-1">
-                        Farmer ID: <span className="font-mono text-gray-700">{farmer.farmerId || farmer.id.slice(0, 8).toUpperCase()}</span>
-                        {' · '}Registration Date: {fmtDate(farmer.createdAt)}
-                        {' · '}Last Updated: {fmtDate(farmer.updatedAt)}
-                    </p>
+                    <div>
+                        <div className="flex items-center gap-3 flex-wrap">
+                            <h1 className="text-xl font-bold text-brand-text">{farmer.firstName} {farmer.lastName}</h1>
+                            {statusBadge()}
+                            {!isActive && (
+                                <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-gray-200 text-gray-600">Deactivated</span>
+                            )}
+                        </div>
+                        <p className="text-xs text-brand-muted mt-1">
+                            Farmer ID: <span className="font-mono text-brand-text">{farmer.farmerId || farmer.id.slice(0, 8).toUpperCase()}</span>
+                            {' · '}Registered {fmtDate(farmer.createdAt)}
+                            {' · '}Updated {fmtDate(farmer.updatedAt)}
+                        </p>
+                    </div>
                 </div>
                 <div className="flex items-center gap-2">
                     {isEditing ? (
                         <>
-                            <button onClick={() => setIsEditing(false)} className="px-3 py-2 text-sm rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 flex items-center gap-1.5">
+                            <button onClick={() => setIsEditing(false)} className="px-3 py-2 text-sm rounded-lg border border-brand-border text-brand-muted hover:bg-brand-bg flex items-center gap-1.5 transition-colors">
                                 <X className="h-4 w-4" /> Cancel
                             </button>
-                            <button onClick={handleSave} disabled={saving} className="px-3 py-2 text-sm rounded-lg bg-green-600 text-white hover:bg-green-700 disabled:opacity-60 flex items-center gap-1.5">
+                            <button onClick={handleSave} disabled={saving} className="px-3 py-2 text-sm rounded-lg bg-brand-green text-white hover:bg-brand-green-hover disabled:opacity-60 flex items-center gap-1.5 transition-colors">
                                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />} Save Changes
                             </button>
                         </>
                     ) : (
-                        <button onClick={() => setIsEditing(true)} className="px-3 py-2 text-sm rounded-lg bg-green-600 text-white hover:bg-green-700 flex items-center gap-1.5">
+                        <button onClick={() => setIsEditing(true)} className="px-3 py-2 text-sm rounded-lg bg-brand-green text-white hover:bg-brand-green-hover flex items-center gap-1.5 transition-colors">
                             <Edit2 className="h-4 w-4" /> Edit Profile
                         </button>
                     )}
                     <div className="relative">
-                        <button onClick={() => setShowMenu(!showMenu)} className="p-2 rounded-lg border border-gray-300 text-gray-500 hover:bg-gray-50">
+                        <button onClick={() => setShowMenu(!showMenu)} className="p-2 rounded-lg border border-brand-border text-brand-muted hover:bg-brand-bg transition-colors">
                             <MoreHorizontal className="h-4 w-4" />
                         </button>
                         {showMenu && (
-                            <div className="absolute right-0 mt-1 w-44 bg-white border border-gray-200 rounded-lg shadow-lg z-20 text-sm overflow-hidden">
+                            <div className="absolute right-0 mt-1 w-44 bg-white border border-brand-border rounded-lg shadow-card z-20 text-sm overflow-hidden">
                                 <button
                                     onClick={() => { setShowMenu(false); handleToggleActive(); }}
-                                    className={`w-full text-left px-3 py-2 hover:bg-gray-50 ${isActive ? 'text-red-600' : 'text-green-600'}`}
+                                    className={`w-full text-left px-3 py-2 hover:bg-brand-bg transition-colors ${isActive ? 'text-red-600' : 'text-brand-green'}`}
                                 >
                                     {isActive ? 'Deactivate Farmer' : 'Reactivate Farmer'}
                                 </button>
                             </div>
                         )}
                     </div>
-                    <button onClick={() => setShowQr(!showQr)} className="px-3 py-2 text-sm rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 flex items-center gap-1.5">
+                    <button onClick={() => setShowQr(!showQr)} className="px-3 py-2 text-sm rounded-lg border border-brand-border text-brand-muted hover:bg-brand-bg flex items-center gap-1.5 transition-colors">
                         <QrCode className="h-4 w-4" /> QR Code
                     </button>
                     <button
@@ -372,7 +461,7 @@ const FarmerProfile: React.FC = () => {
                             navigator.clipboard?.writeText(url);
                             alert('Public profile link copied to clipboard');
                         }}
-                        className="px-3 py-2 text-sm rounded-lg border border-gray-300 text-gray-600 hover:bg-gray-50 flex items-center gap-1.5"
+                        className="px-3 py-2 text-sm rounded-lg border border-brand-border text-brand-muted hover:bg-brand-bg flex items-center gap-1.5 transition-colors"
                     >
                         <Share2 className="h-4 w-4" /> Share
                     </button>
@@ -380,11 +469,11 @@ const FarmerProfile: React.FC = () => {
             </div>
 
             {showQr && (
-                <div className="bg-white rounded-xl border border-gray-200 shadow-sm p-5 flex items-center gap-4">
-                    <div className="bg-white p-2 border border-gray-200 rounded">
+                <div className="bg-brand-card rounded-xl border border-brand-border shadow-card p-5 flex items-center gap-4">
+                    <div className="bg-white p-2 border border-brand-border rounded-lg">
                         <QRCodeCanvas value={`${window.location.origin}/public/farmers/${farmer.id}`} size={96} level="M" includeMargin />
                     </div>
-                    <div className="text-sm text-gray-500">
+                    <div className="text-sm text-brand-muted">
                         Scan to open this farmer's public verification profile.
                         <br />
                         <span className="font-mono text-xs text-gray-400">{window.location.origin}/public/farmers/{farmer.id}</span>
@@ -395,12 +484,12 @@ const FarmerProfile: React.FC = () => {
             {/* Farm selector, if farmer has multiple farms */}
             {farmer.farms.length > 1 && (
                 <div className="flex items-center gap-2 text-sm">
-                    <span className="text-gray-500">Viewing farm:</span>
+                    <span className="text-brand-muted">Viewing farm:</span>
                     <div className="relative inline-block">
                         <select
                             value={selectedFarmId ?? ''}
                             onChange={(e) => setSelectedFarmId(e.target.value)}
-                            className="appearance-none border border-gray-300 rounded-lg pl-3 pr-8 py-1.5 text-sm font-medium text-gray-800 bg-white"
+                            className="appearance-none border border-brand-border rounded-lg pl-3 pr-8 py-1.5 text-sm font-medium text-brand-text bg-white focus:outline-none focus:ring-2 focus:ring-brand-green/30"
                         >
                             {farmer.farms.map(f => <option key={f.id} value={f.id}>{f.name}</option>)}
                         </select>
@@ -440,63 +529,137 @@ const FarmerProfile: React.FC = () => {
                         <div className="flex-1 grid grid-cols-2 gap-3">
                             {isEditing ? (
                                 <div className="col-span-2 flex gap-2">
-                                    <input className="border border-gray-300 rounded px-2 py-1 text-sm w-full" value={editForm.firstName} onChange={e => setEditForm({ ...editForm, firstName: e.target.value })} placeholder="First name" />
-                                    <input className="border border-gray-300 rounded px-2 py-1 text-sm w-full" value={editForm.lastName} onChange={e => setEditForm({ ...editForm, lastName: e.target.value })} placeholder="Last name" />
+                                    <input className={inputCls} value={editForm.firstName} onChange={e => setEditForm({ ...editForm, firstName: e.target.value })} placeholder="First name" />
+                                    <input className={inputCls} value={editForm.lastName} onChange={e => setEditForm({ ...editForm, lastName: e.target.value })} placeholder="Last name" />
                                 </div>
                             ) : (
                                 <div className="col-span-2"><Field label="Full Name" value={`${farmer.firstName} ${farmer.lastName}`} /></div>
                             )}
-                            <Field label="National ID" value={isEditing ? <input className="border border-gray-300 rounded px-2 py-1 text-sm w-full" value={editForm.nationalId} onChange={e => setEditForm({ ...editForm, nationalId: e.target.value })} /> : farmer.nationalId} />
-                            <Field label="Phone Number" value={isEditing ? <input className="border border-gray-300 rounded px-2 py-1 text-sm w-full" value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} /> : farmer.phoneNumber} />
+                            <Field label="National ID" value={isEditing ? <input className={inputCls} value={editForm.nationalId} onChange={e => setEditForm({ ...editForm, nationalId: e.target.value })} /> : farmer.nationalId} />
+                            <Field label="Phone Number" value={isEditing ? <input className={inputCls} value={editForm.phone} onChange={e => setEditForm({ ...editForm, phone: e.target.value })} /> : farmer.phoneNumber} />
                             <Field label="Date of Birth" value={fmtDate(farmer.dob)} />
                             <Field label="Gender" value={isEditing ? (
-                                <select className="border border-gray-300 rounded px-2 py-1 text-sm w-full" value={editForm.gender} onChange={e => setEditForm({ ...editForm, gender: e.target.value })}>
+                                <select className={inputCls} value={editForm.gender} onChange={e => setEditForm({ ...editForm, gender: e.target.value })}>
                                     <option value="">Select...</option><option value="Male">Male</option><option value="Female">Female</option><option value="Other">Other</option>
                                 </select>
                             ) : farmer.gender} />
-                            <Field label="Cooperative" value={isEditing ? <input className="border border-gray-300 rounded px-2 py-1 text-sm w-full" value={editForm.cooperativeName} onChange={e => setEditForm({ ...editForm, cooperativeName: e.target.value })} /> : farmer.cooperativeName} />
+                            <Field label="Cooperative" value={isEditing ? <input className={inputCls} value={editForm.cooperativeName} onChange={e => setEditForm({ ...editForm, cooperativeName: e.target.value })} /> : farmer.cooperativeName} />
                             <Field label="Role in Cooperative" value={farmer.cooperativeId ? `Member (${farmer.cooperativeId})` : undefined} />
                             <Field label="Clan" value={farmer.otherId} />
-                            <Field label="County" value={isEditing ? <input className="border border-gray-300 rounded px-2 py-1 text-sm w-full" value={editForm.region} onChange={e => setEditForm({ ...editForm, region: e.target.value })} /> : farmer.region} />
-                            <Field label="District" value={isEditing ? <input className="border border-gray-300 rounded px-2 py-1 text-sm w-full" value={editForm.district} onChange={e => setEditForm({ ...editForm, district: e.target.value })} /> : farmer.district} />
-                            <Field label="Town / Village" value={isEditing ? <input className="border border-gray-300 rounded px-2 py-1 text-sm w-full" value={editForm.community} onChange={e => setEditForm({ ...editForm, community: e.target.value })} /> : farmer.community} />
+                            <Field label="County" value={isEditing ? <input className={inputCls} value={editForm.region} onChange={e => setEditForm({ ...editForm, region: e.target.value })} /> : farmer.region} />
+                            <Field label="District" value={isEditing ? <input className={inputCls} value={editForm.district} onChange={e => setEditForm({ ...editForm, district: e.target.value })} /> : farmer.district} />
+                            <Field label="Town / Village" value={isEditing ? <input className={inputCls} value={editForm.community} onChange={e => setEditForm({ ...editForm, community: e.target.value })} /> : farmer.community} />
                             <Field label="Residential GPS" value={farmer.latitude && farmer.longitude ? `${farmer.latitude}, ${farmer.longitude}` : undefined} mono />
                             <Field label="Emergency Contact" value={undefined} />
                         </div>
                     </div>
                 </SectionCard>
 
-                {/* 2. Farm Summary */}
-                <SectionCard number={2} title="Farm Summary" badge={selectedFarm ? <span className="text-xs font-semibold text-green-700 bg-green-50 px-2 py-0.5 rounded-full">{selectedFarm.farmRegistrationStatus || 'Active'}</span> : null}>
-                    {!selectedFarm ? (
+                {/* 2. Registered Farms — replaces the old single-farm "Farm Summary"
+                     section so a farmer with multiple farms sees ALL of them at
+                     once, instead of only whichever one happens to be selected. */}
+                <SectionCard
+                    number={2}
+                    title="Registered Farms"
+                    badge={<span className="text-xs font-semibold text-brand-green bg-brand-green/10 px-2 py-0.5 rounded-full">{farmer.farms.length} farm{farmer.farms.length !== 1 ? 's' : ''}</span>}
+                >
+                    {farmer.farms.length === 0 ? (
                         <p className="text-sm text-gray-400 italic">No farms registered for this farmer.</p>
                     ) : (
-                        <div className="flex gap-4">
-                            <div className="flex-1 grid grid-cols-2 gap-3">
-                                <Field label="Farm ID" value={selectedFarm.id.slice(0, 13).toUpperCase()} mono />
-                                <Field label="Farm Name" value={selectedFarm.name} />
-                                <Field label="Commodity" value={<span className="inline-flex items-center gap-1"><Sprout className="h-3.5 w-3.5 text-green-600" /> {selectedFarm.cropType}</span>} />
-                                <Field label="Farm Size (Calculated)" value={geo.areaHa != null ? `${geo.areaHa.toFixed(2)} ha` : undefined} />
-                                <Field label="Farm Size (Declared)" value={selectedFarm.manualSizeInput ? `${selectedFarm.manualSizeInput} ${selectedFarm.manualSizeUnit || ''}` : (selectedFarm.totalAreaHa ? `${selectedFarm.totalAreaHa} ha` : undefined)} />
-                                <Field label="Ownership Type" value={selectedFarm.ownershipType} />
-                                <Field label="Number of Trees" value={selectedFarm.numberOfTrees} />
-                                <Field label="Years Cultivated" value={selectedFarm.yearsInCultivation} />
-                                <Field label="Harvest Season" value={selectedFarm.harvestSeason} />
-                                <Field label="Est. Annual Production" value={selectedFarm.averageYield} />
-                                <Field label="Farm Status" value={selectedFarm.farmRegistrationStatus || 'Active'} />
-                                <Field label="Coordinate System" value="WGS 84" />
-                            </div>
-                            <div className="flex-none w-40">
-                                <div className="h-32 w-40 rounded-lg overflow-hidden border border-gray-200">
-                                    <FarmMap location={selectedFarm.location} height="100%" showLayerToggle={false} showHoverReadout={false} scrollWheelZoom={false} dragging={false} zoomControl={false} areaHa={selectedFarm.totalAreaHa} />
-                                </div>
-                                <p className="text-[10px] text-gray-400 mt-1">Farm GPS Center</p>
-                                <p className="text-[11px] font-mono text-gray-600">{geo.center ? `${geo.center[0].toFixed(4)}, ${geo.center[1].toFixed(4)}` : 'N/A'}</p>
-                                <p className="text-[10px] text-gray-400 mt-1">Mapped By</p>
-                                <p className="text-[11px] text-gray-600">{farmer.enumeratorName || 'N/A'}</p>
-                            </div>
+                        <div className="overflow-x-auto -mx-1 rounded-lg border border-brand-border">
+                            <table className="min-w-full text-sm">
+                                <thead>
+                                    <tr className="text-left text-[11px] uppercase tracking-wide text-brand-muted bg-brand-bg border-b border-brand-border">
+                                        <th className="px-2 py-2 font-medium">Farm ID</th>
+                                        <th className="px-2 py-2 font-medium">Farm Name</th>
+                                        <th className="px-2 py-2 font-medium">Location</th>
+                                        <th className="px-2 py-2 font-medium">Primary Commodity</th>
+                                        <th className="px-2 py-2 font-medium">Additional Commodities</th>
+                                        <th className="px-2 py-2 font-medium">Cropping System</th>
+                                        <th className="px-2 py-2 font-medium">Est. Production</th>
+                                        <th className="px-2 py-2 font-medium">Declared Area</th>
+                                        <th className="px-2 py-2 font-medium">Calculated Area</th>
+                                        <th className="px-2 py-2 font-medium">Compliance</th>
+                                        <th className="px-2 py-2 font-medium">Commodity Eligibility</th>
+                                        <th className="px-2 py-2 font-medium">Date Mapped</th>
+                                        <th className="px-2 py-2 font-medium text-right">Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody className="divide-y divide-brand-border bg-white">
+                                    {farmer.farms.map((f) => {
+                                        const calcArea = calcAreaHaFor(f);
+                                        const declaredArea = f.manualSizeInput
+                                            ? `${f.manualSizeInput} ${f.manualSizeUnit || ''}`
+                                            : (f.totalAreaHa ? `${f.totalAreaHa} ha` : '\u2014');
+                                        const summary = getFarmCommoditySummary(f);
+                                        return (
+                                            <tr key={f.id} className={`transition-colors hover:bg-brand-bg/60 ${f.id === selectedFarm?.id ? 'bg-brand-green/5' : ''}`}>
+                                                <td className="px-2 py-2.5 font-mono text-xs text-brand-muted">{f.id.slice(0, 8).toUpperCase()}</td>
+                                                <td className="px-2 py-2.5 font-medium text-brand-text">{f.name}</td>
+                                                <td className="px-2 py-2.5 text-gray-500">{[farmer.district, farmer.region].filter(Boolean).join(', ') || '\u2014'}</td>
+                                                <td className="px-2 py-2.5">
+                                                    {summary.primary ? (
+                                                        <span className="inline-flex items-center gap-1 text-gray-700"><Sprout className="h-3.5 w-3.5 text-green-600" /> {summary.primary}</span>
+                                                    ) : (
+                                                        <span className="text-gray-400">{'\u2014'}</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-2 py-2.5">
+                                                    {summary.additional.length > 0 ? (
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {summary.additional.map((name) => (
+                                                                <span key={name} className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-700">{name}</span>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-gray-400">{'\u2014'}</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-2 py-2.5 text-gray-500">
+                                                    {summary.croppingSystems.length > 0 ? summary.croppingSystems.join(', ') : '\u2014'}
+                                                </td>
+                                                <td className="px-2 py-2.5 text-gray-500 max-w-[180px] truncate" title={summary.productionSummary}>
+                                                    {summary.productionSummary}
+                                                </td>
+                                                <td className="px-2 py-2.5 text-gray-500">{declaredArea}</td>
+                                                <td className="px-2 py-2.5 text-gray-500">{calcArea != null ? `${calcArea.toFixed(2)} ha` : '\u2014'}</td>
+                                                <td className="px-2 py-2.5">
+                                                    <RiskPill level={f.riskLevel || 'Low'} />
+                                                </td>
+                                                <td className="px-2 py-2.5">
+                                                    {summary.eligibility.length > 0 ? (
+                                                        <div className="flex flex-wrap gap-1">
+                                                            {summary.eligibility.map((e, i) => (
+                                                                <span key={`${e.name}-${i}`} className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${eligibilityBadgeClass(e.status)}`} title={e.name}>
+                                                                    {e.name}: {e.status}
+                                                                </span>
+                                                            ))}
+                                                        </div>
+                                                    ) : (
+                                                        <span className="text-gray-400">{'\u2014'}</span>
+                                                    )}
+                                                </td>
+                                                <td className="px-2 py-2.5 text-gray-500">{fmtDate(f.createdAt)}</td>
+                                                <td className="px-2 py-2.5 text-right">
+                                                    <Link to={`/farms/${f.id}`} className="text-brand-green hover:text-brand-green-hover font-medium text-xs whitespace-nowrap">
+                                                        View Farm
+                                                    </Link>
+                                                </td>
+                                            </tr>
+                                        );
+                                    })}
+                                </tbody>
+                            </table>
                         </div>
                     )}
+                    <div className="mt-4 pt-4 border-t border-brand-border">
+                        <button
+                            onClick={() => navigate(`/farmers/mapping/confirm-identity/${farmer.id}`)}
+                            className="w-full inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-brand-green text-white text-sm font-semibold hover:bg-brand-green-hover transition-colors"
+                        >
+                            <PlusCircle className="h-4 w-4" /> Add Another Farm
+                        </button>
+                    </div>
                 </SectionCard>
             </div>
 
@@ -508,34 +671,34 @@ const FarmerProfile: React.FC = () => {
                         <p className="text-sm text-gray-400 italic">No boundary captured for this farm.</p>
                     ) : (
                         <div className="flex flex-col md:flex-row gap-4">
-                            <div className="h-56 w-full md:w-1/2 rounded-lg overflow-hidden border border-gray-200 flex-none">
+                            <div className="h-56 w-full md:w-1/2 rounded-lg overflow-hidden border border-brand-border flex-none">
                                 <FarmMap location={selectedFarm.location} height="100%" areaHa={selectedFarm.totalAreaHa} />
                             </div>
                             <div className="flex-1">
-                                <div className="max-h-44 overflow-y-auto border border-gray-100 rounded-lg">
+                                <div className="max-h-44 overflow-y-auto border border-brand-border rounded-lg">
                                     <table className="w-full text-xs">
-                                        <thead className="bg-gray-50 sticky top-0">
+                                        <thead className="bg-brand-bg sticky top-0">
                                             <tr>
-                                                <th className="text-left px-2 py-1.5 font-medium text-gray-500">Point</th>
-                                                <th className="text-left px-2 py-1.5 font-medium text-gray-500">Latitude</th>
-                                                <th className="text-left px-2 py-1.5 font-medium text-gray-500">Longitude</th>
+                                                <th className="text-left px-2 py-1.5 font-medium text-brand-muted">Point</th>
+                                                <th className="text-left px-2 py-1.5 font-medium text-brand-muted">Latitude</th>
+                                                <th className="text-left px-2 py-1.5 font-medium text-brand-muted">Longitude</th>
                                             </tr>
                                         </thead>
                                         <tbody>
                                             {geo.points.map((p, idx) => (
-                                                <tr key={idx} className="border-t border-gray-100">
-                                                    <td className="px-2 py-1.5 text-gray-500">{idx + 1}</td>
-                                                    <td className="px-2 py-1.5 font-mono text-gray-700">{p.lat.toFixed(6)}°N</td>
-                                                    <td className="px-2 py-1.5 font-mono text-gray-700">{p.lng.toFixed(6)}°W</td>
+                                                <tr key={idx} className="border-t border-brand-border">
+                                                    <td className="px-2 py-1.5 text-brand-muted">{idx + 1}</td>
+                                                    <td className="px-2 py-1.5 font-mono text-brand-text">{p.lat.toFixed(6)}°N</td>
+                                                    <td className="px-2 py-1.5 font-mono text-brand-text">{p.lng.toFixed(6)}°W</td>
                                                 </tr>
                                             ))}
                                         </tbody>
                                     </table>
                                 </div>
-                                <div className="flex justify-between text-xs text-gray-500 mt-2">
-                                    <span>Total Points: <b className="text-gray-800">{geo.points.length}</b></span>
-                                    <span>Area: <b className="text-gray-800">{geo.areaHa?.toFixed(2) ?? '-'} ha</b></span>
-                                    <span>Perimeter: <b className="text-gray-800">{geo.perimeterM?.toFixed(2) ?? '-'} m</b></span>
+                                <div className="flex justify-between text-xs text-brand-muted mt-2">
+                                    <span>Total Points: <b className="text-brand-text">{geo.points.length}</b></span>
+                                    <span>Area: <b className="text-brand-text">{geo.areaHa?.toFixed(2) ?? '-'} ha</b></span>
+                                    <span>Perimeter: <b className="text-brand-text">{geo.perimeterM?.toFixed(2) ?? '-'} m</b></span>
                                 </div>
                                 <button
                                     onClick={() => {
@@ -545,7 +708,7 @@ const FarmerProfile: React.FC = () => {
                                         a.href = url; a.download = `${selectedFarm.name.replace(/\s+/g, '_')}.geojson`; a.click();
                                         URL.revokeObjectURL(url);
                                     }}
-                                    className="mt-3 text-xs font-medium text-green-700 border border-green-200 bg-green-50 rounded-lg px-3 py-1.5 hover:bg-green-100 flex items-center gap-1.5"
+                                    className="mt-3 text-xs font-medium text-brand-green border border-brand-green/30 bg-brand-green/5 rounded-lg px-3 py-1.5 hover:bg-brand-green/10 flex items-center gap-1.5 transition-colors"
                                 >
                                     <Download className="h-3.5 w-3.5" /> View / Export GeoJSON
                                 </button>
@@ -562,8 +725,8 @@ const FarmerProfile: React.FC = () => {
                         <>
                             {farmer.farmSelfie && (
                                 <div className="mb-3">
-                                    <p className="text-[11px] font-medium text-gray-500 mb-1.5">Farmer on Farm</p>
-                                    <div className="relative rounded-lg overflow-hidden border border-gray-200 w-28 aspect-square">
+                                    <p className="text-[11px] font-medium text-brand-muted mb-1.5">Farmer on Farm</p>
+                                    <div className="relative rounded-lg overflow-hidden border border-brand-border w-28 aspect-square">
                                         <SafeImage
                                             src={resolveFileUrl(farmer.farmSelfie)}
                                             alt="Farmer on farm"
@@ -576,11 +739,11 @@ const FarmerProfile: React.FC = () => {
                             {selectedFarm?.farmPhotos && selectedFarm.farmPhotos.length > 0 && (
                                 <>
                                     {farmer.farmSelfie && (
-                                        <p className="text-[11px] font-medium text-gray-500 mb-1.5">Additional Farm Photos</p>
+                                        <p className="text-[11px] font-medium text-brand-muted mb-1.5">Additional Farm Photos</p>
                                     )}
                                     <div className="grid grid-cols-3 gap-2">
                                         {selectedFarm.farmPhotos.slice(0, 6).map((url, idx) => (
-                                            <div key={idx} className="relative rounded-lg overflow-hidden border border-gray-200 aspect-square">
+                                            <div key={idx} className="relative rounded-lg overflow-hidden border border-brand-border aspect-square">
                                                 <SafeImage
                                                     src={resolveFileUrl(url)}
                                                     alt={`Farm photo ${idx + 1}`}
@@ -591,7 +754,7 @@ const FarmerProfile: React.FC = () => {
                                         ))}
                                     </div>
                                     {selectedFarm.farmPhotos.length > 6 && (
-                                        <button className="mt-3 text-xs font-medium text-green-700 flex items-center gap-1">
+                                        <button className="mt-3 text-xs font-medium text-brand-green flex items-center gap-1 hover:text-brand-green-hover transition-colors">
                                             <ImageIcon className="h-3.5 w-3.5" /> View All Photos ({selectedFarm.farmPhotos.length})
                                         </button>
                                     )}
@@ -612,12 +775,12 @@ const FarmerProfile: React.FC = () => {
                         <p className="text-sm text-gray-400 italic">No risk assessment run yet for this farm.</p>
                     ) : (
                         <div className="space-y-2 text-sm">
-                            <div className="flex justify-between items-center"><span className="text-gray-500">Protected Area</span><YesNoBadge value={latestAssessment.overlapResult === 'Protected Area'} /></div>
-                            <div className="flex justify-between items-center"><span className="text-gray-500">Forest Overlap</span><YesNoBadge value={latestAssessment.overlapResult === 'Forest'} /></div>
-                            <div className="flex justify-between items-center"><span className="text-gray-500">Deforestation Risk</span><YesNoBadge value={latestAssessment.deforestationRisk} /></div>
-                            <div className="flex justify-between items-center"><span className="text-gray-500">Legality Risk</span><YesNoBadge value={latestAssessment.legalityRisk} /></div>
-                            <div className="flex justify-between items-center"><span className="text-gray-500">Traceability Risk</span><YesNoBadge value={latestAssessment.traceabilityRisk} /></div>
-                            <div className="flex justify-between items-center pt-2 border-t border-gray-100"><span className="text-gray-500">Meets EUDR Requirement</span><YesNoBadge value={!latestAssessment.deforestationRisk && latestAssessment.overlapResult === 'None'} positiveIsGood /></div>
+                            <div className="flex justify-between items-center"><span className="text-brand-muted">Protected Area</span><YesNoBadge value={latestAssessment.overlapResult === 'Protected Area'} /></div>
+                            <div className="flex justify-between items-center"><span className="text-brand-muted">Forest Overlap</span><YesNoBadge value={latestAssessment.overlapResult === 'Forest'} /></div>
+                            <div className="flex justify-between items-center"><span className="text-brand-muted">Deforestation Risk</span><YesNoBadge value={latestAssessment.deforestationRisk} /></div>
+                            <div className="flex justify-between items-center"><span className="text-brand-muted">Legality Risk</span><YesNoBadge value={latestAssessment.legalityRisk} /></div>
+                            <div className="flex justify-between items-center"><span className="text-brand-muted">Traceability Risk</span><YesNoBadge value={latestAssessment.traceabilityRisk} /></div>
+                            <div className="flex justify-between items-center pt-2 border-t border-brand-border"><span className="text-brand-muted">Meets EUDR Requirement</span><YesNoBadge value={!latestAssessment.deforestationRisk && latestAssessment.overlapResult === 'None'} positiveIsGood /></div>
                         </div>
                     )}
                 </SectionCard>
@@ -636,12 +799,12 @@ const FarmerProfile: React.FC = () => {
                             { label: 'Identity verified', ok: farmer.identityStatus === 'Verified' },
                         ].map((item, idx) => (
                             <div key={idx} className="flex items-center justify-between">
-                                <span className="text-gray-600">{item.label}</span>
-                                {item.ok ? <CheckCircle2 className="h-4 w-4 text-green-600" /> : <AlertTriangle className="h-4 w-4 text-orange-500" />}
+                                <span className="text-brand-muted">{item.label}</span>
+                                {item.ok ? <CheckCircle2 className="h-4 w-4 text-brand-green" /> : <AlertTriangle className="h-4 w-4 text-orange-500" />}
                             </div>
                         ))}
-                        <div className="pt-2 mt-2 border-t border-gray-100 flex items-center justify-between">
-                            <span className="font-medium text-gray-700">Compliance Status</span>
+                        <div className="pt-2 mt-2 border-t border-brand-border flex items-center justify-between">
+                            <span className="font-medium text-brand-text">Compliance Status</span>
                             <RiskPill level={overallRisk} />
                         </div>
                     </div>
@@ -655,10 +818,10 @@ const FarmerProfile: React.FC = () => {
                         <div className="space-y-2">
                             {documents.map(doc => (
                                 <div key={doc.id} className="flex items-center justify-between text-sm border-b border-gray-50 pb-2 last:border-0 last:pb-0">
-                                    <span className="flex items-center gap-2 text-gray-700"><FileText className="h-3.5 w-3.5 text-gray-400" /> {doc.type}</span>
+                                    <span className="flex items-center gap-2 text-brand-text"><FileText className="h-3.5 w-3.5 text-gray-400" /> {doc.type}</span>
                                     <span className="flex items-center gap-2">
                                         <span className={`text-xs font-semibold ${doc.status === 'Valid' ? 'text-green-600' : doc.status === 'Invalid' ? 'text-red-600' : 'text-yellow-600'}`}>{doc.status}</span>
-                                        <a href={doc.documentUrl} target="_blank" rel="noreferrer" className="text-gray-400 hover:text-gray-600"><Download className="h-3.5 w-3.5" /></a>
+                                        <a href={doc.documentUrl} target="_blank" rel="noreferrer" className="text-gray-400 hover:text-brand-muted"><Download className="h-3.5 w-3.5" /></a>
                                     </span>
                                 </div>
                             ))}
@@ -672,21 +835,21 @@ const FarmerProfile: React.FC = () => {
                 {/* 8. Risk Assessment */}
                 <SectionCard number={8} title="Risk Assessment">
                     <div className="space-y-2 text-sm">
-                        <div className="flex justify-between items-center"><span className="text-gray-500">Deforestation Risk</span><RiskPill level={latestAssessment?.deforestationRisk ? 'High' : 'Low'} /></div>
-                        <div className="flex justify-between items-center"><span className="text-gray-500">Satellite Risk</span><RiskPill level={latestAssessment?.overlapResult === 'Forest' ? 'High' : 'Low'} /></div>
-                        <div className="flex justify-between items-center"><span className="text-gray-500">GPS Quality</span><span className="text-xs font-semibold text-green-700">{geo.points.length > 0 ? 'Good' : 'Missing'}</span></div>
-                        <div className="flex justify-between items-center"><span className="text-gray-500">Farm Overlap</span><YesNoBadge value={latestAssessment?.overlapResult === 'Farm'} /></div>
-                        <div className="flex justify-between items-center"><span className="text-gray-500">Protected Area Conflict</span><YesNoBadge value={latestAssessment?.overlapResult === 'Protected Area'} /></div>
-                        <div className="flex justify-between items-center"><span className="text-gray-500">Duplicate Farmer</span><YesNoBadge value={false} /></div>
-                        <div className="flex justify-between items-center"><span className="text-gray-500">Duplicate Farm</span><YesNoBadge value={false} /></div>
+                        <div className="flex justify-between items-center"><span className="text-brand-muted">Deforestation Risk</span><RiskPill level={latestAssessment?.deforestationRisk ? 'High' : 'Low'} /></div>
+                        <div className="flex justify-between items-center"><span className="text-brand-muted">Satellite Risk</span><RiskPill level={latestAssessment?.overlapResult === 'Forest' ? 'High' : 'Low'} /></div>
+                        <div className="flex justify-between items-center"><span className="text-brand-muted">GPS Quality</span><span className="text-xs font-semibold text-brand-green">{geo.points.length > 0 ? 'Good' : 'Missing'}</span></div>
+                        <div className="flex justify-between items-center"><span className="text-brand-muted">Farm Overlap</span><YesNoBadge value={latestAssessment?.overlapResult === 'Farm'} /></div>
+                        <div className="flex justify-between items-center"><span className="text-brand-muted">Protected Area Conflict</span><YesNoBadge value={latestAssessment?.overlapResult === 'Protected Area'} /></div>
+                        <div className="flex justify-between items-center"><span className="text-brand-muted">Duplicate Farmer</span><YesNoBadge value={false} /></div>
+                        <div className="flex justify-between items-center"><span className="text-brand-muted">Duplicate Farm</span><YesNoBadge value={false} /></div>
 
                         {/* Real Open Foris Whisp EUDR satellite indicators */}
                         {latestAssessment?.whispData && (
-                            <div className="pt-2 mt-2 border-t border-gray-100 space-y-2">
-                                <span className="text-xs font-semibold text-gray-500 uppercase tracking-wide">Whisp Satellite Analysis</span>
+                            <div className="pt-2 mt-2 border-t border-brand-border space-y-2">
+                                <span className="text-xs font-semibold text-brand-muted uppercase tracking-wide">Whisp Satellite Analysis</span>
                                 <div className="flex justify-between items-center">
-                                    <span className="text-gray-500">EUFO 2020 Overlap</span>
-                                    <span className={`text-xs font-semibold ${latestAssessment.whispData.eufo2020Ha > 0 ? 'text-red-700' : 'text-green-700'}`}>
+                                    <span className="text-brand-muted">EUFO 2020 Overlap</span>
+                                    <span className={`text-xs font-semibold ${latestAssessment.whispData.eufo2020Ha > 0 ? 'text-red-700' : 'text-brand-green'}`}>
                                         {latestAssessment.whispData.eufo2020Ha.toFixed(3)} ha
                                     </span>
                                 </div>
@@ -694,7 +857,7 @@ const FarmerProfile: React.FC = () => {
                                     {(['riskPerennialCrop', 'riskAnnualCrop', 'riskTimber'] as const).map((k) => {
                                         const label = k === 'riskPerennialCrop' ? 'Perennial' : k === 'riskAnnualCrop' ? 'Annual' : 'Timber';
                                         const val = latestAssessment.whispData![k];
-                                        const cls = val === 'high' ? 'bg-red-100 text-red-800' : val === 'low' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-gray-600';
+                                        const cls = val === 'high' ? 'bg-red-100 text-red-800' : val === 'low' ? 'bg-green-100 text-green-800' : 'bg-gray-100 text-brand-muted';
                                         return (
                                             <span key={k} className={`inline-flex items-center px-1.5 py-0.5 rounded text-[11px] font-medium ${cls}`}>
                                                 {label}: {val}
@@ -707,18 +870,18 @@ const FarmerProfile: React.FC = () => {
                                         Disturbance detected: {latestAssessment.whispData.annualEvents.map(e => e.year).join(', ')}
                                     </p>
                                 ) : (
-                                    <p className="text-[11px] text-green-600">No annual disturbance/loss detected</p>
+                                    <p className="text-[11px] text-brand-green">No annual disturbance/loss detected</p>
                                 )}
                                 {latestAssessment.whispData.commodityOverlaps.length > 0 && (
-                                    <p className="text-[11px] text-gray-500">
+                                    <p className="text-[11px] text-brand-muted">
                                         Commodity overlap: {latestAssessment.whispData.commodityOverlaps.map(c => `${c.commodity} ${c.overlapHa.toFixed(2)}ha`).join(', ')}
                                     </p>
                                 )}
                             </div>
                         )}
 
-                        <div className="pt-2 mt-2 border-t border-gray-100 flex items-center justify-between">
-                            <span className="font-medium text-gray-700">Overall Risk Level</span>
+                        <div className="pt-2 mt-2 border-t border-brand-border flex items-center justify-between">
+                            <span className="font-medium text-brand-text">Overall Risk Level</span>
                             <RiskPill level={overallRisk} />
                         </div>
                         {selectedFarm?.lastRiskAssessmentDate && (
@@ -738,15 +901,15 @@ const FarmerProfile: React.FC = () => {
                             { label: 'Documents', v: quality.documents },
                         ].map((row, idx) => (
                             <div key={idx}>
-                                <div className="flex justify-between text-xs text-gray-500 mb-1"><span>{row.label}</span><span className="font-medium text-gray-700">{row.v}%</span></div>
+                                <div className="flex justify-between text-xs text-brand-muted mb-1"><span>{row.label}</span><span className="font-medium text-brand-text">{row.v}%</span></div>
                                 <div className="h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                                    <div className="h-full bg-green-500 rounded-full" style={{ width: `${row.v}%` }} />
+                                    <div className="h-full bg-brand-green rounded-full" style={{ width: `${row.v}%` }} />
                                 </div>
                             </div>
                         ))}
-                        <div className="pt-3 mt-1 border-t border-gray-100 flex items-center justify-between">
-                            <span className="text-sm font-medium text-gray-700">Overall Quality Score</span>
-                            <span className="text-xl font-bold text-green-600">{quality.overall}%</span>
+                        <div className="pt-3 mt-1 border-t border-brand-border flex items-center justify-between">
+                            <span className="text-sm font-medium text-brand-text">Overall Quality Score</span>
+                            <span className="text-xl font-bold text-brand-green">{quality.overall}%</span>
                         </div>
                     </div>
                 </SectionCard>
@@ -759,23 +922,23 @@ const FarmerProfile: React.FC = () => {
                         <div className="space-y-3 text-sm">
                             <div>
                                 <p className="text-[11px] text-gray-400 uppercase tracking-wide">Last Transaction</p>
-                                <p className="text-gray-800">{fmtDate(batches[0].createdAt)}</p>
+                                <p className="text-brand-text">{fmtDate(batches[0].createdAt)}</p>
                             </div>
                             <div>
                                 <p className="text-[11px] text-gray-400 uppercase tracking-wide">Current Quantity</p>
-                                <p className="text-gray-800">{batches[0].weightKg} kg ({batches[0].cropType})</p>
+                                <p className="text-brand-text">{batches[0].weightKg} kg ({batches[0].cropType})</p>
                             </div>
                             <div>
                                 <p className="text-[11px] text-gray-400 uppercase tracking-wide">Current Batch</p>
-                                <p className="text-gray-800 font-mono text-xs">{batches[0].batchId}</p>
+                                <p className="text-brand-text font-mono text-xs">{batches[0].batchId}</p>
                             </div>
                             {custody && (
                                 <div>
                                     <p className="text-[11px] text-gray-400 uppercase tracking-wide">Current Holder</p>
-                                    <p className="text-gray-800">{custody.currentHolder}</p>
+                                    <p className="text-brand-text">{custody.currentHolder}</p>
                                 </div>
                             )}
-                            <Link to={`/custody/batch/${batches[0].id}`} className="inline-block mt-1 text-xs font-medium text-green-700 border border-green-200 bg-green-50 rounded-lg px-3 py-1.5 hover:bg-green-100">
+                            <Link to={`/custody/batch/${batches[0].id}`} className="inline-block mt-1 text-xs font-medium text-brand-green border border-brand-green/30 bg-brand-green/5 rounded-lg px-3 py-1.5 hover:bg-brand-green/10 transition-colors">
                                 View Full Traceability
                             </Link>
                         </div>
@@ -784,7 +947,7 @@ const FarmerProfile: React.FC = () => {
             </div>
 
             {/* Footer bar */}
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm px-5 py-3 flex flex-wrap items-center justify-between gap-3 text-xs text-gray-500">
+            <div className="bg-brand-card rounded-xl border border-brand-border shadow-card px-5 py-3 flex flex-wrap items-center justify-between gap-3 text-xs text-brand-muted">
                 <div>
                     Created by {farmer.enumeratorName || 'N/A'}{farmer.enumeratorId ? ` (${farmer.enumeratorId})` : ''}
                     <br />
@@ -794,7 +957,7 @@ const FarmerProfile: React.FC = () => {
                     <span>Last Updated {fmtDateTime(farmer.updatedAt)}</span>
                     <button
                         onClick={handleToggleActive}
-                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold ${isActive ? 'border-red-300 text-red-600 hover:bg-red-50' : 'border-green-300 text-green-600 hover:bg-green-50'}`}
+                        className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition-colors ${isActive ? 'border-red-300 text-red-600 hover:bg-red-50' : 'border-brand-green/40 text-brand-green hover:bg-brand-green/5'}`}
                     >
                         {isActive ? 'Deactivate Farmer' : 'Reactivate Farmer'}
                     </button>
