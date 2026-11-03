@@ -1,6 +1,57 @@
 import apiClient from './client';
 import type { ApiResponse } from './types';
 
+/**
+ * Multi-commodity-per-farm model (Plot <-> Commodity via PlotCommodity).
+ * Mirrors the backend entities in gh-backend-clone/src/entities/
+ * Plot.ts and PlotCommodity.ts. A commodity never "owns" the farm record
+ * — it's always reached through farm.plots[].plotCommodities[].
+ *
+ * NOTE: only the type declarations needed by FarmerProfile.tsx's
+ * "Registered Farms" section are added here for now (no new API calls or
+ * other farmers.ts changes) — kept minimal and isolated.
+ */
+export type CommodityRole = 'Primary' | 'Secondary';
+export type CroppingSystem = 'Monocrop' | 'Mixed' | 'Intercropped';
+export type ProductionStatus =
+    | 'Not Yet Productive'
+    | 'Producing'
+    | 'Declining'
+    | 'Dormant / Off-season'
+    | 'Abandoned';
+
+export interface PlotCommodity {
+    id: string;
+    plotId: string;
+    commodityId: string;
+    commodityName: string;
+    role: CommodityRole;
+    croppingSystem: CroppingSystem;
+    plantedAreaHa?: number | null;
+    plantingYear?: number | null;
+    numberOfTrees?: number | null;
+    estimatedAnnualProduction?: number | null;
+    unitOfMeasurement?: string;
+    productionStatus: ProductionStatus;
+    expectedHarvestPeriod?: string;
+    isActive: boolean;
+    createdAt?: string;
+    updatedAt?: string;
+}
+
+export interface Plot {
+    id: string;
+    name: string;
+    farmId: string;
+    boundary?: { type: string; coordinates: any } | null;
+    areaHa?: number | null;
+    isDefault: boolean;
+    isActive: boolean;
+    plotCommodities: PlotCommodity[];
+    createdAt?: string;
+    updatedAt?: string;
+}
+
 export interface Farm {
     id: string;
     name: string;
@@ -41,6 +92,8 @@ export interface Farm {
     lastRiskAssessmentDate?: string;
     createdAt: string;
     updatedAt?: string;
+    /** One farm -> many plots -> many commodities (see types above). */
+    plots?: Plot[];
 }
 
 export interface Farmer {
