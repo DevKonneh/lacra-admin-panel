@@ -1,3 +1,4 @@
+import { Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, Outlet } from 'react-router-dom';
 import Layout from './components/Layout';
 import Dashboard from './pages/Dashboard';
@@ -5,6 +6,12 @@ import RegisterFarmer from './pages/RegisterFarmer';
 import PublicFarmerProfile from './pages/PublicFarmerProfile';
 import FarmersList from './pages/farmers/FarmersList';
 import FarmerProfile from './pages/farmers/FarmerProfile';
+// Lazy-loaded: pulls VerificationQueue (and its only-used-there deps) out
+// of the main bundle into its own chunk, fetched on demand when an
+// ADMIN/INSPECTOR navigates to /farmers/verification. Keeps the main
+// bundle under the PWA precache's 2 MiB limit without raising that limit.
+// See vite.config.ts for the corresponding manualChunks/precache notes.
+const VerificationQueue = lazy(() => import('./pages/farmers/VerificationQueue'));
 import FarmsList from './pages/farms/FarmsList';
 import CreateFarm from './pages/farms/CreateFarm';
 import FarmDetails from './pages/farms/FarmDetails';
@@ -56,6 +63,21 @@ const AdminRoute = () => {
   return isAdmin ? <Outlet /> : <Navigate to="/" />;
 };
 
+// Identity Verification queue access — ADMIN + INSPECTOR can both VIEW the
+// queue (matches the backend's GET /farmers/verification/queue, gated
+// ADMIN+INSPECTOR), since inspectors can use their existing correction
+// permissions to fix flagged data. The actual verify/flag-conflict/revert/
+// bulk ACTIONS are a separate concern: VerificationQueue.tsx and
+// FarmerProfile.tsx only render those buttons for ADMIN, and the backend
+// re-enforces ADMIN-only on every write endpoint independently (route
+// middleware AND FarmerController.canManageVerification) — this route
+// guard only controls read access to the page.
+const AdminOrInspectorRoute = () => {
+  const { user } = useAuth();
+  const allowed = user?.role === UserRole.ADMIN || user?.role === UserRole.SUPER_ADMIN || user?.role === UserRole.INSPECTOR;
+  return allowed ? <Outlet /> : <Navigate to="/" />;
+};
+
 import PublicBatchDetails from './pages/PublicBatchDetails';
 import CertificateVerify from './pages/CertificateVerify';
 import ApplicationWizard from './pages/apply/ApplicationWizard';
@@ -87,6 +109,16 @@ function App() {
               <Route path="farmers/register" element={<RegisterFarmer />} />
               <Route path="farmers" element={<FarmersList />} />
               <Route path="farmers/:id" element={<FarmerProfile />} />
+              <Route element={<AdminOrInspectorRoute />}>
+                <Route
+                  path="farmers/verification"
+                  element={
+                    <Suspense fallback={<div className="p-8 text-center text-sm text-gray-400">Loading…</div>}>
+                      <VerificationQueue />
+                    </Suspense>
+                  }
+                />
+              </Route>
               <Route path="farms" element={<FarmsList />} />
               <Route path="farms/new" element={<CreateFarm />} />
               <Route path="farms/:id" element={<FarmDetails />} />

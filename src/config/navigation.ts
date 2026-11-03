@@ -11,7 +11,8 @@ import {
     UserCog,
     Map as MapIcon,
     Truck,
-    FileCheck2
+    FileCheck2,
+    ShieldQuestion
 } from 'lucide-react';
 import { UserRole } from '../types';
 
@@ -48,6 +49,19 @@ export const navigationMenu: NavigationItem[] = [
             {
                 label: 'Farmer Groups',
                 path: '/farmers/groups' // Placeholder
+            },
+            {
+                // Identity Verification queue — Unverified/Conflict farmers.
+                // ADMIN + INSPECTOR can both view this list (inspectors use
+                // their existing correction permissions to fix flagged
+                // data/documents); only ADMIN sees the actual Verify/Flag
+                // Conflict/Revert/Bulk action buttons on the page itself
+                // (and the backend independently enforces ADMIN-only on
+                // every write endpoint regardless of what the UI shows).
+                label: 'Identity Verification',
+                path: '/farmers/verification',
+                icon: ShieldQuestion,
+                roles: [UserRole.ADMIN, UserRole.INSPECTOR],
             }
         ]
     },

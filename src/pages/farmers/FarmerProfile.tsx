@@ -3,6 +3,9 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import * as turf from '@turf/turf';
 import { getFarmer, updateFarmer, setFarmerActiveStatus, type Farmer, type Farm } from '../../api/farmers';
 import { deleteFarmer } from '../../api/farmerActions';
+import { setFarmerVerificationStatus, type IdentityStatus } from '../../api/farmerVerification';
+import { useAuth } from '../../context/AuthContext';
+import { UserRole } from '../../types';
 import { resolveFileUrl } from '../../utils/fileUrl';
 import SafeImage from '../../components/SafeImage';
 import { getFarmDocuments, type FarmDocument } from '../../api/documents';
@@ -86,6 +89,8 @@ const fmtDateTime = (d?: string | Date) => {
 const FarmerProfile: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
+    const { user } = useAuth();
+    const canManageVerification = user?.role === UserRole.ADMIN;
 
     const [farmer, setFarmer] = useState<Farmer | null>(null);
     const [loading, setLoading] = useState(true);
@@ -95,6 +100,15 @@ const FarmerProfile: React.FC = () => {
     const [deleting, setDeleting] = useState(false);
     const [showMenu, setShowMenu] = useState(false);
     const [showQr, setShowQr] = useState(false);
+
+    // Identity Verification action modal (Verify / Flag Conflict / Revert
+    // to Unverified). `pendingAction` is the status being applied; a
+    // reason is required for Conflict and for reversing a Verified
+    // status — the backend enforces this too, but we ask up-front so the
+    // admin doesn't hit an avoidable error.
+    const [verificationModal, setVerificationModal] = useState<{ status: IdentityStatus } | null>(null);
+    const [verificationReason, setVerificationReason] = useState('');
+    const [verifying, setVerifying] = useState(false);
 
     const [selectedFarmId, setSelectedFarmId] = useState<string | null>(null);
     const [documents, setDocuments] = useState<FarmDocument[]>([]);
@@ -260,6 +274,41 @@ const FarmerProfile: React.FC = () => {
             alert(err?.response?.data?.message || 'Failed to delete farmer');
         } finally {
             setDeleting(false);
+        }
+    };
+
+    // Reason is required when flagging Conflict, or when reversing an
+    // existing Verified status back to Unverified — mirrors the backend's
+    // own validation in FarmerController.setVerificationStatus().
+    const isReasonRequired = (status: IdentityStatus) => {
+        if (!farmer) return false;
+        if (status === 'Conflict') return true;
+        if (status === 'Unverified' && farmer.identityStatus === 'Verified') return true;
+        return false;
+    };
+
+    const handleConfirmVerification = async () => {
+        if (!farmer || !id || !verificationModal) return;
+        const { status } = verificationModal;
+        if (isReasonRequired(status) && !verificationReason.trim()) {
+            alert('A reason is required for this action.');
+            return;
+        }
+        setVerifying(true);
+        try {
+            const res = await setFarmerVerificationStatus(id, status, verificationReason.trim() || undefined);
+            if (res.data.status) {
+                setFarmer(res.data.data);
+                setVerificationModal(null);
+                setVerificationReason('');
+            } else {
+                alert(res.data.message || 'Failed to update verification status');
+            }
+        } catch (err: any) {
+            console.error('Error updating verification status', err);
+            alert(err?.response?.data?.message || 'Failed to update verification status');
+        } finally {
+            setVerifying(false);
         }
     };
 
@@ -468,10 +517,41 @@ const FarmerProfile: React.FC = () => {
                             <MoreHorizontal className="h-4 w-4" />
                         </button>
                         {showMenu && (
-                            <div className="absolute right-0 mt-1 w-44 bg-white border border-brand-border rounded-lg shadow-card z-20 text-sm overflow-hidden">
+                            <div className="absolute right-0 mt-1 w-56 bg-white border border-brand-border rounded-lg shadow-card z-20 text-sm overflow-hidden">
+                                {/* Identity Verification actions — ADMIN only. This verifies the
+                                    farmer's IDENTITY only; it does not validate farm boundaries,
+                                    land rights, or EUDR requirements. */}
+                                {canManageVerification && (
+                                    <>
+                                        {farmer.identityStatus !== 'Verified' && (
+                                            <button
+                                                onClick={() => { setShowMenu(false); setVerificationReason(''); setVerificationModal({ status: 'Verified' }); }}
+                                                className="w-full text-left px-3 py-2 hover:bg-green-50 text-green-700 font-medium transition-colors flex items-center gap-1.5"
+                                            >
+                                                <ShieldCheck className="h-3.5 w-3.5" /> Mark Identity Verified
+                                            </button>
+                                        )}
+                                        {farmer.identityStatus !== 'Conflict' && (
+                                            <button
+                                                onClick={() => { setShowMenu(false); setVerificationReason(''); setVerificationModal({ status: 'Conflict' }); }}
+                                                className="w-full text-left px-3 py-2 hover:bg-red-50 text-red-700 font-medium transition-colors flex items-center gap-1.5"
+                                            >
+                                                <ShieldAlert className="h-3.5 w-3.5" /> Flag Identity Conflict
+                                            </button>
+                                        )}
+                                        {farmer.identityStatus !== 'Unverified' && (
+                                            <button
+                                                onClick={() => { setShowMenu(false); setVerificationReason(''); setVerificationModal({ status: 'Unverified' }); }}
+                                                className="w-full text-left px-3 py-2 hover:bg-brand-bg text-brand-muted font-medium transition-colors flex items-center gap-1.5 border-t border-brand-border"
+                                            >
+                                                <ShieldQuestion className="h-3.5 w-3.5" /> Revert to Unverified
+                                            </button>
+                                        )}
+                                    </>
+                                )}
                                 <button
                                     onClick={() => { setShowMenu(false); handleToggleActive(); }}
-                                    className={`w-full text-left px-3 py-2 hover:bg-brand-bg transition-colors ${isActive ? 'text-red-600' : 'text-brand-green'}`}
+                                    className={`w-full text-left px-3 py-2 hover:bg-brand-bg transition-colors border-t border-brand-border ${isActive ? 'text-red-600' : 'text-brand-green'}`}
                                 >
                                     {isActive ? 'Deactivate Farmer' : 'Reactivate Farmer'}
                                 </button>
@@ -511,6 +591,79 @@ const FarmerProfile: React.FC = () => {
                         Scan to open this farmer's public verification profile.
                         <br />
                         <span className="font-mono text-xs text-gray-400">{window.location.origin}/public/farmers/{farmer.id}</span>
+                    </div>
+                </div>
+            )}
+
+            {/* Identity Verification confirmation modal — Verify / Flag Conflict / Revert.
+                ADMIN-only action (see canManageVerification above and the backend's
+                PATCH /farmers/:id/verification, which re-enforces this independently
+                of the UI). Reason is required for Conflict and for reversing an
+                existing Verified status. */}
+            {verificationModal && (
+                <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
+                    <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
+                        <div className="flex items-center gap-2">
+                            {verificationModal.status === 'Verified' && <ShieldCheck className="h-5 w-5 text-green-600" />}
+                            {verificationModal.status === 'Conflict' && <ShieldAlert className="h-5 w-5 text-red-600" />}
+                            {verificationModal.status === 'Unverified' && <ShieldQuestion className="h-5 w-5 text-yellow-600" />}
+                            <h3 className="text-lg font-bold text-brand-text">
+                                {verificationModal.status === 'Verified' && 'Mark Identity Verified'}
+                                {verificationModal.status === 'Conflict' && 'Flag Identity Conflict'}
+                                {verificationModal.status === 'Unverified' && 'Revert to Unverified'}
+                            </h3>
+                        </div>
+                        <p className="text-sm text-brand-muted">
+                            {verificationModal.status === 'Verified' && (
+                                <>This confirms <strong>{farmer.firstName} {farmer.lastName}</strong>'s identity is verified — not their farm boundaries, land rights, or EUDR requirements, which are tracked separately.</>
+                            )}
+                            {verificationModal.status === 'Conflict' && (
+                                <>Use this when identity information is contradictory or suspicious — e.g. mismatched documents or a suspected duplicate identity. Missing documents alone should stay "Unverified" instead.</>
+                            )}
+                            {verificationModal.status === 'Unverified' && farmer.identityStatus === 'Verified' && (
+                                <>This reverses an existing Verified status. The farmer will need to go through identity review again.</>
+                            )}
+                            {verificationModal.status === 'Unverified' && farmer.identityStatus !== 'Verified' && (
+                                <>This clears the Conflict flag and returns the record to Unverified, pending further review.</>
+                            )}
+                        </p>
+                        <div>
+                            <label className="block text-xs font-semibold text-brand-muted mb-1">
+                                Reason {isReasonRequired(verificationModal.status) ? <span className="text-red-500">(required)</span> : <span className="text-gray-400">(optional)</span>}
+                            </label>
+                            <textarea
+                                value={verificationReason}
+                                onChange={(e) => setVerificationReason(e.target.value)}
+                                rows={3}
+                                placeholder={
+                                    verificationModal.status === 'Conflict'
+                                        ? 'e.g. National ID photo does not match the name on file...'
+                                        : verificationModal.status === 'Unverified' && farmer.identityStatus === 'Verified'
+                                            ? 'e.g. Farmer disputed their recorded date of birth...'
+                                            : 'Optional note for the audit log...'
+                                }
+                                className="w-full border border-brand-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-green/30"
+                            />
+                        </div>
+                        <div className="flex justify-end gap-2 pt-1">
+                            <button
+                                onClick={() => { setVerificationModal(null); setVerificationReason(''); }}
+                                disabled={verifying}
+                                className="px-4 py-2 text-sm rounded-lg border border-brand-border text-brand-muted hover:bg-brand-bg transition-colors disabled:opacity-60"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleConfirmVerification}
+                                disabled={verifying || (isReasonRequired(verificationModal.status) && !verificationReason.trim())}
+                                className={`px-4 py-2 text-sm rounded-lg text-white flex items-center gap-1.5 transition-colors disabled:opacity-60 ${
+                                    verificationModal.status === 'Conflict' ? 'bg-red-600 hover:bg-red-700' : 'bg-brand-green hover:bg-brand-green-hover'
+                                }`}
+                            >
+                                {verifying && <Loader2 className="h-4 w-4 animate-spin" />}
+                                Confirm
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
