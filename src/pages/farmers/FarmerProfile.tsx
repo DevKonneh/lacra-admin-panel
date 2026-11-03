@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import * as turf from '@turf/turf';
 import { getFarmer, updateFarmer, setFarmerActiveStatus, type Farmer, type Farm } from '../../api/farmers';
+import { deleteFarmer } from '../../api/farmerActions';
 import { resolveFileUrl } from '../../utils/fileUrl';
 import SafeImage from '../../components/SafeImage';
 import { getFarmDocuments, type FarmDocument } from '../../api/documents';
@@ -11,7 +12,7 @@ import { getCustodyHistory, type CustodyHistoryData } from '../../api/transfers'
 import {
     ArrowLeft, ShieldCheck, ShieldAlert, ShieldQuestion, Edit2, Save, X, MoreHorizontal,
     QrCode, Share2, FileText, Image as ImageIcon, AlertTriangle, CheckCircle2,
-    Sprout, FolderOpen, Download, Loader2, ChevronDown, Package, PlusCircle, User
+    Sprout, FolderOpen, Download, Loader2, ChevronDown, Package, PlusCircle, User, Trash2
 } from 'lucide-react';
 import FarmMap from '../../components/FarmMap';
 import { QRCodeCanvas } from 'qrcode.react';
@@ -91,6 +92,7 @@ const FarmerProfile: React.FC = () => {
     const [error, setError] = useState<string | null>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [saving, setSaving] = useState(false);
+    const [deleting, setDeleting] = useState(false);
     const [showMenu, setShowMenu] = useState(false);
     const [showQr, setShowQr] = useState(false);
 
@@ -234,6 +236,30 @@ const FarmerProfile: React.FC = () => {
         } catch (err) {
             console.error('Error updating farmer status', err);
             alert('Failed to update farmer status');
+        }
+    };
+
+    const handleDelete = async () => {
+        if (!farmer || !id) return;
+        const fullName = `${farmer.firstName} ${farmer.lastName}`.trim();
+        const confirmed = window.confirm(
+            `Permanently delete ${fullName}?\n\nThis will also delete all of their registered farm(s), plots, commodities, documents, risk assessments and their login account (if any). This action cannot be undone.`
+        );
+        if (!confirmed) return;
+        setDeleting(true);
+        try {
+            const res = await deleteFarmer(id);
+            if (res.data.status) {
+                alert('Farmer deleted successfully');
+                navigate('/farmers');
+            } else {
+                alert(res.data.message || 'Failed to delete farmer');
+            }
+        } catch (err: any) {
+            console.error('Error deleting farmer', err);
+            alert(err?.response?.data?.message || 'Failed to delete farmer');
+        } finally {
+            setDeleting(false);
         }
     };
 
@@ -448,6 +474,14 @@ const FarmerProfile: React.FC = () => {
                                     className={`w-full text-left px-3 py-2 hover:bg-brand-bg transition-colors ${isActive ? 'text-red-600' : 'text-brand-green'}`}
                                 >
                                     {isActive ? 'Deactivate Farmer' : 'Reactivate Farmer'}
+                                </button>
+                                <button
+                                    onClick={() => { setShowMenu(false); handleDelete(); }}
+                                    disabled={deleting}
+                                    className="w-full text-left px-3 py-2 hover:bg-red-50 text-red-700 font-medium transition-colors flex items-center gap-1.5 disabled:opacity-60 border-t border-brand-border"
+                                >
+                                    {deleting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
+                                    Delete Farmer
                                 </button>
                             </div>
                         )}
