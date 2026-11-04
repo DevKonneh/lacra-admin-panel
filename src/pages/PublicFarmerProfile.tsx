@@ -3,11 +3,34 @@ import { useParams } from 'react-router-dom';
 import apiClient from '../api/client';
 import { resolveFileUrl } from '../utils/fileUrl';
 import SafeImage from '../components/SafeImage';
-import { User, Map, CheckCircle, ShieldCheck, Sprout } from 'lucide-react';
+import { User, Map, CheckCircle, ShieldCheck, Sprout, Lock } from 'lucide-react';
 import FarmMap from '../components/FarmMap';
 import lacraLogo from '../assets/lacra_logo.jpg';
 
-interface PublicFarm {
+// ── Response shapes ───────────────────────────────────────────────────────
+// The backend's GET /public/farmers/:id (FarmerController.getPublicFarmer)
+// returns one of two shapes depending on whether the caller is logged in
+// as authorized staff (ADMIN/INSPECTOR/BUYER/EXPORTER). `_access` tells us
+// which one we got, rather than guessing from field presence.
+//
+//  "basic" — anonymous scanner (no token, or an expired/invalid one): name,
+//    Farmer ID, identity status, general area, profile photo, and a
+//    reduced per-farm view (name/crop/registration status + an approximate
+//    centroid point, NOT the full walked boundary). No ID photo, no
+//    signature, no consent flag, no phone/national ID/DOB/address, no
+//    precise farm geometry.
+//
+//  "full" — authenticated staff session: everything, unchanged from the
+//    original implementation.
+
+interface PublicFarmBasic {
+    name: string;
+    cropType: string;
+    farmRegistrationStatus: string;
+    approximateLocation: { lat: number; lng: number } | null;
+}
+
+interface PublicFarmFull {
     name: string;
     cropType: string;
     totalAreaHa: number;
@@ -24,7 +47,23 @@ interface PublicFarm {
     farmAddress?: string;
 }
 
-interface PublicFarmer {
+interface PublicFarmerBasic {
+    _access: 'basic';
+    id: string;
+    farmerId: string;
+    firstName: string;
+    lastName: string;
+    identityStatus: string;
+    community: string;
+    district: string;
+    region: string;
+    cooperativeName?: string;
+    profilePhoto?: string;
+    farms: PublicFarmBasic[];
+}
+
+interface PublicFarmerFull {
+    _access: 'full';
     id: string;
     farmerId: string;
     firstName: string;
@@ -52,8 +91,10 @@ interface PublicFarmer {
     directions?: string;
     latitude?: string;
     longitude?: string;
-    farms: PublicFarm[];
+    farms: PublicFarmFull[];
 }
+
+type PublicFarmer = PublicFarmerBasic | PublicFarmerFull;
 
 const PublicFarmerProfile: React.FC = () => {
     const { id } = useParams<{ id: string }>();
@@ -66,12 +107,20 @@ const PublicFarmerProfile: React.FC = () => {
             apiClient.get(`/public/farmers/${id}`)
                 .then(res => {
                     const responseData = res.data;
+                    let data: any;
                     if (responseData && (responseData as any).status) {
-                        setFarmer((responseData as any).data);
+                        data = (responseData as any).data;
                     } else if (responseData) {
                         // Fallback in case of inconsistent public API vs Internal
-                        setFarmer((responseData as any).data || responseData);
+                        data = (responseData as any).data || responseData;
                     }
+                    // Default to 'basic' if the server ever omits _access, so a
+                    // missing/old field never accidentally renders the full
+                    // (PII-bearing) layout for an anonymous caller.
+                    if (data && !data._access) {
+                        data._access = data.idPhoto !== undefined || data.phoneNumber !== undefined ? 'full' : 'basic';
+                    }
+                    setFarmer(data);
                     setLoading(false);
                 })
                 .catch(err => {
@@ -85,6 +134,8 @@ const PublicFarmerProfile: React.FC = () => {
     if (loading) return <div className="p-8 text-center text-gray-500">Loading public profile...</div>;
     if (error) return <div className="p-8 text-center text-red-500">{error}</div>;
     if (!farmer) return <div className="p-8 text-center text-gray-500">Farmer not found.</div>;
+
+    const isFull = farmer._access === 'full';
 
     return (
         <div className="min-h-screen bg-brand-bg py-8 px-4 sm:px-6 lg:px-8">
@@ -135,98 +186,129 @@ const PublicFarmerProfile: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Personal Information Grid */}
-                <div className="bg-white shadow-md rounded-xl border border-gray-100 p-6">
-                    <h2 className="text-lg font-bold text-gray-800 mb-4 border-b border-gray-100 pb-2 flex items-center gap-2">
-                        <span className="h-1.5 w-1.5 rounded-full bg-green-600" /> Personal Information
-                    </h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-sm">
-                        <div>
-                            <span className="block text-gray-500">Phone</span>
-                            <span className="font-medium">{farmer.phoneNumber || 'N/A'}</span>
-                        </div>
-                        <div>
-                            <span className="block text-gray-500">Email</span>
-                            <span className="font-medium">{farmer.email || 'N/A'}</span>
-                        </div>
-                        <div>
-                            <span className="block text-gray-500">Gender</span>
-                            <span className="font-medium">{farmer.gender || 'N/A'}</span>
-                        </div>
-                        <div>
-                            <span className="block text-gray-500">Date of Birth</span>
-                            <span className="font-medium">{farmer.dob ? new Date(farmer.dob).toLocaleDateString() : 'N/A'}</span>
-                        </div>
-                        <div>
-                            <span className="block text-gray-500">Nationality</span>
-                            <span className="font-medium">{farmer.nationality || 'N/A'}</span>
-                        </div>
-                        <div>
-                            <span className="block text-gray-500">Address</span>
-                            <span className="font-medium">{farmer.address || 'N/A'}</span>
-                        </div>
-                        <div>
-                            <span className="block text-gray-500">National ID</span>
-                            <span className="font-medium">{farmer.nationalId || 'N/A'}</span>
-                        </div>
-                        <div>
-                            <span className="block text-gray-500">Other ID (e.g. LASSRA)</span>
-                            <span className="font-medium">{farmer.otherId || 'N/A'}</span>
-                        </div>
-                        <div>
-                            <span className="block text-gray-500">Cooperative</span>
-                            <span className="font-medium">{farmer.cooperativeName || 'N/A'} {farmer.cooperativeId ? `(${farmer.cooperativeId})` : ''}</span>
-                        </div>
-                        <div>
-                            <span className="block text-gray-500">Enumerator</span>
-                            <span className="font-medium">{farmer.enumeratorName || 'N/A'} {farmer.enumeratorId ? `(${farmer.enumeratorId})` : ''}</span>
-                        </div>
-                        <div>
-                            <span className="block text-gray-500">GPS Location</span>
-                            <span className="font-medium">{farmer.latitude && farmer.longitude ? `${farmer.latitude}, ${farmer.longitude}` : 'N/A'}</span>
-                        </div>
-                        <div className="col-span-1 md:col-span-2">
-                            <span className="block text-gray-500">Directions</span>
-                            <span className="font-medium italic">{farmer.directions || 'N/A'}</span>
-                        </div>
+                {!isFull && (
+                    <div className="bg-amber-50 border border-amber-200 text-amber-800 rounded-xl p-4 flex items-start gap-3 text-sm">
+                        <Lock className="h-4 w-4 mt-0.5 flex-shrink-0" />
+                        <span>
+                            You're viewing the <strong>public basic verification</strong> page. Identity
+                            documents, contact details, consent records, and precise farm boundaries are
+                            only visible to authorized LACRA staff.{' '}
+                            <a href="/login" className="underline font-medium">Sign in</a> for the full profile.
+                        </span>
                     </div>
-                </div>
+                )}
 
-                {/* Identity & Documents */}
-                <div className="bg-white shadow-md rounded-xl border border-gray-100 p-6">
-                    <h2 className="text-lg font-bold text-gray-800 mb-4 border-b border-gray-100 pb-2 flex items-center gap-2">
-                        <span className="h-1.5 w-1.5 rounded-full bg-green-600" /> Identity & Verification
-                    </h2>
-                    <div className="flex flex-wrap gap-8 justify-center md:justify-start">
-                        <div className="text-center">
-                            <span className="block text-gray-500 mb-2">ID Photo</span>
-                            <SafeImage
-                                src={resolveFileUrl(farmer.idPhoto)}
-                                alt="ID Document"
-                                className="h-32 w-auto border rounded shadow-sm"
-                                fallback={
-                                    <div className="h-32 w-48 bg-gray-100 flex items-center justify-center text-gray-400 rounded border border-dashed">No ID Photo</div>
-                                }
-                            />
-                        </div>
-                        <div className="text-center">
-                            <span className="block text-gray-500 mb-2">Signature</span>
-                            <SafeImage
-                                src={resolveFileUrl(farmer.signature)}
-                                alt="Signature"
-                                className="h-20 w-auto border rounded shadow-sm bg-white"
-                                fallback={
-                                    <div className="h-20 w-48 bg-gray-100 flex items-center justify-center text-gray-400 rounded border border-dashed">No Signature</div>
-                                }
-                            />
-                        </div>
-                        <div className="flex items-center">
-                            <div className={`px-4 py-2 rounded-lg border ${farmer.consent ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
-                                <span className="font-bold">Consent Status:</span> {farmer.consent ? 'Granted' : 'Not Granted'}
+                {/* Personal Information Grid — authorized staff only */}
+                {isFull && (
+                    <div className="bg-white shadow-md rounded-xl border border-gray-100 p-6">
+                        <h2 className="text-lg font-bold text-gray-800 mb-4 border-b border-gray-100 pb-2 flex items-center gap-2">
+                            <span className="h-1.5 w-1.5 rounded-full bg-green-600" /> Personal Information
+                        </h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-sm">
+                            <div>
+                                <span className="block text-gray-500">Phone</span>
+                                <span className="font-medium">{farmer.phoneNumber || 'N/A'}</span>
+                            </div>
+                            <div>
+                                <span className="block text-gray-500">Email</span>
+                                <span className="font-medium">{farmer.email || 'N/A'}</span>
+                            </div>
+                            <div>
+                                <span className="block text-gray-500">Gender</span>
+                                <span className="font-medium">{farmer.gender || 'N/A'}</span>
+                            </div>
+                            <div>
+                                <span className="block text-gray-500">Date of Birth</span>
+                                <span className="font-medium">{farmer.dob ? new Date(farmer.dob).toLocaleDateString() : 'N/A'}</span>
+                            </div>
+                            <div>
+                                <span className="block text-gray-500">Nationality</span>
+                                <span className="font-medium">{farmer.nationality || 'N/A'}</span>
+                            </div>
+                            <div>
+                                <span className="block text-gray-500">Address</span>
+                                <span className="font-medium">{farmer.address || 'N/A'}</span>
+                            </div>
+                            <div>
+                                <span className="block text-gray-500">National ID</span>
+                                <span className="font-medium">{farmer.nationalId || 'N/A'}</span>
+                            </div>
+                            <div>
+                                <span className="block text-gray-500">Other ID (e.g. LASSRA)</span>
+                                <span className="font-medium">{farmer.otherId || 'N/A'}</span>
+                            </div>
+                            <div>
+                                <span className="block text-gray-500">Cooperative</span>
+                                <span className="font-medium">{farmer.cooperativeName || 'N/A'} {farmer.cooperativeId ? `(${farmer.cooperativeId})` : ''}</span>
+                            </div>
+                            <div>
+                                <span className="block text-gray-500">Enumerator</span>
+                                <span className="font-medium">{farmer.enumeratorName || 'N/A'} {farmer.enumeratorId ? `(${farmer.enumeratorId})` : ''}</span>
+                            </div>
+                            <div>
+                                <span className="block text-gray-500">GPS Location</span>
+                                <span className="font-medium">{farmer.latitude && farmer.longitude ? `${farmer.latitude}, ${farmer.longitude}` : 'N/A'}</span>
+                            </div>
+                            <div className="col-span-1 md:col-span-2">
+                                <span className="block text-gray-500">Directions</span>
+                                <span className="font-medium italic">{farmer.directions || 'N/A'}</span>
                             </div>
                         </div>
                     </div>
-                </div>
+                )}
+
+                {/* Basic view: cooperative is the one extra field shown to everyone */}
+                {!isFull && farmer.cooperativeName && (
+                    <div className="bg-white shadow-md rounded-xl border border-gray-100 p-6">
+                        <h2 className="text-lg font-bold text-gray-800 mb-2 border-b border-gray-100 pb-2 flex items-center gap-2">
+                            <span className="h-1.5 w-1.5 rounded-full bg-green-600" /> Cooperative
+                        </h2>
+                        <span className="font-medium text-sm">{farmer.cooperativeName}</span>
+                    </div>
+                )}
+
+                {/* Identity & Documents — authorized staff only. ID photo, signature,
+                    and consent status are never sent to an anonymous caller in the
+                    first place (basic shape omits them), so this section simply
+                    doesn't render for the basic view instead of showing "No ID
+                    Photo" placeholders that would misleadingly imply the document
+                    just doesn't exist. */}
+                {isFull && (
+                    <div className="bg-white shadow-md rounded-xl border border-gray-100 p-6">
+                        <h2 className="text-lg font-bold text-gray-800 mb-4 border-b border-gray-100 pb-2 flex items-center gap-2">
+                            <span className="h-1.5 w-1.5 rounded-full bg-green-600" /> Identity & Verification
+                        </h2>
+                        <div className="flex flex-wrap gap-8 justify-center md:justify-start">
+                            <div className="text-center">
+                                <span className="block text-gray-500 mb-2">ID Photo</span>
+                                <SafeImage
+                                    src={resolveFileUrl(farmer.idPhoto)}
+                                    alt="ID Document"
+                                    className="h-32 w-auto border rounded shadow-sm"
+                                    fallback={
+                                        <div className="h-32 w-48 bg-gray-100 flex items-center justify-center text-gray-400 rounded border border-dashed">No ID Photo</div>
+                                    }
+                                />
+                            </div>
+                            <div className="text-center">
+                                <span className="block text-gray-500 mb-2">Signature</span>
+                                <SafeImage
+                                    src={resolveFileUrl(farmer.signature)}
+                                    alt="Signature"
+                                    className="h-20 w-auto border rounded shadow-sm bg-white"
+                                    fallback={
+                                        <div className="h-20 w-48 bg-gray-100 flex items-center justify-center text-gray-400 rounded border border-dashed">No Signature</div>
+                                    }
+                                />
+                            </div>
+                            <div className="flex items-center">
+                                <div className={`px-4 py-2 rounded-lg border ${farmer.consent ? 'bg-green-50 border-green-200 text-green-800' : 'bg-red-50 border-red-200 text-red-800'}`}>
+                                    <span className="font-bold">Consent Status:</span> {farmer.consent ? 'Granted' : 'Not Granted'}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                )}
 
 
                 {/* Farms Section */}
@@ -237,8 +319,8 @@ const PublicFarmerProfile: React.FC = () => {
                     <div className="space-y-4">
                         {farmer.farms.length === 0 ? (
                             <p className="text-gray-500 italic">No registered farms publicly visible.</p>
-                        ) : (
-                            farmer.farms.map((farm, idx) => (
+                        ) : isFull ? (
+                            (farmer as PublicFarmerFull).farms.map((farm, idx) => (
                                 <div key={idx} className="bg-white shadow-md rounded-xl overflow-hidden border border-gray-100">
                                     <div className="p-4 bg-gray-50/70 border-b border-gray-100 flex justify-between items-center">
                                         <h3 className="font-semibold text-gray-800 flex items-center gap-2">
@@ -292,6 +374,44 @@ const PublicFarmerProfile: React.FC = () => {
                                                 )}
                                             </div>
                                         </div>
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            // ── Basic view: name, crop, registration status, and an
+                            // approximate (centroid-only) point on a map — never the
+                            // full walked boundary polygon, which is reserved for
+                            // authenticated staff.
+                            (farmer as PublicFarmerBasic).farms.map((farm, idx) => (
+                                <div key={idx} className="bg-white shadow-md rounded-xl overflow-hidden border border-gray-100">
+                                    <div className="p-4 bg-gray-50/70 border-b border-gray-100 flex justify-between items-center">
+                                        <h3 className="font-semibold text-gray-800 flex items-center gap-2">
+                                            <Map className="h-4 w-4 text-gray-500" /> {farm.name}
+                                        </h3>
+                                        <div className="flex gap-2">
+                                            <span className="text-xs font-semibold px-2 py-1 bg-white border border-gray-200 rounded text-gray-600">{farm.cropType}</span>
+                                            <span className="text-xs font-semibold px-2 py-1 bg-white border border-gray-200 rounded text-gray-600">{farm.farmRegistrationStatus}</span>
+                                        </div>
+                                    </div>
+                                    <div className="p-4">
+                                        {farm.approximateLocation ? (
+                                            <div className="h-56 rounded-lg overflow-hidden border border-gray-200 relative">
+                                                <FarmMap
+                                                    location={{ type: 'Point', coordinates: [farm.approximateLocation.lng, farm.approximateLocation.lat] }}
+                                                    height="100%"
+                                                    showLayerToggle={false}
+                                                    showHoverReadout={false}
+                                                    scrollWheelZoom={false}
+                                                    dragging={false}
+                                                    zoomControl={false}
+                                                />
+                                                <div className="absolute bottom-2 left-2 bg-white/90 text-[11px] text-gray-500 px-2 py-1 rounded shadow-sm">
+                                                    Approximate location only
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <p className="text-sm text-gray-400 italic">No approximate location available.</p>
+                                        )}
                                     </div>
                                 </div>
                             ))
