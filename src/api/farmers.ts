@@ -94,6 +94,24 @@ export interface Farm {
     updatedAt?: string;
     /** One farm -> many plots -> many commodities (see types above). */
     plots?: Plot[];
+
+    // --- GPS polygon / farm-area geometry validation (see GeometryValidationService
+    // on the backend, entities/Farm.ts). Cached result of the most recent
+    // validation run — used to power the "Farms with valid polygons" /
+    // "Farms needing correction" dashboard indicators (FarmsList.tsx,
+    // ReportsController.ts's complianceStatusWhereSql) and the Data
+    // Correction Queue (DataCorrectionQueue.tsx), to display calculated
+    // vs. declared area, GPS accuracy, coordinate count and overlap
+    // status without re-running validation on the client. These are the
+    // minimal fields Task 3's compliance/geometry screens need; other
+    // in-progress Farm fields are intentionally NOT added here yet.
+    geometryStatus?: 'Valid' | 'Needs Review' | 'Invalid' | 'Missing';
+    calculatedAreaHa?: number | null;
+    areaDifferenceHa?: number | null;
+    areaDifferencePercent?: number | null;
+    gpsAccuracyM?: number | null;
+    coordinateCount?: number;
+    overlapsExistingFarm?: boolean;
 }
 
 export interface Farmer {

@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState } from 'react';
 import apiClient from '../api/client';
 
 interface User {
@@ -24,19 +24,40 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | null>(null);
 
-export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-    const [user, setUser] = useState<User | null>(null);
-    const [token, setToken] = useState<string | null>(localStorage.getItem('token'));
+// Read the persisted user synchronously (lazy useState initializer) instead
+// of via a useEffect. The previous effect-based version left `user` as
+// `null` for the component's very first render on every full page load
+// (direct link open, browser refresh, or back/forward) even though
+// `token` was already available from localStorage — so a role-gated route
+// guard (AdminRoute/AdminOrInspectorRoute, which check `user?.role`)
+// would redirect away an already-authorized user before the effect ran,
+// e.g. an ADMIN opening/refreshing /farmers/verification directly. Reading
+// both token and user synchronously up front keeps them in lockstep from
+// the first render, so route guards never see a stale/null user while a
+// valid token is already present.
+function readStoredUser(): User | null {
+    try {
+        const stored = localStorage.getItem('user');
+        return stored ? JSON.parse(stored) : null;
+    } catch {
+        return null;
+    }
+}
 
-    useEffect(() => {
-        if (token) {
-            // Decoded token logic could go here, or just trusting persistence for MVP
-            const storedUser = localStorage.getItem('user');
-            if (storedUser) {
-                setUser(JSON.parse(storedUser));
-            }
-        }
-    }, [token]);
+// Apply the persisted token to apiClient's default Authorization header
+// exactly once at module load, before the first component ever renders —
+// rather than mutating apiClient.defaults from inside the AuthProvider
+// render body (flagged by eslint-plugin-react-hooks's immutability rule,
+// since apiClient is defined outside the component/hook). login()/logout()
+// still update the header directly, same as before.
+const initialToken = localStorage.getItem('token');
+if (initialToken) {
+    apiClient.defaults.headers.common['Authorization'] = `Bearer ${initialToken}`;
+}
+
+export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+    const [user, setUser] = useState<User | null>(() => readStoredUser());
+    const [token, setToken] = useState<string | null>(initialToken);
 
     const login = (newToken: string, newUser: User) => {
         setToken(newToken);
@@ -53,11 +74,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         localStorage.removeItem('user');
         delete apiClient.defaults.headers.common['Authorization'];
     };
-
-    // Set initial header
-    if (token) {
-        apiClient.defaults.headers.common['Authorization'] = `Bearer ${token}`;
-    }
 
     return (
         <AuthContext.Provider value={{ user, token, login, logout, isAuthenticated: !!token }}>

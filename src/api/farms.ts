@@ -6,6 +6,14 @@ export interface FarmWithFarmer extends Farm {
         id: string;
         firstName: string;
         lastName: string;
+        // The backend's farm.farmer relation includes the full Farmer
+        // entity (no select projection), so region/district/gender are
+        // present on the wire even though earlier versions of this type
+        // omitted them. Needed for the Farm Registry's county/district
+        // filters (FarmsList.tsx) and RiskAnalysis.tsx's farm detail panel.
+        region?: string;
+        district?: string;
+        gender?: string;
     };
     riskLevel: 'Low' | 'Medium' | 'High';
     lastRiskAssessmentDate?: string;

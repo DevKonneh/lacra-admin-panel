@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
     UserPlus, MapPinned, FileCheck, AlertTriangle, Users2, Sprout, ArrowUpRight,
     Loader2, RefreshCw, Info, ShieldCheck, FileWarning, FileBadge, ClipboardCheck,
-    ShieldAlert, Package, Truck, Ship, Calendar,
+    ShieldAlert, Package, Truck, Ship, Calendar, ShieldQuestion, Clock,
+    UserPlus2, Stamp, FlaskConical,
 } from 'lucide-react';
 import {
     getDashboardStats, type DashboardStats, type DashboardFilterParams,
@@ -19,10 +20,22 @@ import { UserRole } from '../types';
 import AnimatedCounter from '../components/AnimatedCounter';
 import { COUNTY_NAMES, getDistrictsForCounty } from '../data/liberiaCounties';
 import PageHeader from '../components/ui/PageHeader';
+import EmptyState from '../components/ui/EmptyState';
+// Lazy-loaded: pulls the Needs Attention section (and its only-used-there
+// API deps: farmerVerification, geometry, applications) out of the main
+// bundle into its own chunk, fetched on demand when the Dashboard renders
+// for a signed-in staff member. Keeps the main bundle under the PWA
+// precache's 2 MiB limit without raising that limit — see
+// NeedsAttentionSection.tsx for the component itself.
+const NeedsAttentionSection = lazy(() => import('../components/dashboard/NeedsAttentionSection'));
 
 import RegisterFarmer from './RegisterFarmer';
 
-const COLORS = ['#10B981', '#F59E0B', '#EF4444']; // Green (Compliant), Amber (Needs Review), Red (High Risk)
+// Gray (Assessment Pending), Green (Assessed Low Risk/Valid Geometry),
+// Amber (Needs Review), Red (High Risk). Assessment Pending is listed
+// first and colored neutral gray (not a risk color) because it is NOT a
+// risk result — it simply means no assessment has been completed yet.
+const COLORS = ['#9CA3AF', '#10B981', '#F59E0B', '#EF4444'];
 const SHIPMENT_colors = {
     DRAFT: '#9CA3AF',
     VALIDATED: '#60A5FA',
@@ -41,6 +54,37 @@ const InfoTip: React.FC<{ text: string }> = ({ text }) => (
         </span>
     </span>
 );
+
+// ---------------------------------------------------------------------
+// Quick Actions — one action per task a signed-in user can actually
+// perform right now, gated by role exactly like the Needs Attention
+// queues and the sidebar (src/config/navigation.ts). An action only
+// renders if `roles` includes the signed-in user's role; omitting `roles`
+// means every authenticated staff member (non-Farmer) can see it.
+// ---------------------------------------------------------------------
+interface QuickAction {
+    key: string;
+    label: string;
+    icon: React.ReactNode;
+    path?: string;
+    onClick?: (ctx: { setShowRegisterForm: (v: boolean) => void; showRegisterForm: boolean }) => void;
+    roles?: UserRole[];
+}
+const QUICK_ACTIONS: QuickAction[] = [
+    { key: 'register-farmer', label: 'Register Farmer', icon: <UserPlus2 className="h-4 w-4" />, onClick: ({ setShowRegisterForm, showRegisterForm }) => setShowRegisterForm(!showRegisterForm) },
+    { key: 'add-farm', label: 'Add Farm', icon: <MapPinned className="h-4 w-4" />, path: '/farms/new' },
+    { key: 'commercial-queue', label: 'Review Applications', icon: <FileCheck className="h-4 w-4" />, path: '/applications/commercial-queue', roles: [UserRole.COMMERCIAL, UserRole.ADMIN] },
+    { key: 'dg-queue', label: 'DG Approvals', icon: <Stamp className="h-4 w-4" />, path: '/applications/dg-queue', roles: [UserRole.DG, UserRole.ADMIN] },
+    { key: 'technical-queue', label: 'Technical Reviews', icon: <ClipboardCheck className="h-4 w-4" />, path: '/applications/technical-queue', roles: [UserRole.TECHNICAL, UserRole.ADMIN] },
+    { key: 'inspection-queue', label: 'Inspector Assessments', icon: <ShieldAlert className="h-4 w-4" />, path: '/applications/inspection-queue', roles: [UserRole.INSPECTOR, UserRole.ADMIN] },
+    { key: 'billing-queue', label: 'Billing Review', icon: <FileBadge className="h-4 w-4" />, path: '/applications/billing-queue', roles: [UserRole.FINANCE, UserRole.ADMIN] },
+    { key: 'payment-queue', label: 'Payment Verification', icon: <FileBadge className="h-4 w-4" />, path: '/applications/payment-queue', roles: [UserRole.FINANCE, UserRole.ADMIN] },
+    { key: 'it-queue', label: 'Certificate Issuance', icon: <FileCheck className="h-4 w-4" />, path: '/applications/it-queue', roles: [UserRole.IT, UserRole.ADMIN] },
+    { key: 'identity-verification', label: 'Identity Verification', icon: <ShieldQuestion className="h-4 w-4" />, path: '/farmers/verification', roles: [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.INSPECTOR] },
+    { key: 'data-correction', label: 'Data Correction Queue', icon: <FileWarning className="h-4 w-4" />, path: '/farms/data-correction-queue', roles: [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.INSPECTOR] },
+    { key: 'quality', label: 'Quality Control', icon: <FlaskConical className="h-4 w-4" />, path: '/quality' },
+    { key: 'inspections', label: 'Schedule Inspection', icon: <ClipboardCheck className="h-4 w-4" />, path: '/inspections' },
+];
 
 const Dashboard: React.FC = () => {
     const [stats, setStats] = useState<DashboardStats | null>(null);
@@ -63,9 +107,9 @@ const Dashboard: React.FC = () => {
         county: searchParams.get('county') || undefined,
         district: searchParams.get('district') || undefined,
         commodity: searchParams.get('commodity') || undefined,
-        gender: (searchParams.get('gender') as any) || undefined,
-        complianceStatus: (searchParams.get('complianceStatus') as any) || undefined,
-        verificationStatus: (searchParams.get('verificationStatus') as any) || undefined,
+        gender: searchParams.get('gender') || undefined,
+        complianceStatus: (searchParams.get('complianceStatus') as DashboardFilterParams['complianceStatus']) || undefined,
+        verificationStatus: (searchParams.get('verificationStatus') as DashboardFilterParams['verificationStatus']) || undefined,
     };
     const activeFilterCount = Object.values(filters).filter(Boolean).length;
 
@@ -90,9 +134,10 @@ const Dashboard: React.FC = () => {
                 setError(statsRes.data.message || 'Failed to load dashboard statistics.');
             }
             if (mappingRes.data.status) setMappingStats(mappingRes.data.data);
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error("Error fetching dashboard stats", err);
-            if (err?.response?.status === 401) {
+            const status = (err as { response?: { status?: number } })?.response?.status;
+            if (status === 401) {
                 setError('Your session has expired. Please log in again.');
             } else {
                 setError('Failed to load dashboard statistics. Please check your connection and try again.');
@@ -191,8 +236,12 @@ const Dashboard: React.FC = () => {
 
     if (!stats) return null;
 
+    // Four mutually-exclusive, exhaustive buckets that always sum to
+    // totalFarms. "Assessment Pending" is listed first since it is not a
+    // risk RESULT — it means no assessment has been completed yet.
     const riskData = [
-        { name: 'Compliant', value: stats.compliantFarms, status: 'Compliant' },
+        { name: 'Assessment Pending', value: stats.assessmentPendingFarms, status: 'Assessment Pending' },
+        { name: 'Assessed Low Risk, Valid Geometry', value: stats.compliantFarms, status: 'Compliant' },
         { name: 'Needs Review', value: stats.mediumRiskFarms, status: 'Needs Review' },
         { name: 'High Risk', value: stats.highRiskFarms, status: 'High Risk' },
     ];
@@ -272,7 +321,8 @@ const Dashboard: React.FC = () => {
                         <label className="block text-[11px] font-semibold text-gray-500 mb-1">Compliance Status</label>
                         <select value={filters.complianceStatus || ''} onChange={(e) => updateFilter('complianceStatus', e.target.value)} className="border border-gray-300 rounded-md py-1.5 px-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus:border-brand-green">
                             <option value="">All</option>
-                            <option value="Compliant">Compliant</option>
+                            <option value="Assessment Pending">Assessment Pending</option>
+                            <option value="Compliant">Assessed Low Risk, Valid Geometry</option>
                             <option value="Needs Review">Needs Review</option>
                             <option value="High Risk">High Risk</option>
                         </select>
@@ -294,6 +344,72 @@ const Dashboard: React.FC = () => {
                     {loading && <Loader2 className="h-4 w-4 animate-spin text-green-600 mb-1.5" />}
                 </div>
             </div>
+
+            {/* One concise summary row — the handful of numbers every
+                role cares about at a glance, using only reliable, already
+                clearly-defined metrics (no new ambiguous blends). */}
+            <div className="bg-white rounded-xl border border-gray-200 px-5 py-4 flex flex-wrap items-center gap-x-8 gap-y-3">
+                <div>
+                    <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Farmers</div>
+                    <div className="text-lg font-bold text-gray-900">{stats.totalFarmers}</div>
+                </div>
+                <div>
+                    <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Farms</div>
+                    <div className="text-lg font-bold text-gray-900">{stats.totalFarms}</div>
+                </div>
+                <div>
+                    <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Verified Farmers</div>
+                    <div className="text-lg font-bold text-gray-900">{stats.verifiedFarmerRate}%</div>
+                </div>
+                <div>
+                    <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Assessment Coverage</div>
+                    <div className="text-lg font-bold text-sky-700">{stats.assessmentCoverageRate}%</div>
+                </div>
+                <div>
+                    <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Assessed Low Risk, Valid Geometry</div>
+                    <div className="text-lg font-bold text-green-700">{stats.complianceRate}%</div>
+                </div>
+                <div>
+                    <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">High Risk Farms</div>
+                    <div className="text-lg font-bold text-red-600">{stats.highRiskFarms}</div>
+                </div>
+            </div>
+
+            {/* Quick Actions — only the tasks the signed-in user's role can
+                actually perform. */}
+            {(() => {
+                const visibleActions = QUICK_ACTIONS.filter((a) => !a.roles || (user && a.roles.includes(user.role as UserRole)));
+                return visibleActions.length > 0 ? (
+                    <div>
+                        <h2 className="text-[11px] font-semibold text-brand-muted tracking-wide uppercase mb-4">Quick Actions</h2>
+                        <div className="flex flex-wrap gap-3">
+                            {visibleActions.map((action) => (
+                                <button
+                                    key={action.key}
+                                    onClick={() => action.path ? navigate(action.path) : action.onClick?.({ setShowRegisterForm, showRegisterForm })}
+                                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:border-brand-green/40 hover:text-brand-green focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
+                                >
+                                    {action.icon} {action.label}
+                                </button>
+                            ))}
+                        </div>
+                    </div>
+                ) : null;
+            })()}
+
+            {/* Needs Attention — role-based worklist, independent of the
+                filters above (always shows the signed-in user's real,
+                current outstanding work, not a filtered view of it).
+                Lazy-loaded: see NeedsAttentionSection.tsx. */}
+            {user && (
+                <Suspense fallback={
+                    <div className="flex items-center gap-2 text-sm text-gray-500">
+                        <Loader2 className="h-4 w-4 animate-spin" /> Checking for outstanding work…
+                    </div>
+                }>
+                    <NeedsAttentionSection user={{ role: user.role, permissions: user.permissions }} />
+                </Suspense>
+            )}
 
             {/* 1. Farmer & Farm Overview */}
             <div>
@@ -366,21 +482,40 @@ const Dashboard: React.FC = () => {
                     <StatCard
                         icon={<FileCheck className="h-6 w-6" />}
                         iconBg="bg-brand-green"
-                        title="LACRA Compliance"
-                        tooltip="Compliant farms ÷ total farms. A farm is Compliant only if riskLevel = 'Low' AND geometryStatus = 'Valid'. Click for the full calculation."
+                        title="Assessed Low Risk, Valid Geometry"
+                        tooltip={`${stats.compliantFarms} ÷ ${stats.totalFarms} ALL REGISTERED FARMS (${stats.complianceDenominatorLabel}) = ${stats.complianceRate}%. A farm is counted here ONLY if it has (1) a COMPLETED risk assessment, (2) a Low risk result, AND (3) a Valid GPS boundary. Farms with no completed assessment are EXCLUDED here and counted separately as Assessment Pending — see that card. Click for the full calculation.`}
                         value={stats.complianceRate}
                         suffix="%"
                         onClick={() => drillDown('/risk-analysis', { complianceDetails: '1' })}
                         linkText="View Calculation"
                     />
                     <StatCard
+                        icon={<Clock className="h-6 w-6" />}
+                        iconBg="bg-gray-400"
+                        title="Assessment Pending"
+                        tooltip="lastRiskAssessmentDate IS NULL — this farm has NEVER completed a risk assessment. NOT a risk result, and NEVER counted as Compliant even if its default riskLevel happens to read 'Low'."
+                        value={stats.assessmentPendingFarms}
+                        onClick={() => drillDown('/farms', { complianceStatus: 'Assessment Pending' })}
+                        linkText="View Farms"
+                    />
+                    <StatCard
                         icon={<AlertTriangle className="h-6 w-6" />}
                         iconBg="bg-red-500"
                         title="High Risk Farms"
-                        tooltip="Farm.riskLevel = 'High' (from the most recent Whisp/deforestation risk assessment)."
+                        tooltip="A COMPLETED assessment with Farm.riskLevel = 'High' (from the most recent Whisp/deforestation risk assessment)."
                         value={stats.highRiskFarms}
                         onClick={() => drillDown('/risk-analysis', { riskLevel: 'High' })}
                         linkText="View Reasons"
+                    />
+                    <StatCard
+                        icon={<ShieldQuestion className="h-6 w-6" />}
+                        iconBg="bg-sky-500"
+                        title="Assessment Coverage"
+                        tooltip={`${stats.assessedFarms} ÷ ${stats.totalFarms} all registered farms have COMPLETED a risk assessment (regardless of result) = ${stats.assessmentCoverageRate}%. This is a SEPARATE metric from the compliance rate above — a low compliance rate can mean farms failed assessment, OR that many simply haven't been assessed yet; compare both numbers together.`}
+                        value={stats.assessmentCoverageRate}
+                        suffix="%"
+                        onClick={() => drillDown('/farms', { complianceStatus: 'Assessment Pending' })}
+                        linkText="View Unassessed Farms"
                     />
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
@@ -388,7 +523,7 @@ const Dashboard: React.FC = () => {
                         icon={<FileCheck className="h-6 w-6" />}
                         iconBg="bg-brand-green"
                         title="Compliant Farms"
-                        tooltip="riskLevel = 'Low' AND geometryStatus = 'Valid'."
+                        tooltip="Count of 'Assessed Low Risk, Valid Geometry' farms: a COMPLETED assessment AND riskLevel = 'Low' AND geometryStatus = 'Valid'."
                         value={stats.compliantFarms}
                         onClick={() => drillDown('/farms', { complianceStatus: 'Compliant' })}
                         linkText="View Farms"
@@ -397,7 +532,7 @@ const Dashboard: React.FC = () => {
                         icon={<AlertTriangle className="h-6 w-6" />}
                         iconBg="bg-amber-500"
                         title="Medium-Risk Farms"
-                        tooltip="riskLevel = 'Medium', OR riskLevel = 'Low' but geometryStatus is not yet 'Valid'."
+                        tooltip="A COMPLETED assessment with riskLevel = 'Medium', OR riskLevel = 'Low' but geometryStatus is not yet 'Valid'."
                         value={stats.mediumRiskFarms}
                         onClick={() => drillDown('/farms', { complianceStatus: 'Needs Review' })}
                         linkText="View Farms"
@@ -425,6 +560,11 @@ const Dashboard: React.FC = () => {
                                 </button>
                             ))}
                         </div>
+                        {stats.genderBreakdown.Unspecified > 0 && (
+                            <p className="mt-3 text-[11px] text-gray-500 leading-snug border-t border-gray-100 pt-3">
+                                <b className="text-gray-700">{stats.genderBreakdown.Unspecified}</b> farmer{stats.genderBreakdown.Unspecified === 1 ? '' : 's'} {stats.genderBreakdown.Unspecified === 1 ? 'has' : 'have'} no gender recorded ("Unspecified"). The Male and Female totals above do NOT represent all registered farmers — they exclude anyone with missing gender data.
+                            </p>
+                        )}
                     </div>
 
                     <div className="bg-white rounded-xl p-6 border border-gray-200">
@@ -557,72 +697,87 @@ const Dashboard: React.FC = () => {
 
                     {/* Farmer Growth Trend */}
                     <div className="bg-white rounded-xl p-6 border border-gray-200">
-                        <h3 className="text-[15px] font-semibold text-gray-900 mb-4">Farmer Registration Growth</h3>
-                        <div className="h-64">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <AreaChart data={stats.registrationTrend}>
-                                    <defs>
-                                        <linearGradient id="colorFarmers" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="#10B981" stopOpacity={0.8} />
-                                            <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                    <XAxis dataKey="month" />
-                                    <YAxis allowDecimals={false} />
-                                    <Tooltip />
-                                    <Area type="monotone" dataKey="count" stroke="#10B981" fillOpacity={1} fill="url(#colorFarmers)" />
-                                </AreaChart>
-                            </ResponsiveContainer>
-                        </div>
+                        <h3 className="text-[15px] font-semibold text-gray-900 mb-1">Farmer Registration Growth</h3>
+                        <p className="text-xs text-gray-500 mb-4">New farmer registrations per month, last 6 calendar months. Unit: farmers/month.</p>
+                        {stats.registrationTrend.every((r) => r.count === 0) ? (
+                            <EmptyState title="No farmer registrations in the last 6 months" description="New registrations will appear here as they come in." />
+                        ) : (
+                            <div className="h-64">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={stats.registrationTrend}>
+                                        <defs>
+                                            <linearGradient id="colorFarmers" x1="0" y1="0" x2="0" y2="1">
+                                                <stop offset="5%" stopColor="#10B981" stopOpacity={0.8} />
+                                                <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
+                                            </linearGradient>
+                                        </defs>
+                                        <CartesianGrid strokeDasharray="3 3" vertical={false} />
+                                        <XAxis dataKey="month" />
+                                        <YAxis allowDecimals={false} label={{ value: 'Farmers', angle: -90, position: 'insideLeft', style: { fontSize: 11, fill: '#6b7280' } }} />
+                                        <Tooltip formatter={(value?: number) => [`${value ?? 0} farmer${value === 1 ? '' : 's'}`, 'Registered']} />
+                                        <Area type="monotone" dataKey="count" name="Farmers registered" stroke="#10B981" fillOpacity={1} fill="url(#colorFarmers)" />
+                                    </AreaChart>
+                                </ResponsiveContainer>
+                            </div>
+                        )}
                     </div>
 
                     {/* Risk Distribution Pie — every segment clickable */}
                     <div className="bg-white rounded-xl p-6 border border-gray-200">
-                        <h3 className="text-[15px] font-semibold text-gray-900 mb-4">Farm Risk Distribution <span className="text-xs text-gray-500 font-normal">(click a segment)</span></h3>
-                        <div className="h-64 flex items-center justify-center">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <PieChart>
-                                    <Pie
-                                        data={riskData}
-                                        cx="50%"
-                                        cy="50%"
-                                        innerRadius={60}
-                                        outerRadius={80}
-                                        paddingAngle={5}
-                                        dataKey="value"
-                                        onClick={(entry: any) => drillDown('/farms', { complianceStatus: entry.status })}
-                                        style={{ cursor: 'pointer' }}
-                                    >
-                                        {riskData.map((_entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                        ))}
-                                    </Pie>
-                                    <Tooltip />
-                                    <Legend verticalAlign="bottom" height={36} />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        </div>
+                        <h3 className="text-[15px] font-semibold text-gray-900 mb-1">Farm Risk Distribution <span className="text-xs text-gray-500 font-normal">(click a segment)</span></h3>
+                        <p className="text-xs text-gray-500 mb-4">All {stats.totalFarms} registered farms, grouped into 4 mutually-exclusive assessment/risk buckets. Unit: farms.</p>
+                        {stats.totalFarms === 0 ? (
+                            <EmptyState title="No farms registered yet" description="Risk distribution will appear here once farms are added." />
+                        ) : (
+                            <div className="h-64 flex items-center justify-center">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <PieChart>
+                                        <Pie
+                                            data={riskData}
+                                            cx="50%"
+                                            cy="50%"
+                                            innerRadius={60}
+                                            outerRadius={80}
+                                            paddingAngle={5}
+                                            dataKey="value"
+                                            onClick={(entry: { status?: DashboardFilterParams['complianceStatus'] }) => drillDown('/farms', { complianceStatus: entry.status })}
+                                            style={{ cursor: 'pointer' }}
+                                        >
+                                            {riskData.map((_entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                                            ))}
+                                        </Pie>
+                                        <Tooltip formatter={(value: number | undefined, _name: string | undefined, entry: { payload?: { name?: string } }) => [`${value ?? 0} farms`, entry?.payload?.name]} />
+                                        <Legend verticalAlign="bottom" height={36} />
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </div>
+                        )}
                     </div>
 
                     {/* Shipment Status Bar — all 4 statuses now shown */}
                     <div className="bg-white rounded-xl p-6 border border-gray-200 lg:col-span-2">
-                        <h3 className="text-[15px] font-semibold text-gray-900 mb-4">Shipment Status</h3>
-                        <div className="h-64">
-                            <ResponsiveContainer width="100%" height="100%">
-                                <BarChart data={shipmentData} layout="vertical">
-                                    <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
-                                    <XAxis type="number" allowDecimals={false} />
-                                    <YAxis dataKey="name" type="category" width={100} />
-                                    <Tooltip cursor={{ fill: 'transparent' }} />
-                                    <Bar dataKey="count" barSize={20} onClick={() => navigate('/export')} style={{ cursor: 'pointer' }}>
-                                        {shipmentData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.fill} />
-                                        ))}
-                                    </Bar>
-                                </BarChart>
-                            </ResponsiveContainer>
-                        </div>
+                        <h3 className="text-[15px] font-semibold text-gray-900 mb-1">Shipment Status</h3>
+                        <p className="text-xs text-gray-500 mb-4">All shipments by current pipeline stage (Draft → Validated → Issued → Shipped). Unit: shipments.</p>
+                        {shipmentData.every((s) => s.count === 0) ? (
+                            <EmptyState title="No shipments yet" description="Shipment activity will appear here once export shipments are created." />
+                        ) : (
+                            <div className="h-64">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={shipmentData} layout="vertical">
+                                        <CartesianGrid strokeDasharray="3 3" horizontal={true} vertical={false} />
+                                        <XAxis type="number" allowDecimals={false} label={{ value: 'Shipments', position: 'insideBottom', offset: -5, style: { fontSize: 11, fill: '#6b7280' } }} />
+                                        <YAxis dataKey="name" type="category" width={100} />
+                                        <Tooltip cursor={{ fill: 'transparent' }} formatter={(value?: number) => [`${value ?? 0} shipments`, 'Count']} />
+                                        <Bar dataKey="count" name="Shipments" barSize={20} onClick={() => navigate('/export')} style={{ cursor: 'pointer' }}>
+                                            {shipmentData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={entry.fill} />
+                                            ))}
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        )}
                     </div>
                 </div>
             </div>
@@ -651,7 +806,10 @@ const Dashboard: React.FC = () => {
 
 // Helper Component for consistency — now supports an optional info
 // tooltip explaining the exact calculation behind the number.
-const StatCard = ({ icon, title, tooltip, value, link, linkText, iconBg = "bg-brand-green", onClick, suffix = "" }: any) => (
+const StatCard = ({ icon, title, tooltip, value, link, linkText, iconBg = "bg-brand-green", onClick, suffix = "" }: {
+    icon: React.ReactNode; title: string; tooltip?: string; value: React.ReactNode;
+    link?: string; linkText?: string; iconBg?: string; onClick?: () => void; suffix?: string;
+}) => (
     <div className="group bg-white overflow-hidden rounded-xl border border-gray-200 hover:border-brand-green/40 transition-colors duration-150">
         <div className="p-5">
             <div className="flex items-center">
@@ -676,7 +834,7 @@ const StatCard = ({ icon, title, tooltip, value, link, linkText, iconBg = "bg-br
                         {linkText} <ArrowUpRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
                     </button>
                 ) : (
-                    <Link to={link} className="font-semibold text-brand-green hover:text-brand-green-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green rounded flex items-center gap-1">
+                    <Link to={link || '#'} className="font-semibold text-brand-green hover:text-brand-green-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green rounded flex items-center gap-1">
                         {linkText} <ArrowUpRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
                     </Link>
                 )}
