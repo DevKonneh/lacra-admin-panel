@@ -3,12 +3,11 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
     UserPlus, MapPinned, FileCheck, AlertTriangle, Users2, Sprout, ArrowUpRight,
     Loader2, RefreshCw, Info, ShieldCheck, FileWarning, FileBadge, ClipboardCheck,
-    ShieldAlert, Package, Truck, Ship, Calendar, ShieldQuestion, Clock,
+    ShieldAlert, Package, Ship, Calendar, ShieldQuestion, Clock,
     UserPlus2, Stamp, FlaskConical,
 } from 'lucide-react';
 import {
     getDashboardStats, type DashboardStats, type DashboardFilterParams,
-    getFarmMappingStats, type FarmMappingStats,
 } from '../api/reports';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
@@ -95,7 +94,6 @@ const QUICK_ACTIONS: QuickAction[] = [
 
 const Dashboard: React.FC = () => {
     const [stats, setStats] = useState<DashboardStats | null>(null);
-    const [mappingStats, setMappingStats] = useState<FarmMappingStats | null>(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [showRegisterForm, setShowRegisterForm] = useState(false);
@@ -131,16 +129,12 @@ const Dashboard: React.FC = () => {
         try {
             setLoading(true);
             setError(null);
-            const [statsRes, mappingRes] = await Promise.all([
-                getDashboardStats(filters),
-                getFarmMappingStats(filters),
-            ]);
+            const statsRes = await getDashboardStats(filters);
             if (statsRes.data.status) {
                 setStats(statsRes.data.data);
             } else {
                 setError(statsRes.data.message || 'Failed to load dashboard statistics.');
             }
-            if (mappingRes.data.status) setMappingStats(mappingRes.data.data);
         } catch (err: unknown) {
             console.error("Error fetching dashboard stats", err);
             const status = (err as { response?: { status?: number } })?.response?.status;
@@ -453,13 +447,20 @@ const Dashboard: React.FC = () => {
                 </div>
             </div>
 
-            {/* 2. Geometry & Compliance — 8 cards total, all in ONE grid so
-                every row fills completely (previously split into a 6-card
-                row + a separate 2-card row, both grid-cols-4, which left 2
-                visibly empty slots dangling at the end of the 2-card row). */}
+            {/* 2. Geometry & Compliance — 6 cards (down from 8). The previous
+                8-card version actually showed only 6 distinct pieces of
+                information: "Assessed Low Risk, Valid Geometry" (%) and
+                "Compliant Farms" (count) were the SAME compliantFarms number
+                shown twice in different formats, and "Assessment Pending"
+                (count) / "Assessment Coverage" (%) are exact mathematical
+                inverses of each other (coverage = (total - pending) / total)
+                that even pointed at the identical drill-down destination.
+                Each pair is now ONE card showing count + rate together,
+                matching the "Farms with Valid Polygons" pattern below. 6
+                cards fills a grid-cols-3 exactly (2 full rows). */}
             <div>
                 <h2 className="text-[11px] font-semibold text-brand-muted tracking-wide uppercase mb-4">Geometry &amp; Compliance</h2>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <StatCard
                         icon={<ShieldCheck className="h-6 w-6" />}
                         iconBg="bg-brand-green"
@@ -484,8 +485,8 @@ const Dashboard: React.FC = () => {
                         iconBg="bg-brand-green"
                         title="Assessed Low Risk, Valid Geometry"
                         tooltip={`${stats.compliantFarms} ÷ ${stats.totalFarms} ALL REGISTERED FARMS (${stats.complianceDenominatorLabel}) = ${stats.complianceRate}%. A farm is counted here ONLY if it has (1) a COMPLETED risk assessment, (2) a Low risk result, AND (3) a Valid GPS boundary. Farms with no completed assessment are EXCLUDED here and counted separately as Assessment Pending — see that card. Click for the full calculation.`}
-                        value={stats.complianceRate}
-                        suffix="%"
+                        value={stats.compliantFarms}
+                        suffix={` (${stats.complianceRate}%)`}
                         onClick={() => drillDown('/risk-analysis', { complianceDetails: '1' })}
                         linkText="View Calculation"
                     />
@@ -493,8 +494,9 @@ const Dashboard: React.FC = () => {
                         icon={<Clock className="h-6 w-6" />}
                         iconBg="bg-gray-400"
                         title="Assessment Pending"
-                        tooltip="lastRiskAssessmentDate IS NULL — this farm has NEVER completed a risk assessment. NOT a risk result, and NEVER counted as Compliant even if its default riskLevel happens to read 'Low'."
+                        tooltip={`lastRiskAssessmentDate IS NULL — this farm has NEVER completed a risk assessment. ${stats.assessmentPendingFarms} ÷ ${stats.totalFarms} farms (${(100 - stats.assessmentCoverageRate).toFixed(1)}%) are still pending — i.e. ${stats.assessmentCoverageRate}% assessment coverage. NOT a risk result, and NEVER counted as Compliant even if its default riskLevel happens to read 'Low'.`}
                         value={stats.assessmentPendingFarms}
+                        suffix={` (${(100 - stats.assessmentCoverageRate).toFixed(1)}%)`}
                         onClick={() => drillDown('/farms', { complianceStatus: 'Assessment Pending' })}
                         linkText="View Farms"
                     />
@@ -506,25 +508,6 @@ const Dashboard: React.FC = () => {
                         value={stats.highRiskFarms}
                         onClick={() => drillDown('/risk-analysis', { riskLevel: 'High' })}
                         linkText="View Reasons"
-                    />
-                    <StatCard
-                        icon={<ShieldQuestion className="h-6 w-6" />}
-                        iconBg="bg-sky-500"
-                        title="Assessment Coverage"
-                        tooltip={`${stats.assessedFarms} ÷ ${stats.totalFarms} all registered farms have COMPLETED a risk assessment (regardless of result) = ${stats.assessmentCoverageRate}%. This is a SEPARATE metric from the compliance rate above — a low compliance rate can mean farms failed assessment, OR that many simply haven't been assessed yet; compare both numbers together.`}
-                        value={stats.assessmentCoverageRate}
-                        suffix="%"
-                        onClick={() => drillDown('/farms', { complianceStatus: 'Assessment Pending' })}
-                        linkText="View Unassessed Farms"
-                    />
-                    <StatCard
-                        icon={<FileCheck className="h-6 w-6" />}
-                        iconBg="bg-brand-green"
-                        title="Compliant Farms"
-                        tooltip="Count of 'Assessed Low Risk, Valid Geometry' farms: a COMPLETED assessment AND riskLevel = 'Low' AND geometryStatus = 'Valid'."
-                        value={stats.compliantFarms}
-                        onClick={() => drillDown('/farms', { complianceStatus: 'Compliant' })}
-                        linkText="View Farms"
                     />
                     <StatCard
                         icon={<AlertTriangle className="h-6 w-6" />}
@@ -800,24 +783,17 @@ const Dashboard: React.FC = () => {
                 </div>
             </div>
 
-            {/* EUDR Farm Mapping crop breakdown (legacy endpoint, kept for the point-only footer) */}
-            {mappingStats && (
-                <div className="bg-white rounded-xl p-6 border border-gray-200">
-                    <h3 className="text-[15px] font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                        <Truck className="h-4.5 w-4.5 text-green-600" /> GPS Mapping Coverage
-                    </h3>
-                    <div className="flex gap-6 text-[12px] text-gray-500">
-                        <button onClick={() => drillDown('/farms', { geometryStatus: 'Valid' })} className="inline-flex items-center gap-1.5 hover:underline">
-                            <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                            GPS Polygon Boundary: <b className="text-gray-800 font-semibold">{mappingStats.farmsWithPolygon}</b>
-                        </button>
-                        <button onClick={() => navigate('/farms/data-correction-queue')} className="inline-flex items-center gap-1.5 hover:underline">
-                            <span className="h-2 w-2 rounded-full bg-amber-500" />
-                            Point Only / Needs Correction: <b className="text-gray-800 font-semibold">{mappingStats.farmsWithPointOnly}</b>
-                        </button>
-                    </div>
-                </div>
-            )}
+            {/* NOTE: a "GPS Mapping Coverage" footer box used to live here,
+                sourced from the legacy /reports/farm-mapping-stats endpoint.
+                It was removed because farmsWithPolygon/farmsWithPointOnly
+                are the exact same geometryStatus counts already shown as
+                "Farms with Valid Polygons" / "Farms Needing Correction" in
+                the Geometry & Compliance section above — a third copy of
+                the same two numbers. The rest of that endpoint's payload
+                (cropBreakdown) was not used anywhere on this page either
+                ("Farms by Commodity" in Breakdowns above is sourced from
+                the main dashboard-stats endpoint instead), so the whole
+                getFarmMappingStats() call was removed as dead weight. */}
         </div>
     );
 };
