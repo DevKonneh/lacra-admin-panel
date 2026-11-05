@@ -17,6 +17,8 @@ import {
     type MembershipFilter, type QualityFilter, type SortMode,
 } from './cooperativeHelpers';
 import CooperativeDetailPanel from './CooperativeDetailPanel';
+import PageHeader from '../../components/ui/PageHeader';
+import { buttonClasses } from '../../components/ui/buttonStyles';
 
 /**
  * Cooperative Registry — searchable staff directory for the CDA
@@ -231,39 +233,43 @@ const CooperativeRegistry: React.FC = () => {
 
     return (
         <div className="space-y-5">
-            <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                <div>
-                    <h1 className="text-2xl font-bold text-brand-text">Cooperative Registry</h1>
-                    <p className="text-sm text-brand-muted mt-0.5">CDA reference directory for farmer registration.</p>
-                    <p className="text-xs text-slate-400 mt-1">
+            <PageHeader
+                breadcrumb={[{ label: 'Cooperative Registry' }]}
+                title="Cooperative Registry"
+                description="CDA reference directory for farmer registration."
+                meta={
+                    <p className="text-xs text-slate-400">
                         Source: CDA &middot; Last updated: {loading ? '…' : formatDateOnly(lastUpdated)}
                     </p>
-                </div>
-                {isAdmin && (
-                    <div className="flex items-center gap-2 flex-shrink-0">
-                        <button
-                            type="button"
-                            onClick={handleScan}
-                            disabled={scanning}
-                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg border border-gray-300 bg-white text-xs font-semibold text-slate-700 hover:bg-gray-50 disabled:opacity-60"
-                        >
-                            <ScanSearch size={14} className={scanning ? 'animate-pulse' : ''} />
-                            {scanning ? 'Scanning…' : 'Run Data Quality Scan'}
-                        </button>
-                        <Link
-                            to="/admin/cooperatives/import"
-                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg bg-brand-green text-white text-xs font-semibold hover:bg-brand-green-hover"
-                        >
-                            <Settings2 size={14} /> Manage Registry
-                        </Link>
-                    </div>
-                )}
-            </div>
+                }
+                actions={
+                    isAdmin ? (
+                        <>
+                            <button
+                                type="button"
+                                onClick={handleScan}
+                                disabled={scanning}
+                                className={buttonClasses('secondary', 'sm')}
+                            >
+                                <ScanSearch size={14} className={scanning ? 'animate-pulse' : ''} />
+                                {scanning ? 'Scanning…' : 'Run Data Quality Scan'}
+                            </button>
+                            <Link to="/admin/cooperatives/import" className={buttonClasses('primary', 'sm')}>
+                                <Settings2 size={14} /> Manage Registry
+                            </Link>
+                        </>
+                    ) : undefined
+                }
+            />
 
             {scanMessage && (
                 <div className="flex items-start gap-2 bg-blue-50 border border-blue-200 text-blue-800 rounded-lg p-3 text-sm">
                     <span className="flex-1">{scanMessage}</span>
-                    <button onClick={() => setScanMessage('')} className="text-blue-400 hover:text-blue-600"><X size={14} /></button>
+                    <button
+                        onClick={() => setScanMessage('')}
+                        aria-label="Dismiss message"
+                        className="text-blue-400 hover:text-blue-600 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-400 rounded"
+                    ><X size={14} /></button>
                 </div>
             )}
 

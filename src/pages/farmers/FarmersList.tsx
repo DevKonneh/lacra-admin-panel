@@ -6,6 +6,8 @@ import SafeImage from '../../components/SafeImage';
 import { useAuth } from '../../context/AuthContext';
 import { Search, User, MapPin, ShieldCheck, ShieldAlert, ShieldQuestion, Loader2, Sprout, AlertTriangle, Download, Users, ArrowRight, UserCheck } from 'lucide-react';
 import { COUNTY_NAMES } from '../../data/liberiaCounties';
+import PageHeader from '../../components/ui/PageHeader';
+import { buttonClasses } from '../../components/ui/buttonStyles';
 
 const StatusBadge: React.FC<{ status?: string }> = ({ status }) => {
     if (status === 'Verified') {
@@ -226,20 +228,18 @@ const FarmersList: React.FC = () => {
 
     return (
         <div className="space-y-5">
-            {/* Page heading (left) and primary actions (right). */}
-            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                <div>
-                    <h1 className="text-xl font-semibold text-brand-text leading-tight">Farmer Registry</h1>
-                    <p className="text-sm text-brand-muted mt-0.5">Registered farmers and identity verification.</p>
-                </div>
-                <div className="flex flex-col items-start lg:items-end gap-2">
-                    <div className="flex items-center gap-2">
+            <PageHeader
+                breadcrumb={[{ label: 'Farmer Registry' }]}
+                title="Farmer Registry"
+                description="Registered farmers and identity verification."
+                actions={
+                    <>
                         {isAdmin && (
                             <button
                                 type="button"
                                 onClick={handleExportCsv}
                                 disabled={exporting}
-                                className="inline-flex items-center gap-2 px-3.5 py-2 border border-gray-300 text-sm font-medium rounded-lg shadow-sm text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed transition-colors"
+                                className={buttonClasses('secondary', 'md', 'disabled:cursor-not-allowed')}
                             >
                                 {exporting ? (
                                     <Loader2 className="h-4 w-4 animate-spin" />
@@ -249,18 +249,13 @@ const FarmersList: React.FC = () => {
                                 {exporting ? 'Generating…' : 'Export Report'}
                             </button>
                         )}
-                        <Link
-                            to="/farmers/mapping/start"
-                            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-semibold rounded-lg shadow-sm text-white bg-brand-green hover:bg-brand-green-hover transition-colors"
-                        >
+                        <Link to="/farmers/mapping/start" className={buttonClasses('primary', 'md')}>
                             + Register Farmer
                         </Link>
-                    </div>
-                    {exportError && (
-                        <p className="text-xs text-red-600">{exportError}</p>
-                    )}
-                </div>
-            </div>
+                    </>
+                }
+                meta={exportError ? <p className="text-xs text-red-600">{exportError}</p> : undefined}
+            />
 
             {/* Summary cards */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">

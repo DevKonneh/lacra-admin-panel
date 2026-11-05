@@ -344,8 +344,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, collapsed, onToggleC
                     />
                     {!collapsed && (
                         <div className="min-w-0">
-                            <h1 className="m-0 text-[13px] font-extrabold leading-[1.15] text-brand-text truncate">LACRA</h1>
-                            <p className="m-0 mt-0.5 text-[11px] text-brand-muted leading-tight truncate">Farm Mapping &amp; EUDR Compliance</p>
+                            <h1 className="m-0 text-[13px] font-extrabold leading-[1.15] text-brand-text truncate">LACRA CMIS</h1>
+                            <p className="m-0 mt-0.5 text-[11px] text-brand-muted leading-tight truncate">Commodity Management Information System</p>
                         </div>
                     )}
                     <button

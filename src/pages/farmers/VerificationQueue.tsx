@@ -15,8 +15,10 @@ import { useAuth } from '../../context/AuthContext';
 import { UserRole } from '../../types';
 import {
     Loader2, AlertTriangle, RefreshCw, ShieldCheck, ShieldAlert, ShieldQuestion,
-    CheckCircle2, HelpCircle, User, Layers,
+    CheckCircle2, HelpCircle, User, Layers, Info,
 } from 'lucide-react';
+import PageHeader from '../../components/ui/PageHeader';
+import { buttonClasses } from '../../components/ui/buttonStyles';
 
 /**
  * Identity Verification Queue — ADMIN-facing worklist of every farmer
@@ -200,33 +202,42 @@ const VerificationQueue: React.FC = () => {
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900">Identity Verification</h1>
-                    <p className="text-sm text-brand-muted mt-1 max-w-2xl">
-                        Farmers whose identity has not yet been verified, or whose identity has a flagged conflict.
-                        Verifying identity confirms <strong>who the farmer is</strong> — it does not validate their
-                        farm boundaries, land rights, or EUDR requirements (see the Data Correction Queue / Risk
-                        Analysis for those).
-                    </p>
-                </div>
-                {canManageVerification && selected.size > 0 && (
-                    <div className="flex items-center gap-2">
-                        <span className="text-sm text-brand-muted">{selected.size} selected</span>
-                        <button
-                            onClick={() => setBulkModal({ status: 'Verified' })}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-lg bg-brand-green text-white hover:bg-brand-green-hover transition-colors"
-                        >
-                            <ShieldCheck className="h-4 w-4" /> Verify Selected
-                        </button>
-                        <button
-                            onClick={() => setBulkModal({ status: 'Conflict' })}
-                            className="inline-flex items-center gap-1.5 px-3.5 py-2 text-sm font-medium rounded-lg border border-red-200 text-red-700 bg-white hover:bg-red-50 transition-colors"
-                        >
-                            <ShieldAlert className="h-4 w-4" /> Flag Conflict
-                        </button>
-                    </div>
-                )}
+            <PageHeader
+                breadcrumb={[{ label: 'Farmer Registry', to: '/farmers' }, { label: 'Verification Queue' }]}
+                title="Identity Verification"
+                description="Farmers awaiting identity verification or with a flagged identity conflict."
+                actions={
+                    canManageVerification && selected.size > 0 ? (
+                        <>
+                            <span className="text-sm text-brand-muted self-center">{selected.size} selected</span>
+                            <button
+                                onClick={() => setBulkModal({ status: 'Verified' })}
+                                className={buttonClasses('primary')}
+                            >
+                                <ShieldCheck className="h-4 w-4" /> Verify Selected
+                            </button>
+                            <button
+                                onClick={() => setBulkModal({ status: 'Conflict' })}
+                                className={buttonClasses('danger')}
+                            >
+                                <ShieldAlert className="h-4 w-4" /> Flag Conflict
+                            </button>
+                        </>
+                    ) : undefined
+                }
+            />
+
+            {/* In-page scope note: kept out of the header per the "concise description"
+                guidance, but preserved here in full since it clarifies what this queue
+                does and does NOT cover (farm boundaries / land rights / EUDR checks
+                live elsewhere). */}
+            <div className="flex items-start gap-2 text-xs text-brand-muted bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 -mt-2">
+                <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0 text-slate-400" />
+                <p>
+                    Verifying identity confirms <strong>who the farmer is</strong> — it does not validate their
+                    farm boundaries, land rights, or EUDR requirements (see the Data Correction Queue / Risk
+                    Analysis for those).
+                </p>
             </div>
 
             {/* Filter chips */}

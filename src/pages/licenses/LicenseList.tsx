@@ -2,7 +2,15 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getAllLicenses, getMyLicenses } from '../../api/licenses';
 import { useAuth } from '../../context/AuthContext';
-import { FileText, Plus, Search, AlertTriangle } from 'lucide-react';
+import {
+    FileText, Plus, Search, AlertTriangle, CheckCircle2, Clock, ArrowUpCircle,
+    Send, AlertCircle, XCircle, HelpCircle, Inbox,
+} from 'lucide-react';
+import PageHeader from '../../components/ui/PageHeader';
+import { buttonClasses } from '../../components/ui/buttonStyles';
+import Badge from '../../components/ui/Badge';
+import type { BadgeTone } from '../../components/ui/Badge';
+import EmptyState from '../../components/ui/EmptyState';
 
 // Skeleton row shown while licenses are loading, so the table never
 // flashes "0 licenses" / an empty state before the real data arrives.
@@ -59,32 +67,33 @@ const LicenseList: React.FC = () => {
         (l.holderName?.toLowerCase()?.includes(searchTerm.toLowerCase()) || '')
     );
 
-    const getStatusColor = (status: string) => {
-        switch (status) {
-            case 'LICENSE_ISSUED': return 'bg-green-100 text-green-800';
-            case 'DG_APPROVED': return 'bg-blue-100 text-blue-800';
-            case 'RECOMMENDED_TO_DG': return 'bg-indigo-100 text-indigo-800';
-            case 'SUBMITTED': return 'bg-yellow-100 text-yellow-800';
-            case 'RETURNED_FOR_CORRECTION': return 'bg-orange-100 text-orange-800';
-            case 'DG_REJECTED': return 'bg-red-100 text-red-800';
-            default: return 'bg-gray-100 text-gray-800';
-        }
+    // Unified icon+text+color status badge (replaces the previous color-only
+    // mapping) so status is never conveyed by color alone.
+    const STATUS_META: Record<string, { tone: BadgeTone; icon: React.ReactNode }> = {
+        LICENSE_ISSUED: { tone: 'green', icon: <CheckCircle2 /> },
+        DG_APPROVED: { tone: 'blue', icon: <ArrowUpCircle /> },
+        RECOMMENDED_TO_DG: { tone: 'indigo', icon: <Send /> },
+        SUBMITTED: { tone: 'amber', icon: <Clock /> },
+        RETURNED_FOR_CORRECTION: { tone: 'orange', icon: <AlertCircle /> },
+        DG_REJECTED: { tone: 'red', icon: <XCircle /> },
     };
+    const getStatusMeta = (status: string) => STATUS_META[status] || { tone: 'slate' as BadgeTone, icon: <HelpCircle /> };
 
     return (
         <div className="space-y-6">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                <div>
-                    <h1 className="text-2xl font-bold text-gray-900">License Management</h1>
-                    <p className="text-sm text-gray-500">View and manage export licenses</p>
-                </div>
-                <Link to="/licenses/apply" className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md shadow-sm text-white bg-green-600 hover:bg-green-700">
-                    <Plus className="h-4 w-4 mr-2" />
-                    New Application
-                </Link>
-            </div>
+            <PageHeader
+                breadcrumb={[{ label: 'Licensing' }]}
+                title="License Management"
+                description="View and manage export licenses."
+                actions={
+                    <Link to="/licenses/apply" className={buttonClasses('primary')}>
+                        <Plus className="h-4 w-4" />
+                        New Application
+                    </Link>
+                }
+            />
 
-            <div className="bg-white shadow rounded-lg overflow-hidden">
+            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
                 <div className="p-4 border-b border-gray-200">
                     <div className="relative">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -92,7 +101,8 @@ const LicenseList: React.FC = () => {
                         </div>
                         <input
                             type="text"
-                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus:ring-1 focus:ring-green-500 focus:border-green-500 sm:text-sm"
+                            aria-label="Search by license number or holder name"
+                            className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:placeholder-gray-400 focus-visible:ring-2 focus-visible:ring-brand-green focus:border-brand-green sm:text-sm"
                             placeholder="Search by license number or holder name"
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
@@ -108,7 +118,7 @@ const LicenseList: React.FC = () => {
                         <p className="text-sm font-medium text-gray-900">{error}</p>
                         <button
                             onClick={loadLicenses}
-                            className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50"
+                            className={buttonClasses('secondary')}
                         >
                             Try Again
                         </button>
@@ -142,22 +152,30 @@ const LicenseList: React.FC = () => {
                                         {license.holderName}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap">
-                                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${getStatusColor(license.status)}`}>
+                                        <Badge tone={getStatusMeta(license.status).tone} icon={getStatusMeta(license.status).icon}>
                                             {license.status?.replace(/_/g, ' ')}
-                                        </span>
+                                        </Badge>
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                                         {license.validTo ? new Date(license.validTo).toLocaleDateString() : '-'}
                                     </td>
                                     <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
-                                        <Link to={`/licenses/${license.id}`} className="text-green-600 hover:text-green-900">View</Link>
+                                        <Link
+                                            to={`/licenses/${license.id}`}
+                                            aria-label={`View license ${license.licenseNumber || 'application'} for ${license.holderName || 'holder'}`}
+                                            className="text-brand-green hover:text-brand-green-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green rounded"
+                                        >View</Link>
                                     </td>
                                 </tr>
                             ))}
                             {!loading && filteredLicenses.length === 0 && (
                                 <tr>
-                                    <td colSpan={5} className="px-6 py-4 text-center text-sm text-gray-500">
-                                        No licenses found.
+                                    <td colSpan={5} className="px-6 py-0">
+                                        <EmptyState
+                                            icon={<Inbox className="h-5 w-5" />}
+                                            title="No licenses found"
+                                            description={searchTerm ? 'Try a different search term.' : 'No license applications exist yet.'}
+                                        />
                                     </td>
                                 </tr>
                             )}

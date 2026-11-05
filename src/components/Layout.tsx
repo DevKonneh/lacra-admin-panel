@@ -1,26 +1,18 @@
 import React, { useState } from 'react';
-import { Outlet, useLocation } from 'react-router-dom';
+import { Outlet } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import Sidebar from './Sidebar';
 import OfflineBanner from './OfflineBanner';
 import NotificationBell from './NotificationBell';
 
-// Friendly titles/subtitles per route so the topbar isn't hardcoded to "Dashboard" everywhere
-const pageMeta: Record<string, { title: string; subtitle: string }> = {
-    '/': { title: 'Dashboard', subtitle: 'High-level snapshot of mapping activities.' },
-    '/farmers': { title: 'Farmers', subtitle: 'Registered farmer records and identity verification.' },
-    '/farmers/register': { title: 'Register Farmer', subtitle: 'Capture farmer identity and biodata for EUDR compliance.' },
-    '/farmers/mapping/start': { title: 'Farm Mapping Tool', subtitle: 'How would you like to begin?' },
-    '/farmers/mapping/find': { title: 'Find Farmer', subtitle: 'Search for a returning farmer before adding a new farm.' },
-    '/farmers/mapping/incomplete': { title: 'Continue Incomplete Mapping', subtitle: 'Resume a mapping session saved on this device.' },
-    '/farms': { title: 'Farms', subtitle: 'Mapped farm plots and boundary data.' },
-    '/farms/new': { title: 'Add Farm', subtitle: 'Draw a farm boundary and capture cultivation details.' },
-    '/map': { title: 'Farm Mapping', subtitle: 'EUDR-aligned national traceability map.' },
-    '/risk-analysis': { title: 'Risk Analysis', subtitle: 'Deforestation and compliance risk overview.' },
-};
-
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'lacra.sidebar.collapsed';
 
+// The topbar's job is ONLY to carry the constant application identity
+// ("LACRA CMIS" / "Commodity Management Information System") plus global
+// chrome (menu toggle, notifications, platform badge). Per-page titles,
+// descriptions, breadcrumbs and actions now live entirely inside each page
+// via the shared <PageHeader> component — this is the single place that
+// previously duplicated what pages already rendered themselves.
 const Layout: React.FC = () => {
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
@@ -30,8 +22,6 @@ const Layout: React.FC = () => {
             return false;
         }
     });
-    const location = useLocation();
-    const meta = pageMeta[location.pathname] || { title: 'LACRA CMIS', subtitle: 'Commodity Management Information System' };
 
     const toggleSidebarCollapsed = () => {
         setSidebarCollapsed(prev => {
@@ -78,8 +68,8 @@ const Layout: React.FC = () => {
                         </button>
 
                         <div>
-                            <h1 className="font-extrabold text-base text-brand-text">{meta.title}</h1>
-                            <div className="text-xs text-brand-muted mt-0.5">{meta.subtitle}</div>
+                            <h1 className="font-extrabold text-base text-brand-text leading-tight">LACRA CMIS</h1>
+                            <div className="text-xs text-brand-muted mt-0.5">Commodity Management Information System</div>
                         </div>
                     </div>
 
