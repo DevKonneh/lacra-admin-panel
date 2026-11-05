@@ -12,7 +12,7 @@ import {
 } from '../api/reports';
 import {
     AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
-    PieChart, Pie, Cell, Legend, BarChart, Bar
+    PieChart, Pie, Cell, BarChart, Bar
 } from 'recharts';
 
 import { useAuth } from '../context/AuthContext';
@@ -35,7 +35,14 @@ import RegisterFarmer from './RegisterFarmer';
 // Amber (Needs Review), Red (High Risk). Assessment Pending is listed
 // first and colored neutral gray (not a risk color) because it is NOT a
 // risk result — it simply means no assessment has been completed yet.
-const COLORS = ['#9CA3AF', '#10B981', '#F59E0B', '#EF4444'];
+// Keyed by `status` (not array index) so colors stay correct even after
+// zero-value buckets are filtered out of the pie chart below.
+const RISK_COLOR_MAP: Record<string, string> = {
+    'Assessment Pending': '#9CA3AF',
+    'Compliant': '#10B981',
+    'Needs Review': '#F59E0B',
+    'High Risk': '#EF4444',
+};
 const SHIPMENT_colors = {
     DRAFT: '#9CA3AF',
     VALIDATED: '#60A5FA',
@@ -239,12 +246,21 @@ const Dashboard: React.FC = () => {
     // Four mutually-exclusive, exhaustive buckets that always sum to
     // totalFarms. "Assessment Pending" is listed first since it is not a
     // risk RESULT — it means no assessment has been completed yet.
-    const riskData = [
+    // The pie itself only renders buckets with a non-zero count: Recharts'
+    // paddingAngle reserves a visible gap for every slice regardless of
+    // value, so when (as in typical early-stage data) 3 of the 4 buckets
+    // are 0, the ring showed stray gaps that looked like a rendering
+    // glitch rather than "all farms fall in one bucket". riskDataAll (with
+    // zeros included) still drives a separate always-complete 4-item
+    // legend below, so every category name/color stays explained even
+    // when its slice is hidden.
+    const riskDataAll = [
         { name: 'Assessment Pending', value: stats.assessmentPendingFarms, status: 'Assessment Pending' },
         { name: 'Assessed Low Risk, Valid Geometry', value: stats.compliantFarms, status: 'Compliant' },
         { name: 'Needs Review', value: stats.mediumRiskFarms, status: 'Needs Review' },
         { name: 'High Risk', value: stats.highRiskFarms, status: 'High Risk' },
     ];
+    const riskData = riskDataAll.filter((r) => r.value > 0);
 
     const shipmentData = stats.shipmentStats ? [
         { name: 'Draft', count: stats.shipmentStats.DRAFT, fill: SHIPMENT_colors.DRAFT },
@@ -345,35 +361,16 @@ const Dashboard: React.FC = () => {
                 </div>
             </div>
 
-            {/* One concise summary row — the handful of numbers every
-                role cares about at a glance, using only reliable, already
-                clearly-defined metrics (no new ambiguous blends). */}
-            <div className="bg-white rounded-xl border border-gray-200 px-5 py-4 flex flex-wrap items-center gap-x-8 gap-y-3">
-                <div>
-                    <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Farmers</div>
-                    <div className="text-lg font-bold text-gray-900">{stats.totalFarmers}</div>
-                </div>
-                <div>
-                    <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Farms</div>
-                    <div className="text-lg font-bold text-gray-900">{stats.totalFarms}</div>
-                </div>
-                <div>
-                    <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Verified Farmers</div>
-                    <div className="text-lg font-bold text-gray-900">{stats.verifiedFarmerRate}%</div>
-                </div>
-                <div>
-                    <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Assessment Coverage</div>
-                    <div className="text-lg font-bold text-sky-700">{stats.assessmentCoverageRate}%</div>
-                </div>
-                <div>
-                    <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">Assessed Low Risk, Valid Geometry</div>
-                    <div className="text-lg font-bold text-green-700">{stats.complianceRate}%</div>
-                </div>
-                <div>
-                    <div className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide">High Risk Farms</div>
-                    <div className="text-lg font-bold text-red-600">{stats.highRiskFarms}</div>
-                </div>
-            </div>
+            {/* NOTE: a one-line "summary row" used to live here, repeating
+                Farmers/Farms/Verified Farmers/Assessment Coverage/Compliance
+                Rate/High Risk Farms as plain numbers. It was removed because
+                every one of those values is already shown as its own
+                StatCard (with a tooltip explaining the exact calculation and
+                a click-through to drill in) in the "Farmer & Farm Overview"
+                and "Geometry & Compliance" sections just below — showing the
+                same number twice in two different styles within a few
+                hundred pixels of each other read as cluttered/duplicated
+                rather than as a helpful "at a glance" summary. */}
 
             {/* Quick Actions — only the tasks the signed-in user's role can
                 actually perform. */}
@@ -456,7 +453,10 @@ const Dashboard: React.FC = () => {
                 </div>
             </div>
 
-            {/* 2. Geometry & Compliance */}
+            {/* 2. Geometry & Compliance — 8 cards total, all in ONE grid so
+                every row fills completely (previously split into a 6-card
+                row + a separate 2-card row, both grid-cols-4, which left 2
+                visibly empty slots dangling at the end of the 2-card row). */}
             <div>
                 <h2 className="text-[11px] font-semibold text-brand-muted tracking-wide uppercase mb-4">Geometry &amp; Compliance</h2>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
@@ -517,8 +517,6 @@ const Dashboard: React.FC = () => {
                         onClick={() => drillDown('/farms', { complianceStatus: 'Assessment Pending' })}
                         linkText="View Unassessed Farms"
                     />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mt-6">
                     <StatCard
                         icon={<FileCheck className="h-6 w-6" />}
                         iconBg="bg-brand-green"
@@ -613,10 +611,14 @@ const Dashboard: React.FC = () => {
                 </div>
             </div>
 
-            {/* 4. Licensing, Inspectorate, Traceability */}
+            {/* 4. Licensing, Inspectorate, Traceability — 6 cards total in
+                ONE grid-cols-3 (2 full rows) so nothing is left dangling
+                (previously 4 cards in a grid-cols-4 row followed by a
+                separate 2-card grid-cols-2 row, which left 2 empty slots
+                at the end of the first row). */}
             <div>
                 <h2 className="text-[11px] font-semibold text-brand-muted tracking-wide uppercase mb-4">Licensing, Inspectorate &amp; Traceability</h2>
-                <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <StatCard
                         icon={<FileBadge className="h-6 w-6" />}
                         iconBg="bg-brand-green"
@@ -653,8 +655,6 @@ const Dashboard: React.FC = () => {
                         onClick={() => navigate('/quality')}
                         linkText="View Quality"
                     />
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-6">
                     <StatCard
                         icon={<Package className="h-6 w-6" />}
                         iconBg="bg-brand-green"
@@ -729,29 +729,47 @@ const Dashboard: React.FC = () => {
                         {stats.totalFarms === 0 ? (
                             <EmptyState title="No farms registered yet" description="Risk distribution will appear here once farms are added." />
                         ) : (
-                            <div className="h-64 flex items-center justify-center">
-                                <ResponsiveContainer width="100%" height="100%">
-                                    <PieChart>
-                                        <Pie
-                                            data={riskData}
-                                            cx="50%"
-                                            cy="50%"
-                                            innerRadius={60}
-                                            outerRadius={80}
-                                            paddingAngle={5}
-                                            dataKey="value"
-                                            onClick={(entry: { status?: DashboardFilterParams['complianceStatus'] }) => drillDown('/farms', { complianceStatus: entry.status })}
-                                            style={{ cursor: 'pointer' }}
+                            <>
+                                <div className="h-56 flex items-center justify-center">
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <PieChart>
+                                            <Pie
+                                                data={riskData}
+                                                cx="50%"
+                                                cy="50%"
+                                                innerRadius={60}
+                                                outerRadius={80}
+                                                paddingAngle={riskData.length > 1 ? 5 : 0}
+                                                dataKey="value"
+                                                onClick={(entry: { status?: DashboardFilterParams['complianceStatus'] }) => drillDown('/farms', { complianceStatus: entry.status })}
+                                                style={{ cursor: 'pointer' }}
+                                            >
+                                                {riskData.map((entry) => (
+                                                    <Cell key={entry.status} fill={RISK_COLOR_MAP[entry.status]} stroke="none" />
+                                                ))}
+                                            </Pie>
+                                            <Tooltip formatter={(value: number | undefined, _name: string | undefined, entry: { payload?: { name?: string } }) => [`${value ?? 0} farms`, entry?.payload?.name]} />
+                                        </PieChart>
+                                    </ResponsiveContainer>
+                                </div>
+                                {/* Custom legend built from ALL 4 buckets (not just the
+                                    ones with a non-zero slice), so every category stays
+                                    labeled/explained even when its count is 0 and it has
+                                    no visible slice in the ring above. */}
+                                <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 mt-2">
+                                    {riskDataAll.map((entry) => (
+                                        <button
+                                            key={entry.status}
+                                            onClick={() => drillDown('/farms', { complianceStatus: entry.status as DashboardFilterParams['complianceStatus'] })}
+                                            className="inline-flex items-center gap-1.5 text-xs hover:underline"
+                                            style={{ color: entry.value > 0 ? RISK_COLOR_MAP[entry.status] : '#9CA3AF' }}
                                         >
-                                            {riskData.map((_entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
-                                            ))}
-                                        </Pie>
-                                        <Tooltip formatter={(value: number | undefined, _name: string | undefined, entry: { payload?: { name?: string } }) => [`${value ?? 0} farms`, entry?.payload?.name]} />
-                                        <Legend verticalAlign="bottom" height={36} />
-                                    </PieChart>
-                                </ResponsiveContainer>
-                            </div>
+                                            <span className="h-2.5 w-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: RISK_COLOR_MAP[entry.status] }} />
+                                            {entry.name} ({entry.value})
+                                        </button>
+                                    ))}
+                                </div>
+                            </>
                         )}
                     </div>
 
