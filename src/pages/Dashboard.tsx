@@ -137,9 +137,17 @@ const Dashboard: React.FC = () => {
     const districtOptions = filters.county ? getDistrictsForCounty(filters.county) : [];
 
     // ---- Loading / error states (never show "0" while loading) ----
+    // The PageHeader is rendered here too (not just in the fully-loaded
+    // return below) so the page title/breadcrumb is never missing while
+    // data is loading or has failed to load.
     if (loading && !stats) {
         return (
             <div className="space-y-8">
+                <PageHeader
+                    breadcrumb={[{ label: 'Dashboard' }]}
+                    title="Dashboard"
+                    description="High-level snapshot of mapping, verification and compliance activity."
+                />
                 <div className="flex items-center gap-3 text-gray-500">
                     <Loader2 className="h-5 w-5 animate-spin" />
                     <span>Loading records…</span>
@@ -159,17 +167,24 @@ const Dashboard: React.FC = () => {
 
     if (error && !stats) {
         return (
-            <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
-                <div className="h-14 w-14 rounded-full bg-red-50 flex items-center justify-center">
-                    <AlertTriangle className="h-7 w-7 text-red-500" />
+            <div className="space-y-8">
+                <PageHeader
+                    breadcrumb={[{ label: 'Dashboard' }]}
+                    title="Dashboard"
+                    description="High-level snapshot of mapping, verification and compliance activity."
+                />
+                <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
+                    <div className="h-14 w-14 rounded-full bg-red-50 flex items-center justify-center">
+                        <AlertTriangle className="h-7 w-7 text-red-500" />
+                    </div>
+                    <p className="text-sm font-medium text-gray-900">{error}</p>
+                    <button
+                        onClick={fetchAll}
+                        className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
+                    >
+                        <RefreshCw className="h-4 w-4" /> Try Again
+                    </button>
                 </div>
-                <p className="text-sm font-medium text-gray-900">{error}</p>
-                <button
-                    onClick={fetchAll}
-                    className="inline-flex items-center gap-2 px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50"
-                >
-                    <RefreshCw className="h-4 w-4" /> Try Again
-                </button>
             </div>
         );
     }
