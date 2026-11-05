@@ -85,7 +85,7 @@ const FarmerCard: React.FC<{ farmer: Farmer }> = ({ farmer }) => {
                 />
                 <div className="min-w-0 flex-1">
                     <div className="text-sm font-semibold text-gray-900 truncate">{farmer.firstName} {farmer.lastName}</div>
-                    <div className="text-[11px] text-gray-400 truncate">
+                    <div className="text-[11px] text-gray-500 truncate">
                         {farmer.farmerId || 'Pending ID'}{farmer.gender ? ` \u00b7 ${farmer.gender}` : ''}
                     </div>
                 </div>
@@ -93,20 +93,20 @@ const FarmerCard: React.FC<{ farmer: Farmer }> = ({ farmer }) => {
             </div>
             <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs border-t border-gray-100 pt-3">
                 <div className="min-w-0">
-                    <div className="text-gray-400 text-[10px] uppercase tracking-wide mb-0.5">Location</div>
+                    <div className="text-gray-500 text-[10px] uppercase tracking-wide mb-0.5">Location</div>
                     <div className="text-gray-800 font-medium flex items-center gap-1 truncate">
-                        <MapPin className="h-3 w-3 text-gray-400 flex-shrink-0" /> {farmer.community || 'N/A'}
+                        <MapPin className="h-3 w-3 text-gray-500 flex-shrink-0" /> {farmer.community || 'N/A'}
                     </div>
-                    {locationLine && <div className="text-gray-400 truncate">{locationLine}</div>}
+                    {locationLine && <div className="text-gray-500 truncate">{locationLine}</div>}
                 </div>
                 <div className="min-w-0">
-                    <div className="text-gray-400 text-[10px] uppercase tracking-wide mb-0.5">Contact</div>
+                    <div className="text-gray-500 text-[10px] uppercase tracking-wide mb-0.5">Contact</div>
                     {farmer.phoneNumber ? (
                         <div className="text-gray-800 truncate">{farmer.phoneNumber}</div>
                     ) : (
-                        <div className="text-gray-400 italic">Not provided</div>
+                        <div className="text-gray-500 italic">Not provided</div>
                     )}
-                    {farmer.email && <div className="text-gray-400 truncate">{farmer.email}</div>}
+                    {farmer.email && <div className="text-gray-500 truncate">{farmer.email}</div>}
                 </div>
             </div>
             <div className="flex items-center justify-between pt-1">
@@ -270,7 +270,7 @@ const FarmersList: React.FC = () => {
                 <div className="p-3.5 border-b border-gray-100 flex flex-col sm:flex-row sm:items-center gap-2.5 flex-wrap">
                     <div className="relative flex-1 min-w-[200px]">
                         <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                            <Search className="h-4 w-4 text-gray-400" />
+                            <Search className="h-4 w-4 text-gray-500" />
                         </div>
                         <input
                             type="text"
@@ -328,7 +328,7 @@ const FarmersList: React.FC = () => {
                     reflects the currently filtered view. */}
                 {!loading && !error && (
                     <div className="px-3.5 py-2 border-b border-gray-100 bg-gray-50/50 flex items-center gap-1.5 text-xs text-gray-500">
-                        <UserCheck className="h-3.5 w-3.5 text-gray-400" />
+                        <UserCheck className="h-3.5 w-3.5 text-gray-500" />
                         Showing <span className="font-semibold text-gray-700">{filteredFarmers.length}</span>
                         {activeFilterCount > 0 && <> of <span className="font-semibold text-gray-700">{farmers.length}</span></>} farmers
                     </div>
@@ -371,7 +371,7 @@ const FarmersList: React.FC = () => {
                                     ) : filteredFarmers.length === 0 ? (
                                         <tr>
                                             <td colSpan={6} className="px-5 py-14 text-center">
-                                                <div className="flex flex-col items-center gap-2 text-gray-400">
+                                                <div className="flex flex-col items-center gap-2 text-gray-500">
                                                     <Users className="h-8 w-8" />
                                                     <p className="text-sm text-gray-500">No farmers found matching your criteria.</p>
                                                     {activeFilterCount > 0 && (
@@ -400,11 +400,11 @@ const FarmersList: React.FC = () => {
                                                         <div className="ml-3 min-w-0">
                                                             <div className="text-sm font-semibold text-gray-900 leading-tight truncate">{farmer.firstName} {farmer.lastName}</div>
                                                             <div className="flex items-center gap-1.5 mt-0.5">
-                                                                <span className="text-[11px] text-gray-400">{farmer.farmerId || 'Pending ID'}</span>
+                                                                <span className="text-[11px] text-gray-500">{farmer.farmerId || 'Pending ID'}</span>
                                                                 {farmer.gender && (
                                                                     <>
                                                                         <span className="text-gray-300">&middot;</span>
-                                                                        <span className="text-[11px] text-gray-400">{farmer.gender}</span>
+                                                                        <span className="text-[11px] text-gray-500">{farmer.gender}</span>
                                                                     </>
                                                                 )}
                                                             </div>
@@ -415,7 +415,7 @@ const FarmersList: React.FC = () => {
                                                     {farmer.phoneNumber ? (
                                                         <div className="text-sm text-gray-800">{farmer.phoneNumber}</div>
                                                     ) : (
-                                                        <div className="text-sm text-gray-400 italic">Not provided</div>
+                                                        <div className="text-sm text-gray-500 italic">Not provided</div>
                                                     )}
                                                     {farmer.email && (
                                                         <div className="text-xs text-gray-500 mt-0.5">{farmer.email}</div>
@@ -423,7 +423,7 @@ const FarmersList: React.FC = () => {
                                                 </td>
                                                 <td className="px-5 py-3 whitespace-nowrap">
                                                     <div className="text-sm text-gray-800 flex items-center gap-1">
-                                                        <MapPin className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+                                                        <MapPin className="h-3.5 w-3.5 text-gray-500 flex-shrink-0" />
                                                         {farmer.community || 'N/A'}
                                                     </div>
                                                     {locationLine && (
@@ -459,7 +459,7 @@ const FarmersList: React.FC = () => {
                                     <Loader2 className="h-6 w-6 text-gray-300 animate-spin" />
                                 </div>
                             ) : filteredFarmers.length === 0 ? (
-                                <div className="flex flex-col items-center gap-2 text-gray-400 py-14">
+                                <div className="flex flex-col items-center gap-2 text-gray-500 py-14">
                                     <Users className="h-8 w-8" />
                                     <p className="text-sm text-gray-500">No farmers found matching your criteria.</p>
                                     {activeFilterCount > 0 && (

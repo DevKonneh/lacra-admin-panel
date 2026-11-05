@@ -232,7 +232,7 @@ const VerificationQueue: React.FC = () => {
                 does and does NOT cover (farm boundaries / land rights / EUDR checks
                 live elsewhere). */}
             <div className="flex items-start gap-2 text-xs text-brand-muted bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 -mt-2">
-                <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0 text-slate-400" />
+                <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0 text-slate-500" />
                 <p>
                     Verifying identity confirms <strong>who the farmer is</strong> — it does not validate their
                     farm boundaries, land rights, or EUDR requirements (see the Data Correction Queue / Risk
@@ -276,7 +276,7 @@ const VerificationQueue: React.FC = () => {
                 </div>
             )}
 
-            <div className="bg-white shadow-md rounded-xl border border-gray-100 overflow-hidden">
+            <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
                 {loading ? (
                     <div className="flex flex-col justify-center items-center py-16 gap-3">
                         <Loader2 className="animate-spin h-8 w-8 text-green-600" />
@@ -342,7 +342,7 @@ const VerificationQueue: React.FC = () => {
                                                         alt={`${farmer.firstName} ${farmer.lastName}`}
                                                         className="h-8 w-8 rounded-full object-cover border border-gray-200 flex-none"
                                                         fallback={
-                                                            <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 flex-none">
+                                                            <div className="h-8 w-8 rounded-full bg-gray-100 flex items-center justify-center text-gray-500 flex-none">
                                                                 <User className="h-4 w-4" />
                                                             </div>
                                                         }
@@ -379,7 +379,7 @@ const VerificationQueue: React.FC = () => {
                                                 )}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-700">
-                                                <span className="inline-flex items-center gap-1"><Layers className="h-3.5 w-3.5 text-gray-400" /> {farmer.farmCount}</span>
+                                                <span className="inline-flex items-center gap-1"><Layers className="h-3.5 w-3.5 text-gray-500" /> {farmer.farmCount}</span>
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                 <div className="flex items-center justify-end gap-3">
@@ -416,7 +416,7 @@ const VerificationQueue: React.FC = () => {
             {/* Single-row action modal */}
             {rowModal && (
                 <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 space-y-4">
+                    <div role="dialog" aria-modal="true" aria-label={rowModal.status === 'Verified' ? 'Mark Identity Verified' : 'Flag Identity Conflict'} className="bg-white rounded-lg border border-gray-200 shadow-card max-w-md w-full p-6 space-y-4">
                         <div className="flex items-center gap-2">
                             {rowModal.status === 'Verified' ? <ShieldCheck className="h-5 w-5 text-green-600" /> : <ShieldAlert className="h-5 w-5 text-red-600" />}
                             <h3 className="text-lg font-bold text-gray-900">
@@ -431,24 +431,24 @@ const VerificationQueue: React.FC = () => {
                         </p>
                         <div>
                             <label className="block text-xs font-semibold text-gray-500 mb-1">
-                                Reason {isReasonRequired(rowModal.farmer, rowModal.status) ? <span className="text-red-500">(required)</span> : <span className="text-gray-400">(optional)</span>}
+                                Reason {isReasonRequired(rowModal.farmer, rowModal.status) ? <span className="text-red-500">(required)</span> : <span className="text-gray-500">(optional)</span>}
                             </label>
                             <textarea
                                 value={rowReason}
                                 onChange={(e) => setRowReason(e.target.value)}
                                 rows={3}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30"
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus:border-brand-green"
                                 placeholder={rowModal.status === 'Conflict' ? 'e.g. National ID does not match name on file...' : 'Optional note for the audit log...'}
                             />
                         </div>
                         <div className="flex justify-end gap-2">
-                            <button onClick={() => { setRowModal(null); setRowReason(''); }} disabled={rowSubmitting} className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-60">
+                            <button onClick={() => { setRowModal(null); setRowReason(''); }} disabled={rowSubmitting} className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green disabled:opacity-60">
                                 Cancel
                             </button>
                             <button
                                 onClick={handleConfirmRowAction}
                                 disabled={rowSubmitting || (isReasonRequired(rowModal.farmer, rowModal.status) && !rowReason.trim())}
-                                className={`px-4 py-2 text-sm rounded-lg text-white flex items-center gap-1.5 disabled:opacity-60 ${rowModal.status === 'Conflict' ? 'bg-red-600 hover:bg-red-700' : 'bg-brand-green hover:bg-brand-green-hover'}`}
+                                className={`px-4 py-2 text-sm rounded-lg text-white flex items-center gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 disabled:opacity-60 ${rowModal.status === 'Conflict' ? 'bg-red-600 hover:bg-red-700 focus-visible:ring-red-600' : 'bg-brand-green hover:bg-brand-green-hover focus-visible:ring-brand-green'}`}
                             >
                                 {rowSubmitting && <Loader2 className="h-4 w-4 animate-spin" />} Confirm
                             </button>
@@ -460,7 +460,7 @@ const VerificationQueue: React.FC = () => {
             {/* Bulk action confirmation summary */}
             {bulkModal && (
                 <div className="fixed inset-0 bg-black/40 z-50 flex items-center justify-center p-4">
-                    <div className="bg-white rounded-xl shadow-xl max-w-lg w-full p-6 space-y-4">
+                    <div role="dialog" aria-modal="true" aria-label={bulkModal.status === 'Verified' ? `Verify ${selected.size} Farmer(s)` : `Flag ${selected.size} Farmer(s) as Conflict`} className="bg-white rounded-lg border border-gray-200 shadow-card max-w-lg w-full p-6 space-y-4">
                         <div className="flex items-center gap-2">
                             {bulkModal.status === 'Verified' ? <ShieldCheck className="h-5 w-5 text-green-600" /> : <ShieldAlert className="h-5 w-5 text-red-600" />}
                             <h3 className="text-lg font-bold text-gray-900">
@@ -472,29 +472,29 @@ const VerificationQueue: React.FC = () => {
                             {selectedFarmers.map(f => (
                                 <div key={f.id} className="px-3 py-2 text-sm flex items-center justify-between">
                                     <span className="text-gray-800">{f.firstName} {f.lastName}</span>
-                                    <span className="text-xs text-gray-400">{f.identityStatus} → {bulkModal.status}</span>
+                                    <span className="text-xs text-gray-500">{f.identityStatus} → {bulkModal.status}</span>
                                 </div>
                             ))}
                         </div>
                         <div>
                             <label className="block text-xs font-semibold text-gray-500 mb-1">
-                                Reason {bulkModal.status === 'Conflict' ? <span className="text-red-500">(required, applied to all selected)</span> : <span className="text-gray-400">(optional)</span>}
+                                Reason {bulkModal.status === 'Conflict' ? <span className="text-red-500">(required, applied to all selected)</span> : <span className="text-gray-500">(optional)</span>}
                             </label>
                             <textarea
                                 value={bulkReason}
                                 onChange={(e) => setBulkReason(e.target.value)}
                                 rows={2}
-                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-green-500/30"
+                                className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus:border-brand-green"
                             />
                         </div>
                         <div className="flex justify-end gap-2">
-                            <button onClick={() => { setBulkModal(null); setBulkReason(''); }} disabled={bulkSubmitting} className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-60">
+                            <button onClick={() => { setBulkModal(null); setBulkReason(''); }} disabled={bulkSubmitting} className="px-4 py-2 text-sm rounded-lg border border-gray-300 text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green disabled:opacity-60">
                                 Cancel
                             </button>
                             <button
                                 onClick={handleConfirmBulkAction}
                                 disabled={bulkSubmitting || (bulkModal.status === 'Conflict' && !bulkReason.trim())}
-                                className={`px-4 py-2 text-sm rounded-lg text-white flex items-center gap-1.5 disabled:opacity-60 ${bulkModal.status === 'Conflict' ? 'bg-red-600 hover:bg-red-700' : 'bg-brand-green hover:bg-brand-green-hover'}`}
+                                className={`px-4 py-2 text-sm rounded-lg text-white flex items-center gap-1.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-1 disabled:opacity-60 ${bulkModal.status === 'Conflict' ? 'bg-red-600 hover:bg-red-700 focus-visible:ring-red-600' : 'bg-brand-green hover:bg-brand-green-hover focus-visible:ring-brand-green'}`}
                             >
                                 {bulkSubmitting && <Loader2 className="h-4 w-4 animate-spin" />} Confirm {bulkModal.status === 'Verified' ? 'Verification' : 'Conflict Flag'}
                             </button>

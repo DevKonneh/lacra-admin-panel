@@ -32,7 +32,7 @@ const DetailRow: React.FC<{ label: string; value: React.ReactNode }> = ({ label,
 );
 
 const SectionCard: React.FC<{ title: string; icon: React.ReactNode; children: React.ReactNode; action?: React.ReactNode }> = ({ title, icon, children, action }) => (
-    <div className="rounded-xl border border-brand-border bg-brand-card p-4">
+    <div className="rounded-lg border border-brand-border bg-brand-card p-4">
         <div className="flex items-center justify-between mb-2.5">
             <h3 className="flex items-center gap-2 text-sm font-semibold text-brand-text">
                 <span className="text-brand-green">{icon}</span> {title}
@@ -222,7 +222,7 @@ const CooperativeDetailPanel: React.FC<CooperativeDetailPanelProps> = ({ coopera
                 role="dialog"
                 aria-modal="true"
                 aria-label="Cooperative details"
-                className="fixed inset-y-0 right-0 z-50 w-full sm:w-[480px] lg:w-[560px] bg-brand-bg shadow-2xl overflow-y-auto focus:outline-none"
+                className="fixed inset-y-0 right-0 z-50 w-full sm:w-[480px] lg:w-[560px] bg-brand-bg border-l border-brand-border shadow-card overflow-y-auto focus:outline-none"
             >
                 <div className="sticky top-0 z-10 bg-white/95 backdrop-blur-md border-b border-brand-border px-4 py-3 flex items-center justify-between gap-3">
                     <h2 className="text-base font-bold text-brand-text truncate">
@@ -259,7 +259,7 @@ const CooperativeDetailPanel: React.FC<CooperativeDetailPanelProps> = ({ coopera
                                 title="Cooperative"
                                 icon={<Building2 size={16} />}
                                 action={isAdmin && !editing && (
-                                    <button onClick={startEditing} className="inline-flex items-center gap-1 text-xs font-medium text-brand-green hover:underline">
+                                    <button onClick={startEditing} className="inline-flex items-center gap-1 text-xs font-medium text-brand-green hover:underline rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green">
                                         <Pencil size={12} /> Edit
                                     </button>
                                 )}
@@ -343,7 +343,7 @@ const CooperativeDetailPanel: React.FC<CooperativeDetailPanelProps> = ({ coopera
                                                     <span key={`${c}-${i}`} className="px-2 py-0.5 text-xs font-medium rounded-full bg-brand-green/10 text-brand-green border border-brand-green/20">{c}</span>
                                                 ))
                                             ) : (
-                                                <span className="text-xs text-slate-400">No commodity recorded</span>
+                                                <span className="text-xs text-slate-500">No commodity recorded</span>
                                             )}
                                         </div>
                                         <dl>
@@ -388,8 +388,8 @@ const CooperativeDetailPanel: React.FC<CooperativeDetailPanelProps> = ({ coopera
                             {editing && (
                                 <div className="flex items-center gap-2">
                                     {saveError && <span className="text-xs text-red-600 flex-1">{saveError}</span>}
-                                    <button onClick={cancelEditing} disabled={saving} className="ml-auto px-3 py-1.5 text-xs font-medium rounded-md border border-slate-300 text-slate-600 hover:bg-slate-50 disabled:opacity-50">Cancel</button>
-                                    <button onClick={handleSave} disabled={saving} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-brand-green text-white hover:bg-brand-green-hover disabled:opacity-60">
+                                    <button onClick={cancelEditing} disabled={saving} className="ml-auto px-3 py-1.5 text-xs font-medium rounded-md border border-slate-300 text-slate-600 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green disabled:opacity-50">Cancel</button>
+                                    <button onClick={handleSave} disabled={saving} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-md bg-brand-green text-white hover:bg-brand-green-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-1 disabled:opacity-60">
                                         {saving ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />} Save Changes
                                     </button>
                                 </div>
@@ -401,13 +401,13 @@ const CooperativeDetailPanel: React.FC<CooperativeDetailPanelProps> = ({ coopera
                                     Linked by matching cooperative name at registration time — a separate measure from CDA-reported membership above. No coverage percentage is calculated since the two figures are not a confirmed comparable scope.
                                 </p>
                                 {detail.linkedFarmers.length === 0 ? (
-                                    <p className="text-sm text-slate-400 italic">No CMIS farmer registrations reference this cooperative yet.</p>
+                                    <p className="text-sm text-slate-500 italic">No CMIS farmer registrations reference this cooperative yet.</p>
                                 ) : (
                                     <ul className="divide-y divide-slate-100 max-h-56 overflow-y-auto">
                                         {detail.linkedFarmers.map((f) => (
                                             <li key={f.id} className="py-1.5 flex items-center justify-between gap-2 text-sm">
                                                 <span className="text-slate-800 truncate">{f.name || 'Unnamed farmer'}</span>
-                                                <span className="text-xs text-slate-400 flex-shrink-0">{f.farmerId || f.region || ''}</span>
+                                                <span className="text-xs text-slate-500 flex-shrink-0">{f.farmerId || f.region || ''}</span>
                                             </li>
                                         ))}
                                     </ul>
@@ -418,7 +418,7 @@ const CooperativeDetailPanel: React.FC<CooperativeDetailPanelProps> = ({ coopera
                             {isAdmin && (
                                 <SectionCard title={`Data Quality Flags (${detail.flags.length})`} icon={<FlagIcon size={16} />}>
                                     {detail.flags.length === 0 ? (
-                                        <p className="text-sm text-slate-400 italic flex items-center gap-1.5"><CheckCircle2 size={14} className="text-green-500" /> No flags on this record.</p>
+                                        <p className="text-sm text-slate-500 italic flex items-center gap-1.5"><CheckCircle2 size={14} className="text-green-500" /> No flags on this record.</p>
                                     ) : (
                                         <div className="space-y-2.5">
                                             {detail.flags.map((flag) => (
@@ -428,12 +428,12 @@ const CooperativeDetailPanel: React.FC<CooperativeDetailPanelProps> = ({ coopera
                                                         <span className={`text-[11px] font-medium ${flag.status === 'OPEN' ? 'text-amber-600' : 'text-green-600'}`}>{flag.status === 'OPEN' ? 'Open' : 'Reviewed'}</span>
                                                     </div>
                                                     <p className="text-xs text-slate-700">{flag.reason}</p>
-                                                    <p className="text-[11px] text-slate-400 mt-1">Raised {formatDateTime(flag.createdAt)}{flag.createdByName ? ` by ${flag.createdByName}` : ''}</p>
+                                                    <p className="text-[11px] text-slate-500 mt-1">Raised {formatDateTime(flag.createdAt)}{flag.createdByName ? ` by ${flag.createdByName}` : ''}</p>
 
                                                     {flag.status === 'REVIEWED' ? (
                                                         <div className="mt-1.5 pt-1.5 border-t border-slate-100 text-xs text-slate-600">
                                                             <span className="font-medium">Outcome:</span> {flag.reviewOutcome}
-                                                            <div className="text-[11px] text-slate-400 mt-0.5">Reviewed {formatDateTime(flag.reviewedAt)}{flag.reviewedByName ? ` by ${flag.reviewedByName}` : ''}</div>
+                                                            <div className="text-[11px] text-slate-500 mt-0.5">Reviewed {formatDateTime(flag.reviewedAt)}{flag.reviewedByName ? ` by ${flag.reviewedByName}` : ''}</div>
                                                         </div>
                                                     ) : reviewingFlagId === flag.id ? (
                                                         <div className="mt-2 space-y-1.5">
@@ -446,18 +446,18 @@ const CooperativeDetailPanel: React.FC<CooperativeDetailPanelProps> = ({ coopera
                                                             />
                                                             {reviewError && <p className="text-xs text-red-600">{reviewError}</p>}
                                                             <div className="flex justify-end gap-1.5">
-                                                                <button onClick={() => { setReviewingFlagId(null); setReviewOutcome(''); setReviewError(''); }} className="px-2.5 py-1 text-xs rounded-md border border-slate-300 text-slate-600 hover:bg-slate-50">Cancel</button>
+                                                                <button onClick={() => { setReviewingFlagId(null); setReviewOutcome(''); setReviewError(''); }} className="px-2.5 py-1 text-xs rounded-md border border-slate-300 text-slate-600 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green">Cancel</button>
                                                                 <button
                                                                     disabled={reviewSubmitting}
                                                                     onClick={() => submitFlagReview(flag.id)}
-                                                                    className="px-2.5 py-1 text-xs rounded-md bg-brand-green text-white hover:bg-brand-green-hover disabled:opacity-60"
+                                                                    className="px-2.5 py-1 text-xs rounded-md bg-brand-green text-white hover:bg-brand-green-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus-visible:ring-offset-1 disabled:opacity-60"
                                                                 >
                                                                     {reviewSubmitting ? 'Saving…' : 'Record Outcome'}
                                                                 </button>
                                                             </div>
                                                         </div>
                                                     ) : (
-                                                        <button onClick={() => setReviewingFlagId(flag.id)} className="mt-1.5 text-xs font-medium text-brand-green hover:underline">
+                                                        <button onClick={() => setReviewingFlagId(flag.id)} className="mt-1.5 text-xs font-medium text-brand-green hover:underline rounded focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green">
                                                             Record review outcome
                                                         </button>
                                                     )}
@@ -472,7 +472,7 @@ const CooperativeDetailPanel: React.FC<CooperativeDetailPanelProps> = ({ coopera
                             {isAdmin && (
                                 <SectionCard title="Change History" icon={<History size={16} />}>
                                     {detail.changeHistory.length === 0 ? (
-                                        <p className="text-sm text-slate-400 italic">No corrections or import changes recorded for this cooperative.</p>
+                                        <p className="text-sm text-slate-500 italic">No corrections or import changes recorded for this cooperative.</p>
                                     ) : (
                                         <ul className="space-y-2 max-h-64 overflow-y-auto">
                                             {detail.changeHistory.map((log) => (
@@ -481,7 +481,7 @@ const CooperativeDetailPanel: React.FC<CooperativeDetailPanelProps> = ({ coopera
                                                     <span className="text-slate-500">
                                                         {log.previousValue ? `"${log.previousValue}"` : 'empty'} → {log.newValue ? `"${log.newValue}"` : 'empty'}
                                                     </span>
-                                                    <div className="text-[11px] text-slate-400 mt-0.5 flex items-center gap-1">
+                                                    <div className="text-[11px] text-slate-500 mt-0.5 flex items-center gap-1">
                                                         <Clock size={10} /> {formatDateTime(log.createdAt)} · {log.source === 'CDA_IMPORT' ? 'CDA Import' : 'Manual Correction'}
                                                         {log.performedByName ? ` · ${log.performedByName}` : ''}
                                                     </div>
@@ -492,7 +492,7 @@ const CooperativeDetailPanel: React.FC<CooperativeDetailPanelProps> = ({ coopera
                                 </SectionCard>
                             )}
 
-                            <div className="text-xs text-slate-400 flex items-center gap-1.5 pt-1">
+                            <div className="text-xs text-slate-500 flex items-center gap-1.5 pt-1">
                                 <Clock size={12} /> Last registry update: {formatDateTime(coop.updatedAt)}
                             </div>
                         </>

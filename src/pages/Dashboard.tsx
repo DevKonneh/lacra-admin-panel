@@ -35,7 +35,7 @@ const SHIPMENT_colors = {
 // tooltips" requirement — never silently assumed by the viewer.
 const InfoTip: React.FC<{ text: string }> = ({ text }) => (
     <span className="relative inline-flex group/tip ml-1 align-middle">
-        <Info className="h-3.5 w-3.5 text-gray-400 cursor-help" />
+        <Info className="h-3.5 w-3.5 text-gray-500 cursor-help" />
         <span className="pointer-events-none absolute left-1/2 -translate-x-1/2 bottom-full mb-1.5 w-56 rounded-lg bg-gray-900 text-white text-[11px] leading-snug px-2.5 py-1.5 opacity-0 group-hover/tip:opacity-100 transition-opacity z-20">
             {text}
         </span>
@@ -222,7 +222,7 @@ const Dashboard: React.FC = () => {
                 }
                 meta={
                     <div className="flex items-center gap-2 text-xs text-brand-muted">
-                        <Calendar className="h-3.5 w-3.5 text-gray-400" />
+                        <Calendar className="h-3.5 w-3.5 text-gray-500" />
                         <span>Reporting period: <b className="text-gray-800">{stats.reportingPeriod}</b></span>
                         <span className="text-gray-300">•</span>
                         <span>Last refreshed: <b className="text-gray-800">{new Date(stats.generatedAt).toLocaleString()}</b></span>
@@ -250,7 +250,7 @@ const Dashboard: React.FC = () => {
                     </div>
                     <div>
                         <label className="block text-[11px] font-semibold text-gray-500 mb-1">District</label>
-                        <select value={filters.district || ''} onChange={(e) => updateFilter('district', e.target.value)} disabled={!filters.county} className="border border-gray-300 rounded-md py-1.5 px-2 text-sm disabled:bg-gray-50 disabled:text-gray-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus:border-brand-green">
+                        <select value={filters.district || ''} onChange={(e) => updateFilter('district', e.target.value)} disabled={!filters.county} className="border border-gray-300 rounded-md py-1.5 px-2 text-sm disabled:bg-gray-50 disabled:text-gray-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus:border-brand-green">
                             <option value="">All Districts</option>
                             {districtOptions.map((d) => <option key={d} value={d}>{d}</option>)}
                         </select>
@@ -579,7 +579,7 @@ const Dashboard: React.FC = () => {
 
                     {/* Risk Distribution Pie — every segment clickable */}
                     <div className="bg-white rounded-xl p-6 border border-gray-200">
-                        <h3 className="text-[15px] font-semibold text-gray-900 mb-4">Farm Risk Distribution <span className="text-xs text-gray-400 font-normal">(click a segment)</span></h3>
+                        <h3 className="text-[15px] font-semibold text-gray-900 mb-4">Farm Risk Distribution <span className="text-xs text-gray-500 font-normal">(click a segment)</span></h3>
                         <div className="h-64 flex items-center justify-center">
                             <ResponsiveContainer width="100%" height="100%">
                                 <PieChart>

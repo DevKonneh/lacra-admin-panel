@@ -238,7 +238,7 @@ const CooperativeRegistry: React.FC = () => {
                 title="Cooperative Registry"
                 description="CDA reference directory for farmer registration."
                 meta={
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs text-slate-500">
                         Source: CDA &middot; Last updated: {loading ? '…' : formatDateOnly(lastUpdated)}
                     </p>
                 }
@@ -296,7 +296,7 @@ const CooperativeRegistry: React.FC = () => {
                         accent="bg-amber-50"
                     />
                 </div>
-                <p className="text-[11px] text-slate-400 mt-1.5">
+                <p className="text-[11px] text-slate-500 mt-1.5">
                     {isFiltered ? 'Figures reflect the current filtered results.' : 'Figures reflect the entire registry.'}
                 </p>
             </div>
@@ -316,7 +316,7 @@ const CooperativeRegistry: React.FC = () => {
                     <div className="flex flex-col sm:flex-row sm:items-center gap-2.5">
                         <div className="relative flex-1">
                             <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                                <Search className="h-5 w-5 text-gray-400" />
+                                <Search className="h-5 w-5 text-gray-500" />
                             </div>
                             <input
                                 type="text"
@@ -326,7 +326,7 @@ const CooperativeRegistry: React.FC = () => {
                                 onChange={(e) => setParam('q', e.target.value || null)}
                             />
                             {searchTerm && (
-                                <button onClick={() => setParam('q', null)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600">
+                                <button onClick={() => setParam('q', null)} className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-500 hover:text-gray-600">
                                     <X size={16} />
                                 </button>
                             )}
@@ -388,7 +388,7 @@ const CooperativeRegistry: React.FC = () => {
                             <div>
                                 <label className="block text-xs font-medium text-brand-muted mb-1.5">Commodity</label>
                                 <div className="flex flex-wrap gap-1.5">
-                                    {commodities.length === 0 && <span className="text-xs text-slate-400">No commodity data yet</span>}
+                                    {commodities.length === 0 && <span className="text-xs text-slate-500">No commodity data yet</span>}
                                     {commodities.map((c) => {
                                         const active = commodityFilters.includes(c);
                                         return (
@@ -429,7 +429,7 @@ const CooperativeRegistry: React.FC = () => {
                         <TableSkeleton />
                     ) : filtered.length === 0 ? (
                         <div className="flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed border-slate-200 py-10 px-4 text-center">
-                            <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                            <div className="h-10 w-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-500">
                                 <Building2 size={20} />
                             </div>
                             <p className="text-sm font-medium text-slate-700">
@@ -535,7 +535,7 @@ const SummaryCard: React.FC<{ icon: React.ReactNode; label: string; value: React
         <div className="min-w-0">
             <p className="text-xs font-medium text-gray-500 uppercase tracking-wide truncate">{label}</p>
             <p className="text-xl font-bold text-brand-text leading-tight">{value}</p>
-            {sub && <p className="text-[11px] text-slate-400 mt-0.5 leading-snug">{sub}</p>}
+            {sub && <p className="text-[11px] text-slate-500 mt-0.5 leading-snug">{sub}</p>}
         </div>
     </div>
 );
@@ -567,7 +567,7 @@ const CommodityBadges: React.FC<{ commodities?: string[] }> = ({ commodities }) 
                 </span>
             ))
         ) : (
-            <span className="text-slate-400 text-xs">Not reported</span>
+            <span className="text-slate-500 text-xs">Not reported</span>
         )}
     </div>
 );
@@ -584,12 +584,12 @@ const RegistryRow: React.FC<{ item: CooperativeDirectoryItem; isAdmin: boolean; 
             <button onClick={onOpen} className="text-left font-medium text-brand-green hover:underline break-words whitespace-normal focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green rounded">
                 {item.name}
             </button>
-            {item.slug && <div className="text-[11px] text-slate-400 mt-0.5">Registry ID: {item.slug}</div>}
+            {item.slug && <div className="text-[11px] text-slate-500 mt-0.5">Registry ID: {item.slug}</div>}
             {isAdmin && (item.openFlagCount || 0) > 0 && <div className="mt-1"><NeedsReviewBadge /></div>}
         </td>
         <td className="px-3 py-2 text-slate-700">
-            <div className="break-words whitespace-normal">{item.county || <span className="text-slate-400">Not reported</span>}</div>
-            {item.district && <div className="text-[11px] text-slate-400">{item.district}</div>}
+            <div className="break-words whitespace-normal">{item.county || <span className="text-slate-500">Not reported</span>}</div>
+            {item.district && <div className="text-[11px] text-slate-500">{item.district}</div>}
         </td>
         <td className="px-3 py-2"><CommodityBadges commodities={item.commodities} /></td>
         <td className="px-3 py-2 text-right tabular-nums text-slate-800 font-medium">{formatMembership(item.membershipTotal)}</td>
@@ -606,7 +606,7 @@ const RegistryCard: React.FC<{ item: CooperativeDirectoryItem; isAdmin: boolean;
         <div className="flex items-start justify-between gap-2">
             <div>
                 <button onClick={onOpen} className="text-left font-semibold text-brand-green hover:underline">{item.name}</button>
-                {item.slug && <div className="text-[11px] text-slate-400">Registry ID: {item.slug}</div>}
+                {item.slug && <div className="text-[11px] text-slate-500">Registry ID: {item.slug}</div>}
             </div>
             {isAdmin && (item.openFlagCount || 0) > 0 && <NeedsReviewBadge />}
         </div>
