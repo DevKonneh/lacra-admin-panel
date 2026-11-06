@@ -125,6 +125,10 @@ export interface Farmer {
     dob?: string;
     nationality?: string;
     nationalId?: string;
+    /** Driver License / National ID card / Passport / Voting ID / Other */
+    idType?: string;
+    /** Free-text label when idType === 'Other' */
+    idTypeOther?: string;
     country?: string;
     district?: string;
     community?: string;
@@ -136,6 +140,20 @@ export interface Farmer {
     longitude?: string;
     consent?: boolean;
     identityStatus?: 'Verified' | 'Unverified' | 'Conflict';
+    /**
+     * Identity Verification metadata (see FarmerController's Identity
+     * Verification feature / entities/Farmer.ts). Always present in the
+     * API response already (the backend entity has these columns and
+     * getOne()/getVerificationStatus responses return the full entity) —
+     * just not previously typed on the frontend. Added here (additive,
+     * optional) so the Farmer Profile's "Identity & Documents" tab can
+     * surface *why* a status was set and who/when, without duplicating
+     * that logic — the full history instead lives in the audit log
+     * (see api/farmerAuditLog.ts).
+     */
+    identityStatusReason?: string | null;
+    identityVerifiedAt?: string | null;
+    identityVerifiedByName?: string | null;
     profilePhoto?: string;
     idPhoto?: string;
     farmSelfie?: string;
