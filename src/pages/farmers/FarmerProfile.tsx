@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, Link, useSearchParams } from 'react-router-dom';
 import * as turf from '@turf/turf';
 import { getFarmer, getFarmers, updateFarmer, setFarmerActiveStatus, type Farmer, type Farm } from '../../api/farmers';
 import { deleteFarmer } from '../../api/farmerActions';
@@ -162,11 +162,26 @@ type ProfileTab = 'overview' | 'identity' | 'farms' | 'compliance' | 'activity';
 /* Main component                                                        */
 /* ---------------------------------------------------------------------- */
 
+const VALID_TABS: ProfileTab[] = ['overview', 'identity', 'farms', 'compliance', 'activity'];
+
 const FarmerProfile: React.FC = () => {
     const { id } = useParams<{ id: string }>();
     const navigate = useNavigate();
     const { user } = useAuth();
     const canManageVerification = user?.role === UserRole.ADMIN;
+
+    // Deep-link support: the Identity Verification Queue's "Review" action
+    // (and the missing-item links inside it) opens a farmer directly on a
+    // specific tab — e.g. ?tab=identity jumps straight to the Identity &
+    // Documents tab's missing document/consent fields, ?tab=farms jumps to
+    // the farm boundary/registration section — instead of always landing on
+    // Overview and making the reviewer re-navigate manually. Read once on
+    // mount; normal in-page tab clicks still work exactly as before and are
+    // NOT round-tripped back into the URL (kept simple — this is a one-way
+    // entry point, not a bookmarkable tab state).
+    const [searchParams] = useSearchParams();
+    const initialTabParam = searchParams.get('tab') as ProfileTab | null;
+    const initialFarmParam = searchParams.get('farm');
 
     const [farmer, setFarmer] = useState<Farmer | null>(null);
     const [loading, setLoading] = useState(true);
@@ -176,7 +191,9 @@ const FarmerProfile: React.FC = () => {
     const [deleting, setDeleting] = useState(false);
     const [showMenu, setShowMenu] = useState(false);
     const [showQr, setShowQr] = useState(false);
-    const [activeTab, setActiveTab] = useState<ProfileTab>('overview');
+    const [activeTab, setActiveTab] = useState<ProfileTab>(
+        initialTabParam && VALID_TABS.includes(initialTabParam) ? initialTabParam : 'overview'
+    );
     const [showAllPhotos, setShowAllPhotos] = useState(false);
 
     // Identity Verification action modal (Verify / Flag Conflict / Revert
@@ -223,7 +240,14 @@ const FarmerProfile: React.FC = () => {
             if (res.data.status) {
                 const data = res.data.data;
                 setFarmer(data);
-                setSelectedFarmId(data.farms?.[0]?.id ?? null);
+                // If a specific farm was requested via ?farm=<id> (e.g. from the
+                // Identity Verification Queue's "Review" link), select it when it
+                // actually belongs to this farmer; otherwise fall back to the
+                // first registered farm, same as before.
+                const requestedFarm = initialFarmParam && data.farms?.some(f => f.id === initialFarmParam)
+                    ? initialFarmParam
+                    : data.farms?.[0]?.id ?? null;
+                setSelectedFarmId(requestedFarm);
                 setEditForm({
                     firstName: data.firstName,
                     lastName: data.lastName,

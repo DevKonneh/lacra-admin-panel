@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import {
     getVerificationQueue,
@@ -15,32 +15,54 @@ import { useAuth } from '../../context/AuthContext';
 import { UserRole } from '../../types';
 import {
     Loader2, AlertTriangle, RefreshCw, ShieldCheck, ShieldAlert, ShieldQuestion,
-    CheckCircle2, HelpCircle, User, Layers, Info,
+    CheckCircle2, HelpCircle, User, Layers, Info, Search, X, ChevronLeft, ChevronRight,
+    ListFilter, ClipboardList, CheckCircle, XCircle,
 } from 'lucide-react';
 import PageHeader from '../../components/ui/PageHeader';
 import { buttonClasses } from '../../components/ui/buttonStyles';
+import { COUNTY_NAMES } from '../../data/liberiaCounties';
 
 /**
  * Identity Verification Queue — ADMIN-facing worklist of every farmer
- * whose identityStatus is "Unverified" or "Conflict". Mirrors the Data
- * Correction Queue's layout/interaction pattern (table + status filter
- * chips + bulk action), applied to identity verification instead of farm
- * geometry.
+ * whose identityStatus is "Unverified" or "Conflict", built for reviewing
+ * larger numbers of records (search, county filter, pagination, explicit
+ * bulk selection). Mirrors the Data Correction Queue's layout/interaction
+ * pattern (table + status filter chips + bulk action) and the Farmer
+ * Registry's search/filter/pagination pattern, applied to identity
+ * verification instead of farm geometry or general browsing.
  *
  * IMPORTANT — two SEPARATE indicators are shown per row, intentionally
- * never merged into one:
+ * never merged into one, and kept VISUALLY distinct in the filter bar
+ * (different label, chip shape, and color palette per dimension):
+ *   - Identity Status: the actual decision (Unverified / Verified /
+ *     Conflict), changed only by an authorised admin action below.
  *   - Data Readiness: an automated triage signal only ("Ready for
  *     Review" / "Missing Information" / "Potential Issue"). It means the
  *     record LOOKS complete/consistent enough to review quickly — it is
- *     NOT itself a verification decision. A fully "Ready for Review"
- *     record can still turn out to belong to the wrong person.
- *   - Identity Status: the actual decision (Unverified / Verified /
- *     Conflict), changed only by an authorised admin action below.
+ *     NOT itself a verification decision, and (see ELIGIBILITY NOTE below)
+ *     does NOT by itself block or require anything beyond the existing
+ *     reason rules.
+ *
+ * ELIGIBILITY NOTE (inspected against the backend before writing this —
+ * see FarmerController.setVerificationStatus/bulkSetVerificationStatus/
+ * computeDataReadiness): there is NO backend rule that blocks verifying a
+ * farmer whose data readiness is "Missing Information" or "Potential
+ * Issue" — readiness is a triage aid only. The ONLY reason-required rules
+ * that exist are: (1) a reason is required when flagging Conflict, and
+ * (2) a reason is required when reversing an existing Verified status
+ * back to Unverified. There is no separate "exception" workflow for
+ * verifying an incomplete record today, so this screen does not invent
+ * one — it simply surfaces the missing items so an admin can make an
+ * informed decision, consistent with the existing rules, and strongly
+ * encourages (without requiring, since the backend doesn't require it)
+ * a reason whenever readiness is not "Ready for Review".
  *
  * This verifies IDENTITY ONLY — it says nothing about farm boundaries,
  * land rights, or EUDR requirements (see the separate Data Correction
  * Queue / Risk Analysis for those).
  */
+
+const PAGE_SIZE_OPTIONS = [10, 25, 50] as const;
 
 const READINESS_META: Record<DataReadiness, { color: string; icon: React.ReactNode }> = {
     'Ready for Review': { color: 'bg-green-100 text-green-800 border-green-200', icon: <CheckCircle2 className="h-3.5 w-3.5" /> },
@@ -53,6 +75,18 @@ const STATUS_META: Record<string, { color: string; icon: React.ReactNode }> = {
     Conflict: { color: 'bg-red-50 text-red-600 border-red-100', icon: <ShieldAlert className="h-3.5 w-3.5" /> },
 };
 
+/**
+ * Which Farmer Profile tab holds the evidence relevant to a given data
+ * readiness bucket, so the "Review" action can deep-link straight to it
+ * instead of always landing on Overview. Missing-item fields (profile
+ * photo, ID photo, signature, National ID, consent) all live on the
+ * Identity & Documents tab; the one "Potential Issue" signal the backend
+ * currently computes (shared phone number) is surfaced on Compliance &
+ * Risk's "Possible Duplicate Farmer" field.
+ */
+const reviewTabFor = (readiness: DataReadiness): 'identity' | 'compliance' =>
+    readiness === 'Potential Issue' ? 'compliance' : 'identity';
+
 const VerificationQueue: React.FC = () => {
     const { user } = useAuth();
     // ADMIN + INSPECTOR can both VIEW this queue (inspectors use their
@@ -63,9 +97,24 @@ const VerificationQueue: React.FC = () => {
     // UX convenience, not the actual security boundary.
     const canManageVerification = user?.role === UserRole.ADMIN;
 
+    // Every piece of view state round-trips through the URL (same pattern
+    // as the Farmer Registry), so search/filter/page state survives a
+    // visit to a farmer's profile and back.
     const [searchParams, setSearchParams] = useSearchParams();
+    const searchTerm = searchParams.get('q') || '';
     const statusFilter = (searchParams.get('status') as 'Unverified' | 'Conflict' | null) || undefined;
     const readinessFilter = (searchParams.get('readiness') as DataReadiness | null) || undefined;
+    const countyFilter = searchParams.get('county') || 'All';
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
+    const pageSize = (parseInt(searchParams.get('size') || '25', 10) as typeof PAGE_SIZE_OPTIONS[number]) || 25;
+
+    const setParam = (key: string, value: string | null, resetPage = true) => {
+        const next = new URLSearchParams(searchParams);
+        if (!value || value === 'All') next.delete(key);
+        else next.set(key, value);
+        if (resetPage) next.delete('page');
+        setSearchParams(next);
+    };
 
     const [data, setData] = useState<VerificationQueueResponse | null>(null);
     const [loading, setLoading] = useState(true);
@@ -82,21 +131,27 @@ const VerificationQueue: React.FC = () => {
     const [bulkReason, setBulkReason] = useState('');
     const [bulkSubmitting, setBulkSubmitting] = useState(false);
 
+    // Bulk action result — shown as a dismissible in-page panel (not a
+    // blocking alert()) so individual successes and failures stay visible
+    // and reviewable, including farmer names for anything that failed.
+    const [bulkResult, setBulkResult] = useState<{
+        status: 'Verified' | 'Conflict';
+        successCount: number;
+        failureCount: number;
+        results: { farmerId: string; success: boolean; message: string }[];
+    } | null>(null);
+
     const fetchQueue = async () => {
         try {
             setLoading(true);
             setError(null);
-            const res = await getVerificationQueue({ status: statusFilter, readiness: readinessFilter });
+            // Only identityStatus is filtered server-side (matches the
+            // existing backend contract); search/county/readiness refine
+            // client-side below so they can be combined freely without
+            // extra round trips.
+            const res = await getVerificationQueue({ status: statusFilter });
             if (res.data.status) {
                 setData(res.data.data);
-                // Drop any selections that no longer appear in the refreshed list
-                // (e.g. just verified, or filtered out).
-                setSelected(prev => {
-                    const validIds = new Set(res.data.data.farmers.map(f => f.id));
-                    const next = new Set<string>();
-                    prev.forEach(id => { if (validIds.has(id)) next.add(id); });
-                    return next;
-                });
             } else {
                 setError(res.data.message || 'Failed to load the Identity Verification queue.');
             }
@@ -117,7 +172,38 @@ const VerificationQueue: React.FC = () => {
     useEffect(() => {
         fetchQueue();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [statusFilter, readinessFilter]);
+    }, [statusFilter]);
+
+    // --- Selection behavior across pagination and filter changes --------
+    // Explicit rule (so it's predictable, not incidental):
+    //   - Selection PERSISTS across page changes and page-size changes —
+    //     an admin paging through 200 farmers can select records on page 1,
+    //     then page 3, then bulk-act on all of them together.
+    //   - Selection is CLEARED whenever any filter dimension changes
+    //     (search, county, identity status, or data readiness) — because
+    //     the set of records the admin is looking at has changed, and
+    //     silently carrying over a selection the admin can no longer see
+    //     risks an accidental bulk action on the wrong set of farmers.
+    //   - "Select all" (the header checkbox) selects/deselects only the
+    //     rows on the CURRENT page, never the entire filtered set across
+    //     pages, to avoid an admin unintentionally selecting hundreds of
+    //     records at once.
+    useEffect(() => {
+        setSelected(new Set());
+    }, [searchTerm, countyFilter, statusFilter, readinessFilter]);
+
+    // Drop any selections that no longer exist at all after a refetch
+    // (e.g. a farmer was deleted elsewhere) — a safety net on top of the
+    // explicit filter-change rule above, not a replacement for it.
+    useEffect(() => {
+        if (!data) return;
+        setSelected(prev => {
+            const validIds = new Set(data.farmers.map(f => f.id));
+            const next = new Set<string>();
+            prev.forEach(id => { if (validIds.has(id)) next.add(id); });
+            return next;
+        });
+    }, [data]);
 
     const toggleSelect = (id: string) => {
         setSelected(prev => {
@@ -125,15 +211,6 @@ const VerificationQueue: React.FC = () => {
             if (next.has(id)) next.delete(id); else next.add(id);
             return next;
         });
-    };
-
-    const toggleSelectAll = () => {
-        if (!data) return;
-        if (selected.size === data.farmers.length) {
-            setSelected(new Set());
-        } else {
-            setSelected(new Set(data.farmers.map(f => f.id)));
-        }
     };
 
     const isReasonRequired = (farmer: VerificationQueueItem, status: IdentityStatus) => {
@@ -177,12 +254,7 @@ const VerificationQueue: React.FC = () => {
             const res = await bulkSetFarmerVerificationStatus(Array.from(selected), bulkModal.status, bulkReason.trim() || undefined);
             if (res.data.status) {
                 const { successCount, failureCount, results } = res.data.data;
-                const failures = results.filter(r => !r.success);
-                let msg = `${successCount} of ${selected.size} farmer(s) set to ${bulkModal.status}.`;
-                if (failureCount > 0) {
-                    msg += `\n\n${failureCount} could not be updated:\n` + failures.map(f => `- ${f.farmerId}: ${f.message}`).join('\n');
-                }
-                alert(msg);
+                setBulkResult({ status: bulkModal.status, successCount, failureCount, results });
                 setBulkModal(null);
                 setBulkReason('');
                 setSelected(new Set());
@@ -198,18 +270,64 @@ const VerificationQueue: React.FC = () => {
         }
     };
 
+    // --- Client-side search / county / readiness refinement + pagination ---
+    // (status is already applied server-side in fetchQueue above)
+    const filteredFarmers = useMemo(() => {
+        if (!data) return [];
+        const term = searchTerm.trim().toLowerCase();
+        return data.farmers.filter((f) => {
+            const matchesSearch = !term ||
+                f.firstName.toLowerCase().includes(term) ||
+                f.lastName.toLowerCase().includes(term) ||
+                f.farmerId?.toLowerCase().includes(term) ||
+                f.phoneNumber?.toLowerCase().includes(term);
+            const matchesCounty = countyFilter === 'All' || (f.region || '').toLowerCase() === countyFilter.toLowerCase();
+            const matchesReadiness = !readinessFilter || f.dataReadiness === readinessFilter;
+            return matchesSearch && matchesCounty && matchesReadiness;
+        });
+    }, [data, searchTerm, countyFilter, readinessFilter]);
+
+    const isFiltered = Boolean(searchTerm || statusFilter || readinessFilter || countyFilter !== 'All');
+    const clearAllFilters = () => setSearchParams({});
+
+    const totalPages = Math.max(1, Math.ceil(filteredFarmers.length / pageSize));
+    const currentPage = Math.min(page, totalPages);
+    const pageRows = filteredFarmers.slice((currentPage - 1) * pageSize, currentPage * pageSize);
+    const rangeStart = filteredFarmers.length === 0 ? 0 : (currentPage - 1) * pageSize + 1;
+    const rangeEnd = Math.min(currentPage * pageSize, filteredFarmers.length);
+
+    const allOnPageSelected = pageRows.length > 0 && pageRows.every(f => selected.has(f.id));
+    const toggleSelectPage = () => {
+        setSelected(prev => {
+            const next = new Set(prev);
+            if (allOnPageSelected) {
+                pageRows.forEach(f => next.delete(f.id));
+            } else {
+                pageRows.forEach(f => next.add(f.id));
+            }
+            return next;
+        });
+    };
+
+    // Looked up from the FULL (pre-pagination) filtered list so the bulk
+    // confirmation summary shows correct names even for farmers selected
+    // on a different page than the one currently displayed.
     const selectedFarmers = data ? data.farmers.filter(f => selected.has(f.id)) : [];
+    const selectedOffPageCount = selected.size - pageRows.filter(f => selected.has(f.id)).length;
 
     return (
         <div className="space-y-6">
             <PageHeader
                 breadcrumb={[{ label: 'Farmer Registry', to: '/farmers' }, { label: 'Verification Queue' }]}
                 title="Identity Verification"
-                description="Farmers awaiting identity verification or with a flagged identity conflict."
+                description="Review and act on identity verification requests. This does not approve farms or overall compliance."
                 actions={
                     canManageVerification && selected.size > 0 ? (
                         <>
-                            <span className="text-sm text-brand-muted self-center">{selected.size} selected</span>
+                            <span className="text-sm text-brand-muted self-center">
+                                {selected.size} selected
+                                {selectedOffPageCount > 0 && <span className="text-xs text-gray-400"> ({selectedOffPageCount} on other pages)</span>}
+                            </span>
                             <button
                                 onClick={() => setBulkModal({ status: 'Verified' })}
                                 className={buttonClasses('primary')}
@@ -227,52 +345,175 @@ const VerificationQueue: React.FC = () => {
                 }
             />
 
-            {/* In-page scope note: kept out of the header per the "concise description"
-                guidance, but preserved here in full since it clarifies what this queue
-                does and does NOT cover (farm boundaries / land rights / EUDR checks
-                live elsewhere). */}
-            <div className="flex items-start gap-2 text-xs text-brand-muted bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 -mt-2">
-                <Info className="h-3.5 w-3.5 mt-0.5 flex-shrink-0 text-slate-500" />
-                <p>
-                    Verifying identity confirms <strong>who the farmer is</strong> — it does not validate their
-                    farm boundaries, land rights, or EUDR requirements (see the Data Correction Queue / Risk
-                    Analysis for those).
-                </p>
-            </div>
+            {/* Shortened scope note, with the fuller explanation behind an
+                accessible <details> disclosure (same pattern already used
+                elsewhere in the admin panel, e.g. CommercialApplicationReview's
+                document history). Keeps the page scannable while still making
+                the full mechanics available to anyone who wants them. */}
+            <details className="text-xs text-brand-muted bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 -mt-2">
+                <summary className="cursor-pointer select-none inline-flex items-center gap-1.5 text-slate-600 hover:text-slate-800 font-medium">
+                    <Info className="h-3.5 w-3.5 flex-shrink-0 text-slate-500" /> What does Identity Verification cover?
+                </summary>
+                <div className="mt-2 pl-5 space-y-1.5">
+                    <p>
+                        Verifying identity confirms <strong>who the farmer is</strong> — it does not validate their
+                        farm boundaries, land rights, or EUDR requirements (see the Data Correction Queue / Risk
+                        Analysis for those).
+                    </p>
+                    <p>
+                        <strong>Identity Status</strong> (Unverified / Verified / Conflict) is the actual decision,
+                        changed only by an administrator. <strong>Data Readiness</strong> (Ready for Review / Missing
+                        Information / Potential Issue) is a separate, automated triage signal only — it shows whether
+                        a record looks complete enough to review quickly, it is never itself a verification decision.
+                    </p>
+                    <p>
+                        A record with <strong>Missing Information</strong> or a <strong>Potential Issue</strong> can
+                        still be verified or flagged — readiness does not block either action. A reason is required
+                        only when flagging a Conflict, or when reversing an existing Verified status back to
+                        Unverified; it is strongly recommended (though not required) whenever readiness is not
+                        "Ready for Review", so the decision is explained in the audit trail.
+                    </p>
+                </div>
+            </details>
 
-            {/* Filter chips */}
-            {data && (
-                <div className="flex flex-wrap gap-2">
-                    <button
-                        onClick={() => setSearchParams(readinessFilter ? { readiness: readinessFilter } : {})}
-                        className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors ${!statusFilter ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+            {/* Toolbar: search + county + two visually distinct filter
+                dimensions (Identity Status vs Data Readiness). */}
+            <div className="bg-white rounded-lg border border-gray-200 p-3.5 space-y-3">
+                <div className="flex flex-col sm:flex-row sm:items-center gap-2.5 flex-wrap">
+                    <div className="relative flex-1 min-w-[220px]">
+                        <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                            <Search className="h-4 w-4 text-gray-500" />
+                        </div>
+                        <input
+                            type="text"
+                            className="block w-full pl-9 pr-9 py-2 border border-gray-200 rounded-lg leading-5 bg-gray-50/60 placeholder-gray-400 text-sm focus:outline-none focus:bg-white focus:ring-1 focus:ring-green-500 focus:border-green-500"
+                            placeholder="Search by name, Farmer ID, or phone"
+                            value={searchTerm}
+                            onChange={(e) => setParam('q', e.target.value || null)}
+                        />
+                        {searchTerm && (
+                            <button
+                                type="button"
+                                onClick={() => setParam('q', null)}
+                                aria-label="Clear search"
+                                className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600"
+                            >
+                                <X className="h-4 w-4" />
+                            </button>
+                        )}
+                    </div>
+                    <select
+                        value={countyFilter}
+                        onChange={(e) => setParam('county', e.target.value)}
+                        className="border border-gray-200 bg-gray-50/60 rounded-lg py-2 px-2.5 text-sm text-gray-700 focus:outline-none focus:bg-white focus:ring-1 focus:ring-green-500 focus:border-green-500"
+                        aria-label="Filter by county"
                     >
-                        All ({data.summary.total})
+                        <option value="All">All Counties</option>
+                        {COUNTY_NAMES.map((c) => (
+                            <option key={c} value={c}>{c}</option>
+                        ))}
+                    </select>
+                    {isFiltered && (
+                        <button
+                            onClick={clearAllFilters}
+                            className="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-800 underline px-1.5 whitespace-nowrap"
+                        >
+                            <X className="h-3.5 w-3.5" /> Clear filters
+                        </button>
+                    )}
+                </div>
+
+                {/* Identity Status — the decision dimension. Square-ish
+                    (rounded-md) chips, kept visually separate from the
+                    readiness pills below via its own labeled row and a
+                    distinct shape. */}
+                <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide w-28 flex-shrink-0">Identity Status</span>
+                    <button
+                        onClick={() => setParam('status', null)}
+                        className={`px-2.5 py-1 rounded-md text-xs font-semibold border transition-colors ${!statusFilter ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                    >
+                        All ({data?.summary.total ?? '—'})
                     </button>
                     {(['Unverified', 'Conflict'] as const).map((s) => (
                         <button
                             key={s}
-                            onClick={() => setSearchParams({ ...(readinessFilter ? { readiness: readinessFilter } : {}), status: s })}
-                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors inline-flex items-center gap-1.5 ${statusFilter === s ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                            onClick={() => setParam('status', s)}
+                            className={`px-2.5 py-1 rounded-md text-xs font-semibold border transition-colors inline-flex items-center gap-1.5 ${statusFilter === s ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
                         >
-                            {STATUS_META[s].icon} {s} ({data.summary.byStatus[s]})
+                            {STATUS_META[s].icon} {s} ({data?.summary.byStatus[s] ?? '—'})
                         </button>
                     ))}
-                    <span className="mx-1 text-gray-300">|</span>
+                </div>
+
+                {/* Data Readiness — the triage dimension. Pill-shaped
+                    (rounded-full) chips with its own label, so the two
+                    dimensions never read as one combined filter. */}
+                <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide w-28 flex-shrink-0">Data Readiness</span>
+                    <button
+                        onClick={() => setParam('readiness', null)}
+                        className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors ${!readinessFilter ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                    >
+                        All
+                    </button>
                     {(['Ready for Review', 'Missing Information', 'Potential Issue'] as const).map((r) => (
                         <button
                             key={r}
-                            onClick={() => setSearchParams({ ...(statusFilter ? { status: statusFilter } : {}), readiness: r })}
-                            className={`px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors inline-flex items-center gap-1.5 ${readinessFilter === r ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
+                            onClick={() => setParam('readiness', r)}
+                            className={`px-2.5 py-1 rounded-full text-xs font-semibold border transition-colors inline-flex items-center gap-1.5 ${readinessFilter === r ? 'bg-gray-900 text-white border-gray-900' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'}`}
                         >
-                            {READINESS_META[r].icon} {r} ({data.summary.byReadiness[r]})
+                            {READINESS_META[r].icon} {r} ({data?.summary.byReadiness[r] ?? '—'})
                         </button>
                     ))}
-                    {(statusFilter || readinessFilter) && (
-                        <button onClick={() => setSearchParams({})} className="px-3 py-1.5 rounded-full text-xs font-semibold text-brand-muted hover:text-brand-text underline">
-                            Clear filters
+                </div>
+            </div>
+
+            {/* Result count strip */}
+            {!loading && !error && data && (
+                <div className="px-1 flex items-center gap-1.5 text-xs text-gray-500">
+                    <ListFilter className="h-3.5 w-3.5 text-gray-500" />
+                    Showing <span className="font-semibold text-gray-700">{filteredFarmers.length}</span>
+                    {isFiltered && <> of <span className="font-semibold text-gray-700">{data.farmers.length}</span> total</>} farmer{filteredFarmers.length !== 1 ? 's' : ''} needing review
+                    {isFiltered && <span className="text-gray-400">(filtered)</span>}
+                </div>
+            )}
+
+            {/* Bulk action result panel — individual successes/failures,
+                dismissible, with farmer names resolved from the full list. */}
+            {bulkResult && (
+                <div className="bg-white rounded-lg border border-gray-200 p-4 space-y-2.5">
+                    <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-2">
+                            {bulkResult.failureCount === 0 ? (
+                                <CheckCircle className="h-5 w-5 text-green-600 flex-shrink-0" />
+                            ) : (
+                                <AlertTriangle className="h-5 w-5 text-amber-500 flex-shrink-0" />
+                            )}
+                            <p className="text-sm font-semibold text-gray-900">
+                                {bulkResult.successCount} of {bulkResult.results.length} farmer(s) set to {bulkResult.status}
+                                {bulkResult.failureCount > 0 && `, ${bulkResult.failureCount} failed`}
+                            </p>
+                        </div>
+                        <button onClick={() => setBulkResult(null)} className="text-gray-400 hover:text-gray-600" aria-label="Dismiss">
+                            <X className="h-4 w-4" />
                         </button>
-                    )}
+                    </div>
+                    <ul className="text-xs divide-y divide-gray-100 border border-gray-100 rounded-md overflow-hidden max-h-48 overflow-y-auto">
+                        {bulkResult.results.map((r) => {
+                            const farmerName = [...(data?.farmers ?? [])].find(f => f.id === r.farmerId);
+                            return (
+                                <li key={r.farmerId} className="px-3 py-1.5 flex items-center justify-between gap-2">
+                                    <span className="text-gray-700 truncate">
+                                        {farmerName ? `${farmerName.firstName} ${farmerName.lastName}` : r.farmerId}
+                                    </span>
+                                    <span className={`inline-flex items-center gap-1 font-medium flex-shrink-0 ${r.success ? 'text-green-700' : 'text-red-600'}`}>
+                                        {r.success ? <CheckCircle className="h-3 w-3" /> : <XCircle className="h-3 w-3" />} {r.message}
+                                    </span>
+                                </li>
+                            );
+                        })}
+                    </ul>
                 </div>
             )}
 
@@ -292,9 +533,15 @@ const VerificationQueue: React.FC = () => {
                             <RefreshCw className="h-3.5 w-3.5 mr-1.5" /> Try Again
                         </button>
                     </div>
-                ) : !data || data.farmers.length === 0 ? (
-                    <div className="py-16 text-center text-sm text-gray-500">
-                        No farmers currently need identity review{statusFilter ? ` (status: ${statusFilter})` : ''}{readinessFilter ? ` (readiness: ${readinessFilter})` : ''}.
+                ) : !data || filteredFarmers.length === 0 ? (
+                    <div className="py-16 text-center text-sm text-gray-500 flex flex-col items-center gap-2">
+                        <ClipboardList className="h-8 w-8 text-gray-300" />
+                        <p>No farmers currently need identity review{isFiltered ? ' matching these filters' : ''}.</p>
+                        {isFiltered && (
+                            <button onClick={clearAllFilters} className="text-xs font-medium text-brand-green hover:text-brand-green-hover underline">
+                                Clear filters
+                            </button>
+                        )}
                     </div>
                 ) : (
                     <div className="overflow-x-auto">
@@ -305,9 +552,10 @@ const VerificationQueue: React.FC = () => {
                                         <th className="px-4 py-2.5 text-left">
                                             <input
                                                 type="checkbox"
-                                                checked={selected.size > 0 && selected.size === data.farmers.length}
-                                                onChange={toggleSelectAll}
+                                                checked={allOnPageSelected}
+                                                onChange={toggleSelectPage}
                                                 className="rounded border-gray-300"
+                                                title="Select all on this page"
                                             />
                                         </th>
                                     )}
@@ -320,9 +568,10 @@ const VerificationQueue: React.FC = () => {
                                 </tr>
                             </thead>
                             <tbody className="bg-white divide-y divide-gray-100">
-                                {data.farmers.map((farmer) => {
+                                {pageRows.map((farmer) => {
                                     const statusMeta = STATUS_META[farmer.identityStatus] || STATUS_META.Unverified;
                                     const readinessMeta = READINESS_META[farmer.dataReadiness];
+                                    const reviewTarget = `/farmers/${farmer.id}?tab=${reviewTabFor(farmer.dataReadiness)}`;
                                     return (
                                         <tr key={farmer.id} className="hover:bg-green-50/20 transition-colors">
                                             {canManageVerification && (
@@ -336,7 +585,7 @@ const VerificationQueue: React.FC = () => {
                                                 </td>
                                             )}
                                             <td className="px-6 py-4 whitespace-nowrap">
-                                                <Link to={`/farmers/${farmer.id}`} className="flex items-center gap-2.5 group">
+                                                <Link to={reviewTarget} className="flex items-center gap-2.5 group">
                                                     <SafeImage
                                                         src={resolveFileUrl(farmer.profilePhoto)}
                                                         alt={`${farmer.firstName} ${farmer.lastName}`}
@@ -383,10 +632,19 @@ const VerificationQueue: React.FC = () => {
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
                                                 <div className="flex items-center justify-end gap-3">
+                                                    {/* Primary action: opens the farmer's evidence and
+                                                        readiness checklist, deep-linked to the tab most
+                                                        relevant to this record's readiness bucket. */}
+                                                    <Link
+                                                        to={reviewTarget}
+                                                        className={buttonClasses('primary', 'sm')}
+                                                    >
+                                                        Review
+                                                    </Link>
                                                     {canManageVerification && farmer.identityStatus !== 'Verified' && (
                                                         <button
                                                             onClick={() => { setRowReason(''); setRowModal({ farmer, status: 'Verified' }); }}
-                                                            className="text-green-700 hover:text-green-900 font-semibold"
+                                                            className="text-green-700 hover:text-green-900 font-semibold text-xs"
                                                         >
                                                             Verify
                                                         </button>
@@ -394,14 +652,11 @@ const VerificationQueue: React.FC = () => {
                                                     {canManageVerification && farmer.identityStatus !== 'Conflict' && (
                                                         <button
                                                             onClick={() => { setRowReason(''); setRowModal({ farmer, status: 'Conflict' }); }}
-                                                            className="text-red-600 hover:text-red-800 font-semibold"
+                                                            className="text-red-600 hover:text-red-800 font-semibold text-xs"
                                                         >
                                                             Flag Conflict
                                                         </button>
                                                     )}
-                                                    <Link to={`/farmers/${farmer.id}`} className="text-gray-500 hover:text-gray-800">
-                                                        {canManageVerification ? 'View' : 'View / Correct Data'}
-                                                    </Link>
                                                 </div>
                                             </td>
                                         </tr>
@@ -409,6 +664,42 @@ const VerificationQueue: React.FC = () => {
                                 })}
                             </tbody>
                         </table>
+                    </div>
+                )}
+
+                {/* Pagination */}
+                {!loading && !error && filteredFarmers.length > 0 && (
+                    <div className="px-3.5 py-3 border-t border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-3 text-sm">
+                        <div className="flex items-center gap-2 text-gray-500">
+                            <span>Rows per page:</span>
+                            <select
+                                value={pageSize}
+                                onChange={(e) => { setParam('size', e.target.value, false); setParam('page', null); }}
+                                className="rounded-md border border-gray-300 py-1 pl-2 pr-6 text-sm"
+                            >
+                                {PAGE_SIZE_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                            </select>
+                        </div>
+                        <span className="text-gray-500">
+                            Showing {rangeStart}–{rangeEnd} of {filteredFarmers.length}
+                        </span>
+                        <div className="flex items-center gap-2">
+                            <button
+                                disabled={currentPage <= 1}
+                                onClick={() => setParam('page', String(currentPage - 1), false)}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md border border-gray-300 text-gray-700 disabled:opacity-40 hover:bg-gray-50"
+                            >
+                                <ChevronLeft className="h-3.5 w-3.5" /> Previous
+                            </button>
+                            <span className="text-gray-500">Page {currentPage} of {totalPages}</span>
+                            <button
+                                disabled={currentPage >= totalPages}
+                                onClick={() => setParam('page', String(currentPage + 1), false)}
+                                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md border border-gray-300 text-gray-700 disabled:opacity-40 hover:bg-gray-50"
+                            >
+                                Next <ChevronRight className="h-3.5 w-3.5" />
+                            </button>
+                        </div>
                     </div>
                 )}
             </div>
@@ -429,9 +720,29 @@ const VerificationQueue: React.FC = () => {
                                 ? ' — this confirms their identity only, not their farm boundaries or EUDR requirements.'
                                 : ' — use this for contradictory or suspicious identity information. Missing documents alone should stay Unverified.'}
                         </p>
+                        {/* Eligibility explanation — readiness never blocks this action
+                            (see ELIGIBILITY NOTE at the top of this file); this is shown
+                            so the admin understands WHY they can still proceed, and sees
+                            exactly what's missing before deciding. */}
+                        {rowModal.status === 'Verified' && rowModal.farmer.dataReadiness !== 'Ready for Review' && (
+                            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-xs text-amber-800 space-y-1">
+                                <p className="font-semibold flex items-center gap-1.5"><AlertTriangle className="h-3.5 w-3.5" /> Data Readiness: {rowModal.farmer.dataReadiness}</p>
+                                <p>
+                                    This farmer can still be verified — data readiness is a triage signal only, not a
+                                    verification eligibility gate. Consider recording a reason below explaining why
+                                    you're verifying despite{rowModal.farmer.dataReadiness === 'Missing Information' ? ' the missing items' : ' this signal'}.
+                                </p>
+                                {rowModal.farmer.missingFields.length > 0 && <p>Missing: {rowModal.farmer.missingFields.join(', ')}</p>}
+                                {rowModal.farmer.potentialIssues.map((issue, i) => <p key={i}>{issue}</p>)}
+                            </div>
+                        )}
                         <div>
                             <label className="block text-xs font-semibold text-gray-500 mb-1">
-                                Reason {isReasonRequired(rowModal.farmer, rowModal.status) ? <span className="text-red-500">(required)</span> : <span className="text-gray-500">(optional)</span>}
+                                Reason {isReasonRequired(rowModal.farmer, rowModal.status)
+                                    ? <span className="text-red-500">(required)</span>
+                                    : rowModal.status === 'Verified' && rowModal.farmer.dataReadiness !== 'Ready for Review'
+                                        ? <span className="text-amber-600">(recommended)</span>
+                                        : <span className="text-gray-500">(optional)</span>}
                             </label>
                             <textarea
                                 value={rowReason}
@@ -468,17 +779,28 @@ const VerificationQueue: React.FC = () => {
                             </h3>
                         </div>
                         <p className="text-sm text-gray-600">Review the selection below before confirming. Each record is checked individually and logged to the audit trail.</p>
+                        {bulkModal.status === 'Verified' && selectedFarmers.some(f => f.dataReadiness !== 'Ready for Review') && (
+                            <div className="bg-amber-50 border border-amber-200 rounded-lg px-3 py-2.5 text-xs text-amber-800">
+                                <p className="font-semibold flex items-center gap-1.5"><AlertTriangle className="h-3.5 w-3.5" /> Some selected farmers are not "Ready for Review"</p>
+                                <p className="mt-0.5">They can still be verified — readiness is a triage signal only. Consider recording a reason below.</p>
+                            </div>
+                        )}
                         <div className="max-h-48 overflow-y-auto border border-gray-100 rounded-lg divide-y divide-gray-100">
                             {selectedFarmers.map(f => (
-                                <div key={f.id} className="px-3 py-2 text-sm flex items-center justify-between">
-                                    <span className="text-gray-800">{f.firstName} {f.lastName}</span>
-                                    <span className="text-xs text-gray-500">{f.identityStatus} → {bulkModal.status}</span>
+                                <div key={f.id} className="px-3 py-2 text-sm flex items-center justify-between gap-2">
+                                    <span className="text-gray-800 truncate">{f.firstName} {f.lastName}</span>
+                                    <span className="text-xs text-gray-500 flex-shrink-0 flex items-center gap-1.5">
+                                        {f.dataReadiness !== 'Ready for Review' && (
+                                            <span className="text-amber-600" title={f.dataReadiness}><AlertTriangle className="h-3 w-3" /></span>
+                                        )}
+                                        {f.identityStatus} &rarr; {bulkModal.status}
+                                    </span>
                                 </div>
                             ))}
                         </div>
                         <div>
                             <label className="block text-xs font-semibold text-gray-500 mb-1">
-                                Reason {bulkModal.status === 'Conflict' ? <span className="text-red-500">(required, applied to all selected)</span> : <span className="text-gray-500">(optional)</span>}
+                                Reason {bulkModal.status === 'Conflict' ? <span className="text-red-500">(required, applied to all selected)</span> : <span className="text-gray-500">(optional, applied to all selected)</span>}
                             </label>
                             <textarea
                                 value={bulkReason}
