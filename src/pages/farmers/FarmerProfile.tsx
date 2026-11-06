@@ -466,8 +466,12 @@ const FarmerProfile: React.FC = () => {
 
     return (
         <div className="max-w-[1400px] mx-auto space-y-4">
-            {/* Back link */}
-            <button onClick={() => navigate('/farmers')} className="text-xs font-medium text-brand-muted hover:text-brand-green flex items-center gap-1 transition-colors">
+            {/* Back link — uses browser history (not a fresh /farmers URL)
+                so the Farmer Registry's search/filter/sort/page state
+                (all stored in its URL query string) is preserved exactly
+                as the admin left it, rather than resetting to an
+                unfiltered first page. */}
+            <button onClick={() => navigate(-1)} className="text-xs font-medium text-brand-muted hover:text-brand-green flex items-center gap-1 transition-colors">
                 <ArrowLeft className="h-3.5 w-3.5" /> Back to Farmers
             </button>
 
