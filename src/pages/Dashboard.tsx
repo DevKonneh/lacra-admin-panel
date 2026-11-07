@@ -3,7 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import {
     UserPlus, MapPinned, FileCheck, AlertTriangle, Users2, Sprout, ArrowUpRight,
     Loader2, RefreshCw, Info, ShieldCheck, FileWarning, FileBadge, ClipboardCheck,
-    ShieldAlert, Package, Ship, Calendar, ShieldQuestion, Clock,
+    ShieldAlert, Package, Ship, ShieldQuestion, Clock,
     UserPlus2, Stamp, FlaskConical,
 } from 'lucide-react';
 import {
@@ -255,7 +255,6 @@ const Dashboard: React.FC = () => {
                 <PageHeader
                     breadcrumb={[{ label: 'Dashboard' }]}
                     title="Dashboard"
-                    description="High-level snapshot of mapping, verification and compliance activity."
                 />
                 <div className="flex items-center gap-3 text-gray-500">
                     <Loader2 className="h-5 w-5 animate-spin" />
@@ -284,7 +283,6 @@ const Dashboard: React.FC = () => {
                 <PageHeader
                     breadcrumb={[{ label: 'Dashboard' }]}
                     title="Dashboard"
-                    description="High-level snapshot of mapping, verification and compliance activity."
                 />
                 <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
                     <div className="h-14 w-14 rounded-full bg-red-50 flex items-center justify-center">
@@ -335,7 +333,6 @@ const Dashboard: React.FC = () => {
             <PageHeader
                 breadcrumb={[{ label: 'Dashboard' }]}
                 title="Dashboard"
-                description="High-level snapshot of mapping, verification and compliance activity."
                 actions={
                     <>
                         <DashboardVisibilityMenu
@@ -353,14 +350,6 @@ const Dashboard: React.FC = () => {
                             Refresh
                         </button>
                     </>
-                }
-                meta={
-                    <div className="flex items-center gap-2 text-xs text-brand-muted">
-                        <Calendar className="h-3.5 w-3.5 text-gray-500" />
-                        <span>Reporting period: <b className="text-gray-800">{stats.reportingPeriod}</b></span>
-                        <span className="text-gray-300">•</span>
-                        <span>Last refreshed: <b className="text-gray-800">{new Date(stats.generatedAt).toLocaleString()}</b></span>
-                    </div>
                 }
             />
 
