@@ -228,6 +228,18 @@ export const navigationMenu: NavigationItem[] = [
                 permissionPrefixes: ['permit']
             },
             {
+                // Issued Local Produce Buyer Register — historical imports +
+                // live issuances, with searchable/filterable listing and
+                // per-permit QR download. A sibling destination to Permit
+                // Management, not a replacement — it reuses the same
+                // ['permit'] permission prefix since it is still part of
+                // the overall permits domain.
+                label: 'Local Produce Buyers',
+                path: '/permits/local-produce-buyers',
+                icon: Users,
+                permissionPrefixes: ['permit']
+            },
+            {
                 label: 'Certificate Issuance',
                 path: '/applications/it-queue',
                 icon: FileCheck2,
