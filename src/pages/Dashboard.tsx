@@ -20,6 +20,10 @@ import AnimatedCounter from '../components/AnimatedCounter';
 import { COUNTY_NAMES, getDistrictsForCounty } from '../data/liberiaCounties';
 import PageHeader from '../components/ui/PageHeader';
 import EmptyState from '../components/ui/EmptyState';
+import SectionHeading from '../components/ui/SectionHeading';
+import BarListRow from '../components/ui/BarListRow';
+import { Filter, LayoutGrid, SlidersHorizontal, TrendingUp } from 'lucide-react';
+import DashboardVisibilityMenu, { type VisibilityGroupDef } from '../components/dashboard/DashboardVisibilityMenu';
 // Lazy-loaded: pulls the Needs Attention section (and its only-used-there
 // API deps: farmerVerification, geometry, applications) out of the main
 // bundle into its own chunk, fetched on demand when the Dashboard renders
@@ -92,6 +96,47 @@ const QUICK_ACTIONS: QuickAction[] = [
     { key: 'inspections', label: 'Schedule Inspection', icon: <ClipboardCheck className="h-4 w-4" />, path: '/inspections' },
 ];
 
+// ---------------------------------------------------------------------
+// Section visibility — lets a signed-in user hide dashboard content
+// blocks they don't personally need, independent of role/permissions
+// (which already control QUICK_ACTIONS/APPLICATION_QUEUES visibility and
+// must never be affected by this). Persisted per-browser in localStorage
+// so a chosen layout survives a refresh; purely a display preference,
+// never sent to the backend and never alters what data is fetched.
+// ---------------------------------------------------------------------
+const DASHBOARD_HIDDEN_SECTIONS_KEY = 'dashboard_hidden_sections_v1';
+
+const VISIBILITY_GROUPS: VisibilityGroupDef[] = [
+    { group: 'Top', items: [
+        { key: 'quickActions', label: 'Quick Actions' },
+        { key: 'needsAttention', label: 'Needs Attention' },
+    ] },
+    { group: 'Stat Cards', items: [
+        { key: 'overview', label: 'Farmer & Farm Overview' },
+        { key: 'geometry', label: 'Geometry & Compliance' },
+        { key: 'licensing', label: 'Licensing, Inspectorate & Traceability' },
+    ] },
+    { group: 'Breakdowns', items: [
+        { key: 'breakdownGender', label: 'Farmers by Gender' },
+        { key: 'breakdownCounty', label: 'Farms by County' },
+        { key: 'breakdownCommodity', label: 'Farms by Commodity' },
+    ] },
+    { group: 'Analytics & Trends', items: [
+        { key: 'chartGrowth', label: 'Farmer Registration Growth' },
+        { key: 'chartRisk', label: 'Farm Risk Distribution' },
+        { key: 'chartShipment', label: 'Shipment Status' },
+    ] },
+];
+
+function readHiddenSections(): Set<string> {
+    try {
+        const stored = localStorage.getItem(DASHBOARD_HIDDEN_SECTIONS_KEY);
+        return stored ? new Set(JSON.parse(stored)) : new Set();
+    } catch {
+        return new Set();
+    }
+}
+
 const Dashboard: React.FC = () => {
     const [stats, setStats] = useState<DashboardStats | null>(null);
     const [loading, setLoading] = useState(true);
@@ -99,6 +144,21 @@ const Dashboard: React.FC = () => {
     const [showRegisterForm, setShowRegisterForm] = useState(false);
     const { user } = useAuth();
     const navigate = useNavigate();
+
+    const [hiddenSections, setHiddenSections] = useState<Set<string>>(() => readHiddenSections());
+    const isSectionVisible = (key: string) => !hiddenSections.has(key);
+    const toggleSection = (key: string) => {
+        setHiddenSections((prev) => {
+            const next = new Set(prev);
+            if (next.has(key)) next.delete(key); else next.add(key);
+            try { localStorage.setItem(DASHBOARD_HIDDEN_SECTIONS_KEY, JSON.stringify([...next])); } catch { /* ignore storage errors */ }
+            return next;
+        });
+    };
+    const resetSections = () => {
+        setHiddenSections(new Set());
+        try { localStorage.removeItem(DASHBOARD_HIDDEN_SECTIONS_KEY); } catch { /* ignore storage errors */ }
+    };
 
     // Filters — reflected in the URL so a filtered dashboard view is
     // shareable/bookmarkable and survives a refresh. Every indicator on
@@ -201,9 +261,13 @@ const Dashboard: React.FC = () => {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                     {[1, 2, 3, 4].map((i) => (
                         <div key={i} className="bg-white rounded-xl border border-gray-200 p-5 animate-pulse">
-                            <div className="h-12 w-12 rounded-xl bg-gray-200 mb-4" />
-                            <div className="h-3 w-24 bg-gray-200 rounded mb-2" />
-                            <div className="h-6 w-16 bg-gray-200 rounded" />
+                            <div className="flex items-start justify-between gap-3">
+                                <div className="flex-1">
+                                    <div className="h-3 w-24 bg-gray-200 rounded mb-3" />
+                                    <div className="h-6 w-16 bg-gray-200 rounded" />
+                                </div>
+                                <div className="h-11 w-11 rounded-xl bg-gray-200 flex-shrink-0" />
+                            </div>
                         </div>
                     ))}
                 </div>
@@ -270,14 +334,22 @@ const Dashboard: React.FC = () => {
                 title="Dashboard"
                 description="High-level snapshot of mapping, verification and compliance activity."
                 actions={
-                    <button
-                        onClick={fetchAll}
-                        disabled={loading}
-                        className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-green hover:text-brand-green-hover disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green rounded px-2 py-1.5 border border-brand-green/30"
-                    >
-                        {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
-                        Refresh
-                    </button>
+                    <>
+                        <DashboardVisibilityMenu
+                            groups={VISIBILITY_GROUPS}
+                            isVisible={isSectionVisible}
+                            onToggle={toggleSection}
+                            onReset={resetSections}
+                        />
+                        <button
+                            onClick={fetchAll}
+                            disabled={loading}
+                            className="inline-flex items-center gap-1.5 text-xs font-medium text-brand-green hover:text-brand-green-hover disabled:opacity-60 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green rounded px-2 py-1.5 border border-brand-green/30"
+                        >
+                            {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+                            Refresh
+                        </button>
+                    </>
                 }
                 meta={
                     <div className="flex items-center gap-2 text-xs text-brand-muted">
@@ -290,37 +362,52 @@ const Dashboard: React.FC = () => {
             />
 
             {/* Filters */}
-            <div className="bg-white shadow-sm rounded-xl border border-gray-100 p-4">
-                <div className="flex flex-wrap gap-3 items-end">
+            <div className={`bg-white rounded-xl border p-4 transition-colors ${activeFilterCount > 0 ? 'border-brand-green/30 ring-1 ring-brand-green/10' : 'border-gray-200'}`}>
+                <div className="flex items-center gap-2 mb-3">
+                    <SlidersHorizontal className="h-4 w-4 text-gray-400" />
+                    <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Filters</span>
+                    {activeFilterCount > 0 && (
+                        <span className="inline-flex items-center justify-center h-5 min-w-5 px-1.5 rounded-full bg-brand-green text-white text-[11px] font-bold">
+                            {activeFilterCount}
+                        </span>
+                    )}
+                    {loading && <Loader2 className="h-3.5 w-3.5 animate-spin text-brand-green ml-1" />}
+                    {activeFilterCount > 0 && (
+                        <button onClick={() => setSearchParams({})} className="ml-auto text-xs font-medium text-gray-500 hover:text-red-600 inline-flex items-center gap-1">
+                            <Filter className="h-3 w-3" /> Clear filters
+                        </button>
+                    )}
+                </div>
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-8 gap-3">
                     <div>
                         <label className="block text-[11px] font-semibold text-gray-500 mb-1">Date From</label>
-                        <input type="date" value={filters.dateFrom || ''} onChange={(e) => updateFilter('dateFrom', e.target.value)} className="border border-gray-300 rounded-md py-1.5 px-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus:border-brand-green" />
+                        <input type="date" value={filters.dateFrom || ''} onChange={(e) => updateFilter('dateFrom', e.target.value)} className="w-full border border-gray-300 rounded-lg py-1.5 px-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus:border-brand-green" />
                     </div>
                     <div>
                         <label className="block text-[11px] font-semibold text-gray-500 mb-1">Date To</label>
-                        <input type="date" value={filters.dateTo || ''} onChange={(e) => updateFilter('dateTo', e.target.value)} className="border border-gray-300 rounded-md py-1.5 px-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus:border-brand-green" />
+                        <input type="date" value={filters.dateTo || ''} onChange={(e) => updateFilter('dateTo', e.target.value)} className="w-full border border-gray-300 rounded-lg py-1.5 px-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus:border-brand-green" />
                     </div>
                     <div>
                         <label className="block text-[11px] font-semibold text-gray-500 mb-1">County</label>
-                        <select value={filters.county || ''} onChange={(e) => { updateFilter('county', e.target.value); updateFilter('district', ''); }} className="border border-gray-300 rounded-md py-1.5 px-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus:border-brand-green">
+                        <select value={filters.county || ''} onChange={(e) => { updateFilter('county', e.target.value); updateFilter('district', ''); }} className="w-full border border-gray-300 rounded-lg py-1.5 px-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus:border-brand-green">
                             <option value="">All Counties</option>
                             {COUNTY_NAMES.map((c) => <option key={c} value={c}>{c}</option>)}
                         </select>
                     </div>
                     <div>
                         <label className="block text-[11px] font-semibold text-gray-500 mb-1">District</label>
-                        <select value={filters.district || ''} onChange={(e) => updateFilter('district', e.target.value)} disabled={!filters.county} className="border border-gray-300 rounded-md py-1.5 px-2 text-sm disabled:bg-gray-50 disabled:text-gray-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus:border-brand-green">
+                        <select value={filters.district || ''} onChange={(e) => updateFilter('district', e.target.value)} disabled={!filters.county} className="w-full border border-gray-300 rounded-lg py-1.5 px-2 text-sm disabled:bg-gray-50 disabled:text-gray-500 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus:border-brand-green">
                             <option value="">All Districts</option>
                             {districtOptions.map((d) => <option key={d} value={d}>{d}</option>)}
                         </select>
                     </div>
                     <div>
                         <label className="block text-[11px] font-semibold text-gray-500 mb-1">Commodity</label>
-                        <input type="text" placeholder="e.g. Cocoa" value={filters.commodity || ''} onChange={(e) => updateFilter('commodity', e.target.value)} className="border border-gray-300 rounded-md py-1.5 px-2 text-sm w-28 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus:border-brand-green" />
+                        <input type="text" placeholder="e.g. Cocoa" value={filters.commodity || ''} onChange={(e) => updateFilter('commodity', e.target.value)} className="w-full border border-gray-300 rounded-lg py-1.5 px-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus:border-brand-green" />
                     </div>
                     <div>
                         <label className="block text-[11px] font-semibold text-gray-500 mb-1">Gender</label>
-                        <select value={filters.gender || ''} onChange={(e) => updateFilter('gender', e.target.value)} className="border border-gray-300 rounded-md py-1.5 px-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus:border-brand-green">
+                        <select value={filters.gender || ''} onChange={(e) => updateFilter('gender', e.target.value)} className="w-full border border-gray-300 rounded-lg py-1.5 px-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus:border-brand-green">
                             <option value="">All</option>
                             <option value="Male">Male</option>
                             <option value="Female">Female</option>
@@ -329,7 +416,7 @@ const Dashboard: React.FC = () => {
                     </div>
                     <div>
                         <label className="block text-[11px] font-semibold text-gray-500 mb-1">Compliance Status</label>
-                        <select value={filters.complianceStatus || ''} onChange={(e) => updateFilter('complianceStatus', e.target.value)} className="border border-gray-300 rounded-md py-1.5 px-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus:border-brand-green">
+                        <select value={filters.complianceStatus || ''} onChange={(e) => updateFilter('complianceStatus', e.target.value)} className="w-full border border-gray-300 rounded-lg py-1.5 px-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus:border-brand-green">
                             <option value="">All</option>
                             <option value="Assessment Pending">Assessment Pending</option>
                             <option value="Compliant">Assessed Low Risk, Valid Geometry</option>
@@ -339,19 +426,13 @@ const Dashboard: React.FC = () => {
                     </div>
                     <div>
                         <label className="block text-[11px] font-semibold text-gray-500 mb-1">Verification Status</label>
-                        <select value={filters.verificationStatus || ''} onChange={(e) => updateFilter('verificationStatus', e.target.value)} className="border border-gray-300 rounded-md py-1.5 px-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus:border-brand-green">
+                        <select value={filters.verificationStatus || ''} onChange={(e) => updateFilter('verificationStatus', e.target.value)} className="w-full border border-gray-300 rounded-lg py-1.5 px-2 text-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green focus:border-brand-green">
                             <option value="">All</option>
                             <option value="Verified">Verified</option>
                             <option value="Unverified">Unverified</option>
                             <option value="Conflict">Conflict</option>
                         </select>
                     </div>
-                    {activeFilterCount > 0 && (
-                        <button onClick={() => setSearchParams({})} className="text-sm text-gray-500 hover:text-gray-800 underline pb-1.5">
-                            Clear filters ({activeFilterCount})
-                        </button>
-                    )}
-                    {loading && <Loader2 className="h-4 w-4 animate-spin text-green-600 mb-1.5" />}
                 </div>
             </div>
 
@@ -369,18 +450,20 @@ const Dashboard: React.FC = () => {
             {/* Quick Actions — only the tasks the signed-in user's role can
                 actually perform. */}
             {(() => {
+                if (!isSectionVisible('quickActions')) return null;
                 const visibleActions = QUICK_ACTIONS.filter((a) => !a.roles || (user && a.roles.includes(user.role as UserRole)));
                 return visibleActions.length > 0 ? (
                     <div>
-                        <h2 className="text-[11px] font-semibold text-brand-muted tracking-wide uppercase mb-4">Quick Actions</h2>
-                        <div className="flex flex-wrap gap-3">
+                        <SectionHeading icon={<LayoutGrid />}>Quick Actions</SectionHeading>
+                        <div className="flex flex-wrap gap-2.5">
                             {visibleActions.map((action) => (
                                 <button
                                     key={action.key}
                                     onClick={() => action.path ? navigate(action.path) : action.onClick?.({ setShowRegisterForm, showRegisterForm })}
-                                    className="inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:border-brand-green/40 hover:text-brand-green focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
+                                    className="group inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:border-brand-green hover:bg-brand-green/5 hover:text-brand-green transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
                                 >
-                                    {action.icon} {action.label}
+                                    <span className="text-gray-400 group-hover:text-brand-green transition-colors">{action.icon}</span>
+                                    {action.label}
                                 </button>
                             ))}
                         </div>
@@ -392,7 +475,7 @@ const Dashboard: React.FC = () => {
                 filters above (always shows the signed-in user's real,
                 current outstanding work, not a filtered view of it).
                 Lazy-loaded: see NeedsAttentionSection.tsx. */}
-            {user && (
+            {user && isSectionVisible('needsAttention') && (
                 <Suspense fallback={
                     <div className="flex items-center gap-2 text-sm text-gray-500">
                         <Loader2 className="h-4 w-4 animate-spin" /> Checking for outstanding work…
@@ -403,12 +486,13 @@ const Dashboard: React.FC = () => {
             )}
 
             {/* 1. Farmer & Farm Overview */}
+            {isSectionVisible('overview') && (
             <div>
-                <h2 className="text-[11px] font-semibold text-brand-muted tracking-wide uppercase mb-4">Farmer &amp; Farm Overview</h2>
+                <SectionHeading icon={<Users2 />}>Farmer &amp; Farm Overview</SectionHeading>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
                     <StatCard
-                        icon={<UserPlus className="h-6 w-6" />}
-                        iconBg="bg-brand-green"
+                        icon={<UserPlus className="h-5 w-5" />}
+                        tone="blue"
                         title="Registered Farmers"
                         tooltip="Total number of Farmer records matching the current filters (Farmer Registry count)."
                         value={stats.totalFarmers}
@@ -416,18 +500,19 @@ const Dashboard: React.FC = () => {
                         linkText={showRegisterForm ? "Hide Form" : "Add New"}
                     />
                     <StatCard
-                        icon={<ShieldCheck className="h-6 w-6" />}
-                        iconBg="bg-brand-green"
+                        icon={<ShieldCheck className="h-5 w-5" />}
+                        tone="green"
                         title="Verified Farmers"
                         tooltip={`Farmers whose identityStatus = 'Verified'. ${stats.verifiedFarmerRate}% of registered farmers. Kept separate from geometry/compliance rates.`}
                         value={stats.verifiedFarmers}
                         suffix={` (${stats.verifiedFarmerRate}%)`}
+                        ratePercent={stats.verifiedFarmerRate}
                         onClick={() => drillDown('/farmers', { verificationStatus: 'Verified' })}
                         linkText="View Verified"
                     />
                     <StatCard
-                        icon={<MapPinned className="h-6 w-6" />}
-                        iconBg="bg-brand-green"
+                        icon={<MapPinned className="h-5 w-5" />}
+                        tone="indigo"
                         title="Farms Mapped"
                         tooltip="Total number of Farm records matching the current filters (Farm Registry count)."
                         value={stats.totalFarms}
@@ -435,8 +520,8 @@ const Dashboard: React.FC = () => {
                         linkText="View Map"
                     />
                     <StatCard
-                        icon={<Sprout className="h-6 w-6" />}
-                        iconBg="bg-brand-green"
+                        icon={<Sprout className="h-5 w-5" />}
+                        tone="green"
                         title="Total Mapped Hectares"
                         tooltip="Sum of Farm.totalAreaHa (declared area) across every farm matching the current filters."
                         value={stats.totalMappedHectares}
@@ -446,6 +531,7 @@ const Dashboard: React.FC = () => {
                     />
                 </div>
             </div>
+            )}
 
             {/* 2. Geometry & Compliance — 6 cards (down from 8). The previous
                 8-card version actually showed only 6 distinct pieces of
@@ -458,22 +544,24 @@ const Dashboard: React.FC = () => {
                 Each pair is now ONE card showing count + rate together,
                 matching the "Farms with Valid Polygons" pattern below. 6
                 cards fills a grid-cols-3 exactly (2 full rows). */}
+            {isSectionVisible('geometry') && (
             <div>
-                <h2 className="text-[11px] font-semibold text-brand-muted tracking-wide uppercase mb-4">Geometry &amp; Compliance</h2>
+                <SectionHeading icon={<ShieldCheck />}>Geometry &amp; Compliance</SectionHeading>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <StatCard
-                        icon={<ShieldCheck className="h-6 w-6" />}
-                        iconBg="bg-brand-green"
+                        icon={<ShieldCheck className="h-5 w-5" />}
+                        tone="green"
                         title="Farms with Valid Polygons"
                         tooltip={`geometryStatus = 'Valid' (passed all 12 GPS/polygon validation rules). ${stats.geometryValidRate}% of mapped farms. Kept separate from complianceRate.`}
                         value={stats.farmsWithValidPolygons}
                         suffix={` (${stats.geometryValidRate}%)`}
+                        ratePercent={stats.geometryValidRate}
                         onClick={() => drillDown('/farms', { geometryStatus: 'Valid' })}
                         linkText="View Farms"
                     />
                     <StatCard
-                        icon={<FileWarning className="h-6 w-6" />}
-                        iconBg="bg-amber-500"
+                        icon={<FileWarning className="h-5 w-5" />}
+                        tone="amber"
                         title="Farms Needing Correction"
                         tooltip="geometryStatus IN (Invalid, Needs Review, Missing) — blocked from compliance certification until corrected."
                         value={stats.farmsNeedingCorrection}
@@ -481,18 +569,19 @@ const Dashboard: React.FC = () => {
                         linkText="Open Queue"
                     />
                     <StatCard
-                        icon={<FileCheck className="h-6 w-6" />}
-                        iconBg="bg-brand-green"
+                        icon={<FileCheck className="h-5 w-5" />}
+                        tone="green"
                         title="Assessed Low Risk, Valid Geometry"
                         tooltip={`${stats.compliantFarms} ÷ ${stats.totalFarms} ALL REGISTERED FARMS (${stats.complianceDenominatorLabel}) = ${stats.complianceRate}%. A farm is counted here ONLY if it has (1) a COMPLETED risk assessment, (2) a Low risk result, AND (3) a Valid GPS boundary. Farms with no completed assessment are EXCLUDED here and counted separately as Assessment Pending — see that card. Click for the full calculation.`}
                         value={stats.compliantFarms}
                         suffix={` (${stats.complianceRate}%)`}
+                        ratePercent={stats.complianceRate}
                         onClick={() => drillDown('/risk-analysis', { complianceDetails: '1' })}
                         linkText="View Calculation"
                     />
                     <StatCard
-                        icon={<Clock className="h-6 w-6" />}
-                        iconBg="bg-gray-400"
+                        icon={<Clock className="h-5 w-5" />}
+                        tone="gray"
                         title="Assessment Pending"
                         tooltip={`lastRiskAssessmentDate IS NULL — this farm has NEVER completed a risk assessment. ${stats.assessmentPendingFarms} ÷ ${stats.totalFarms} farms (${(100 - stats.assessmentCoverageRate).toFixed(1)}%) are still pending — i.e. ${stats.assessmentCoverageRate}% assessment coverage. NOT a risk result, and NEVER counted as Compliant even if its default riskLevel happens to read 'Low'.`}
                         value={stats.assessmentPendingFarms}
@@ -501,8 +590,8 @@ const Dashboard: React.FC = () => {
                         linkText="View Farms"
                     />
                     <StatCard
-                        icon={<AlertTriangle className="h-6 w-6" />}
-                        iconBg="bg-red-500"
+                        icon={<AlertTriangle className="h-5 w-5" />}
+                        tone="red"
                         title="High Risk Farms"
                         tooltip="A COMPLETED assessment with Farm.riskLevel = 'High' (from the most recent Whisp/deforestation risk assessment)."
                         value={stats.highRiskFarms}
@@ -510,8 +599,8 @@ const Dashboard: React.FC = () => {
                         linkText="View Reasons"
                     />
                     <StatCard
-                        icon={<AlertTriangle className="h-6 w-6" />}
-                        iconBg="bg-amber-500"
+                        icon={<AlertTriangle className="h-5 w-5" />}
+                        tone="amber"
                         title="Medium-Risk Farms"
                         tooltip="A COMPLETED assessment with riskLevel = 'Medium', OR riskLevel = 'Low' but geometryStatus is not yet 'Valid'."
                         value={stats.mediumRiskFarms}
@@ -520,26 +609,40 @@ const Dashboard: React.FC = () => {
                     />
                 </div>
             </div>
+            )}
 
-            {/* 3. Farmers by Gender / Farms by County / Farms by Commodity */}
+            {/* 3. Farmers by Gender / Farms by County / Farms by Commodity —
+                each of the 3 breakdown cards is independently toggleable, so
+                the section itself only disappears when ALL THREE are
+                hidden; otherwise the grid simply shows the remaining ones. */}
+            {(isSectionVisible('breakdownGender') || isSectionVisible('breakdownCounty') || isSectionVisible('breakdownCommodity')) && (
             <div>
-                <h2 className="text-[11px] font-semibold text-brand-muted tracking-wide uppercase mb-4">Breakdowns</h2>
+                <SectionHeading icon={<TrendingUp />}>Breakdowns</SectionHeading>
                 <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    {isSectionVisible('breakdownGender') && (
                     <div className="bg-white rounded-xl p-6 border border-gray-200">
                         <h3 className="text-[15px] font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                            <Users2 className="h-4.5 w-4.5 text-brand-green" /> Farmers by Gender
+                            <span className="flex items-center justify-center h-7 w-7 rounded-lg bg-indigo-50 text-indigo-600 flex-shrink-0"><Users2 className="h-4 w-4" /></span>
+                            Farmers by Gender
                         </h3>
-                        <div className="space-y-2">
-                            {Object.entries(stats.genderBreakdown).map(([gender, count]) => (
-                                <button
-                                    key={gender}
-                                    onClick={() => drillDown('/farmers', { gender: gender === 'Unspecified' ? undefined : gender })}
-                                    className="w-full flex items-center justify-between px-3 py-2 rounded-lg hover:bg-gray-50 border border-gray-100 text-left"
-                                >
-                                    <span className="text-sm text-gray-700">{gender}</span>
-                                    <span className="text-sm font-semibold text-gray-900">{count}</span>
-                                </button>
-                            ))}
+                        <div className="space-y-1.5">
+                            {(() => {
+                                const entries = Object.entries(stats.genderBreakdown);
+                                const max = Math.max(1, ...entries.map(([, c]) => c));
+                                const GENDER_COLORS: Record<string, string> = {
+                                    Male: 'bg-blue-400/25', Female: 'bg-pink-400/25', Other: 'bg-purple-400/25', Unspecified: 'bg-gray-300/40',
+                                };
+                                return entries.map(([gender, count]) => (
+                                    <BarListRow
+                                        key={gender}
+                                        label={gender}
+                                        count={count}
+                                        maxCount={max}
+                                        colorClassName={GENDER_COLORS[gender] || 'bg-brand-green/15'}
+                                        onClick={() => drillDown('/farmers', { gender: gender === 'Unspecified' ? undefined : gender })}
+                                    />
+                                ));
+                            })()}
                         </div>
                         {stats.genderBreakdown.Unspecified > 0 && (
                             <p className="mt-3 text-[11px] text-gray-500 leading-snug border-t border-gray-100 pt-3">
@@ -547,64 +650,79 @@ const Dashboard: React.FC = () => {
                             </p>
                         )}
                     </div>
+                    )}
 
+                    {isSectionVisible('breakdownCounty') && (
                     <div className="bg-white rounded-xl p-6 border border-gray-200">
                         <h3 className="text-[15px] font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                            <MapPinned className="h-4.5 w-4.5 text-brand-green" /> Farms by County
+                            <span className="flex items-center justify-center h-7 w-7 rounded-lg bg-blue-50 text-blue-600 flex-shrink-0"><MapPinned className="h-4 w-4" /></span>
+                            Farms by County
                         </h3>
                         {stats.farmsByCounty.length === 0 ? (
-                            <p className="text-gray-500 text-sm">No farm/county data yet.</p>
+                            <EmptyState title="No farm/county data yet" />
                         ) : (
-                            <div className="space-y-1.5 max-h-56 overflow-y-auto">
-                                {stats.farmsByCounty.map((row) => (
-                                    <button
-                                        key={row.county}
-                                        onClick={() => drillDown('/farms', { county: row.county === 'Unspecified' ? undefined : row.county })}
-                                        className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg hover:bg-gray-50 border border-gray-100 text-left"
-                                    >
-                                        <span className="text-sm text-gray-700">{row.county}</span>
-                                        <span className="text-sm font-semibold text-gray-900">{row.count}</span>
-                                    </button>
-                                ))}
+                            <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                                {(() => {
+                                    const max = Math.max(1, ...stats.farmsByCounty.map((r) => r.count));
+                                    return stats.farmsByCounty.map((row) => (
+                                        <BarListRow
+                                            key={row.county}
+                                            label={row.county}
+                                            count={row.count}
+                                            maxCount={max}
+                                            colorClassName="bg-blue-400/20"
+                                            onClick={() => drillDown('/farms', { county: row.county === 'Unspecified' ? undefined : row.county })}
+                                        />
+                                    ));
+                                })()}
                             </div>
                         )}
                     </div>
+                    )}
 
+                    {isSectionVisible('breakdownCommodity') && (
                     <div className="bg-white rounded-xl p-6 border border-gray-200">
                         <h3 className="text-[15px] font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                            <Sprout className="h-4.5 w-4.5 text-green-600" /> Farms by Commodity
+                            <span className="flex items-center justify-center h-7 w-7 rounded-lg bg-emerald-50 text-emerald-600 flex-shrink-0"><Sprout className="h-4 w-4" /></span>
+                            Farms by Commodity
                         </h3>
                         {stats.farmsByCommodity.length === 0 ? (
-                            <p className="text-gray-500 text-sm">No farms with commodity data yet.</p>
+                            <EmptyState title="No farms with commodity data yet" />
                         ) : (
-                            <div className="space-y-1.5 max-h-56 overflow-y-auto">
-                                {stats.farmsByCommodity.map((row) => (
-                                    <button
-                                        key={row.commodity}
-                                        onClick={() => drillDown('/farms', { commodity: row.commodity })}
-                                        className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg hover:bg-gray-50 border border-gray-100 text-left"
-                                    >
-                                        <span className="text-sm text-gray-700">{row.commodity}</span>
-                                        <span className="text-sm font-semibold text-gray-900">{row.count}</span>
-                                    </button>
-                                ))}
+                            <div className="space-y-1.5 max-h-56 overflow-y-auto pr-1">
+                                {(() => {
+                                    const max = Math.max(1, ...stats.farmsByCommodity.map((r) => r.count));
+                                    return stats.farmsByCommodity.map((row) => (
+                                        <BarListRow
+                                            key={row.commodity}
+                                            label={row.commodity}
+                                            count={row.count}
+                                            maxCount={max}
+                                            colorClassName="bg-emerald-400/20"
+                                            onClick={() => drillDown('/farms', { commodity: row.commodity })}
+                                        />
+                                    ));
+                                })()}
                             </div>
                         )}
                     </div>
+                    )}
                 </div>
             </div>
+            )}
 
             {/* 4. Licensing, Inspectorate, Traceability — 6 cards total in
                 ONE grid-cols-3 (2 full rows) so nothing is left dangling
                 (previously 4 cards in a grid-cols-4 row followed by a
                 separate 2-card grid-cols-2 row, which left 2 empty slots
                 at the end of the first row). */}
+            {isSectionVisible('licensing') && (
             <div>
-                <h2 className="text-[11px] font-semibold text-brand-muted tracking-wide uppercase mb-4">Licensing, Inspectorate &amp; Traceability</h2>
+                <SectionHeading icon={<FileBadge />}>Licensing, Inspectorate &amp; Traceability</SectionHeading>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <StatCard
-                        icon={<FileBadge className="h-6 w-6" />}
-                        iconBg="bg-brand-green"
+                        icon={<FileBadge className="h-5 w-5" />}
+                        tone="blue"
                         title="Active Licenses"
                         tooltip={`status IN (LICENSE_ISSUED, ACTIVE) AND (validTo is null or in the future). Expiring within ${stats.expiringWindowDays} days: ${stats.expiringLicenses}.`}
                         value={stats.activeLicenses}
@@ -612,8 +730,8 @@ const Dashboard: React.FC = () => {
                         linkText={`${stats.expiringLicenses} expiring soon`}
                     />
                     <StatCard
-                        icon={<FileBadge className="h-6 w-6" />}
-                        iconBg="bg-brand-green"
+                        icon={<FileBadge className="h-5 w-5" />}
+                        tone="blue"
                         title="Active Permits"
                         tooltip={`status = PERMIT_ISSUED AND (validTo is null or in the future). Expiring within ${stats.expiringWindowDays} days: ${stats.expiringPermits}.`}
                         value={stats.activePermits}
@@ -621,8 +739,8 @@ const Dashboard: React.FC = () => {
                         linkText={`${stats.expiringPermits} expiring soon`}
                     />
                     <StatCard
-                        icon={<ClipboardCheck className="h-6 w-6" />}
-                        iconBg="bg-brand-green"
+                        icon={<ClipboardCheck className="h-5 w-5" />}
+                        tone="indigo"
                         title="Active Inspections"
                         tooltip="Inspection.status IN (SCHEDULED, IN_PROGRESS)."
                         value={stats.activeInspections}
@@ -630,8 +748,8 @@ const Dashboard: React.FC = () => {
                         linkText="View Inspections"
                     />
                     <StatCard
-                        icon={<ShieldAlert className="h-6 w-6" />}
-                        iconBg="bg-amber-500"
+                        icon={<ShieldAlert className="h-5 w-5" />}
+                        tone="amber"
                         title="Pending Quality Tests"
                         tooltip="QualityControl.result = 'PENDING'."
                         value={stats.pendingQualityTests}
@@ -639,18 +757,19 @@ const Dashboard: React.FC = () => {
                         linkText="View Quality"
                     />
                     <StatCard
-                        icon={<Package className="h-6 w-6" />}
-                        iconBg="bg-brand-green"
+                        icon={<Package className="h-5 w-5" />}
+                        tone="green"
                         title="Traceable Batches"
                         tooltip={`Batches with a non-null farm link (attributable to a specific source). ${stats.traceableBatches} of ${stats.totalBatches} total batches.`}
                         value={stats.traceableBatches}
                         suffix={` / ${stats.totalBatches}`}
+                        ratePercent={stats.totalBatches > 0 ? (stats.traceableBatches / stats.totalBatches) * 100 : undefined}
                         onClick={() => navigate('/logistics')}
                         linkText="View Batches"
                     />
                     <StatCard
-                        icon={<Ship className="h-6 w-6" />}
-                        iconBg="bg-brand-green"
+                        icon={<Ship className="h-5 w-5" />}
+                        tone="indigo"
                         title="Active Shipments"
                         tooltip="Shipment.status IN (VALIDATED, ISSUED, SHIPPED) — i.e. anything that has left DRAFT."
                         value={stats.activeShipments}
@@ -659,13 +778,16 @@ const Dashboard: React.FC = () => {
                     />
                 </div>
             </div>
+            )}
 
             {/* Register Farmer Section */}
             {showRegisterForm && (
-                <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
-                    <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-xl font-bold text-gray-800">New Farmer Registration</h2>
-                        <button onClick={() => setShowRegisterForm(false)} className="text-gray-500 hover:text-gray-700">
+                <div className="bg-white border border-brand-green/20 rounded-xl p-6 shadow-card">
+                    <div className="flex justify-between items-center mb-4 pb-4 border-b border-gray-100">
+                        <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
+                            <UserPlus2 className="h-5 w-5 text-brand-green" /> New Farmer Registration
+                        </h2>
+                        <button onClick={() => setShowRegisterForm(false)} className="text-sm font-medium text-gray-500 hover:text-gray-800 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green rounded px-2 py-1">
                             Close
                         </button>
                     </div>
@@ -673,12 +795,15 @@ const Dashboard: React.FC = () => {
                 </div>
             )}
 
-            {/* 5. Analytical Charts */}
+            {/* 5. Analytical Charts — each of the 3 charts is independently
+                toggleable, same pattern as Breakdowns above. */}
+            {(isSectionVisible('chartGrowth') || isSectionVisible('chartRisk') || isSectionVisible('chartShipment')) && (
             <div>
-                <h2 className="text-[11px] font-semibold text-brand-muted tracking-wide uppercase mb-4">Analytics &amp; Trends</h2>
+                <SectionHeading icon={<TrendingUp />}>Analytics &amp; Trends</SectionHeading>
                 <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
 
                     {/* Farmer Growth Trend */}
+                    {isSectionVisible('chartGrowth') && (
                     <div className="bg-white rounded-xl p-6 border border-gray-200">
                         <h3 className="text-[15px] font-semibold text-gray-900 mb-1">Farmer Registration Growth</h3>
                         <p className="text-xs text-gray-500 mb-4">New farmer registrations per month, last 6 calendar months. Unit: farmers/month.</p>
@@ -704,8 +829,10 @@ const Dashboard: React.FC = () => {
                             </div>
                         )}
                     </div>
+                    )}
 
                     {/* Risk Distribution Pie — every segment clickable */}
+                    {isSectionVisible('chartRisk') && (
                     <div className="bg-white rounded-xl p-6 border border-gray-200">
                         <h3 className="text-[15px] font-semibold text-gray-900 mb-1">Farm Risk Distribution <span className="text-xs text-gray-500 font-normal">(click a segment)</span></h3>
                         <p className="text-xs text-gray-500 mb-4">All {stats.totalFarms} registered farms, grouped into 4 mutually-exclusive assessment/risk buckets. Unit: farms.</p>
@@ -713,7 +840,7 @@ const Dashboard: React.FC = () => {
                             <EmptyState title="No farms registered yet" description="Risk distribution will appear here once farms are added." />
                         ) : (
                             <>
-                                <div className="h-56 flex items-center justify-center">
+                                <div className="h-56 flex items-center justify-center relative">
                                     <ResponsiveContainer width="100%" height="100%">
                                         <PieChart>
                                             <Pie
@@ -734,29 +861,49 @@ const Dashboard: React.FC = () => {
                                             <Tooltip formatter={(value: number | undefined, _name: string | undefined, entry: { payload?: { name?: string } }) => [`${value ?? 0} farms`, entry?.payload?.name]} />
                                         </PieChart>
                                     </ResponsiveContainer>
+                                    {/* Center label — without this the ring (especially when
+                                        every farm falls in a single bucket, rendering as one
+                                        solid-colored circle with no visible segmentation) reads
+                                        as a blank/broken placeholder rather than a chart. */}
+                                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                                        <span className="text-2xl font-bold text-gray-900 leading-none">{stats.totalFarms}</span>
+                                        <span className="text-[10px] text-gray-500 uppercase tracking-wide mt-0.5">Total Farms</span>
+                                    </div>
                                 </div>
                                 {/* Custom legend built from ALL 4 buckets (not just the
                                     ones with a non-zero slice), so every category stays
                                     labeled/explained even when its count is 0 and it has
-                                    no visible slice in the ring above. */}
-                                <div className="flex flex-wrap justify-center gap-x-4 gap-y-1.5 mt-2">
-                                    {riskDataAll.map((entry) => (
-                                        <button
-                                            key={entry.status}
-                                            onClick={() => drillDown('/farms', { complianceStatus: entry.status as DashboardFilterParams['complianceStatus'] })}
-                                            className="inline-flex items-center gap-1.5 text-xs hover:underline"
-                                            style={{ color: entry.value > 0 ? RISK_COLOR_MAP[entry.status] : '#9CA3AF' }}
-                                        >
-                                            <span className="h-2.5 w-2.5 rounded-sm flex-shrink-0" style={{ backgroundColor: RISK_COLOR_MAP[entry.status] }} />
-                                            {entry.name} ({entry.value})
-                                        </button>
-                                    ))}
+                                    no visible slice in the ring above. Pill-shaped chips
+                                    (not bare text + dot) give each category a tappable,
+                                    visually-bounded target consistent with Badge usage
+                                    elsewhere in the app. */}
+                                <div className="flex flex-wrap justify-center gap-2 mt-3">
+                                    {riskDataAll.map((entry) => {
+                                        const active = entry.value > 0;
+                                        return (
+                                            <button
+                                                key={entry.status}
+                                                onClick={() => drillDown('/farms', { complianceStatus: entry.status as DashboardFilterParams['complianceStatus'] })}
+                                                className={`inline-flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-full border transition-colors ${active ? 'hover:bg-gray-50' : 'opacity-60'}`}
+                                                style={{
+                                                    color: RISK_COLOR_MAP[entry.status],
+                                                    borderColor: `${RISK_COLOR_MAP[entry.status]}40`,
+                                                    backgroundColor: `${RISK_COLOR_MAP[entry.status]}0D`,
+                                                }}
+                                            >
+                                                <span className="h-2 w-2 rounded-full flex-shrink-0" style={{ backgroundColor: RISK_COLOR_MAP[entry.status] }} />
+                                                {entry.name} ({entry.value})
+                                            </button>
+                                        );
+                                    })}
                                 </div>
                             </>
                         )}
                     </div>
+                    )}
 
                     {/* Shipment Status Bar — all 4 statuses now shown */}
+                    {isSectionVisible('chartShipment') && (
                     <div className="bg-white rounded-xl p-6 border border-gray-200 lg:col-span-2">
                         <h3 className="text-[15px] font-semibold text-gray-900 mb-1">Shipment Status</h3>
                         <p className="text-xs text-gray-500 mb-4">All shipments by current pipeline stage (Draft → Validated → Issued → Shipped). Unit: shipments.</p>
@@ -780,8 +927,10 @@ const Dashboard: React.FC = () => {
                             </div>
                         )}
                     </div>
+                    )}
                 </div>
             </div>
+            )}
 
             {/* NOTE: a "GPS Mapping Coverage" footer box used to live here,
                 sourced from the legacy /reports/farm-mapping-stats endpoint.
@@ -798,43 +947,75 @@ const Dashboard: React.FC = () => {
     );
 };
 
-// Helper Component for consistency — now supports an optional info
-// tooltip explaining the exact calculation behind the number.
-const StatCard = ({ icon, title, tooltip, value, link, linkText, iconBg = "bg-brand-green", onClick, suffix = "" }: {
+// ---------------------------------------------------------------------
+// StatCard tone system — each card's icon chip and optional rate bar use a
+// semantic color (never purely decorative): green = positive/healthy
+// metric, blue = neutral count, amber = needs attention / caution,
+// red = critical risk, gray = neutral/not-yet-assessed, indigo = neutral
+// secondary metric. Replaces the previous version where nearly every card
+// used an identical solid-green icon block regardless of what it meant
+// (e.g. "Medium-Risk Farms" was rendered with the same green as "Verified
+// Farmers"), which read as an unstyled/undifferentiated wall of cards.
+// Tint style (soft bg + colored icon/text) instead of solid fill reads as
+// a deliberately designed dashboard rather than a generic scaffold.
+// ---------------------------------------------------------------------
+type StatTone = 'green' | 'blue' | 'amber' | 'red' | 'gray' | 'indigo';
+const TONE_STYLES: Record<StatTone, { chipBg: string; chipText: string; bar: string; ring: string }> = {
+    green: { chipBg: 'bg-emerald-50', chipText: 'text-emerald-600', bar: 'bg-emerald-500', ring: 'hover:border-emerald-300' },
+    blue: { chipBg: 'bg-blue-50', chipText: 'text-blue-600', bar: 'bg-blue-500', ring: 'hover:border-blue-300' },
+    amber: { chipBg: 'bg-amber-50', chipText: 'text-amber-600', bar: 'bg-amber-500', ring: 'hover:border-amber-300' },
+    red: { chipBg: 'bg-red-50', chipText: 'text-red-600', bar: 'bg-red-500', ring: 'hover:border-red-300' },
+    gray: { chipBg: 'bg-slate-100', chipText: 'text-slate-500', bar: 'bg-slate-400', ring: 'hover:border-slate-300' },
+    indigo: { chipBg: 'bg-indigo-50', chipText: 'text-indigo-600', bar: 'bg-indigo-500', ring: 'hover:border-indigo-300' },
+};
+
+// Helper Component for consistency — supports an optional info tooltip
+// explaining the exact calculation behind the number, and an optional
+// `ratePercent` that renders a thin, color-matched progress bar so a rate
+// (e.g. "16.7%") has a visual representation, not just text in parentheses.
+const StatCard = ({ icon, title, tooltip, value, link, linkText, tone = 'green', onClick, suffix = "", ratePercent }: {
     icon: React.ReactNode; title: string; tooltip?: string; value: React.ReactNode;
-    link?: string; linkText?: string; iconBg?: string; onClick?: () => void; suffix?: string;
-}) => (
-    <div className="group bg-white overflow-hidden rounded-xl border border-gray-200 hover:border-brand-green/40 transition-colors duration-150">
-        <div className="p-5">
-            <div className="flex items-center">
-                <div className={`flex-shrink-0 h-12 w-12 rounded-xl ${iconBg} text-white flex items-center justify-center`}>{icon}</div>
-                <div className="ml-4 w-0 flex-1">
-                    <dl>
+    link?: string; linkText?: string; tone?: StatTone; onClick?: () => void; suffix?: string;
+    /** 0-100. When provided, renders a thin progress bar under the value. */
+    ratePercent?: number;
+}) => {
+    const t = TONE_STYLES[tone];
+    return (
+        <div className={`group bg-white overflow-hidden rounded-xl border border-gray-200 ${t.ring} hover:shadow-card transition-all duration-150`}>
+            <div className="p-5">
+                <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
                         <dt className="text-[11px] font-semibold text-gray-500 truncate tracking-wide uppercase flex items-center">
                             {title}
                             {tooltip && <InfoTip text={tooltip} />}
                         </dt>
-                        <dd className="text-[26px] font-bold text-gray-900 mt-1 leading-none tracking-tight">
+                        <dd className="text-[26px] font-bold text-gray-900 mt-1.5 leading-none tracking-tight">
                             {typeof value === 'number' ? <AnimatedCounter value={value} suffix={suffix} /> : value}
                         </dd>
-                    </dl>
+                    </div>
+                    <div className={`flex-shrink-0 h-11 w-11 rounded-xl ${t.chipBg} ${t.chipText} flex items-center justify-center`}>{icon}</div>
+                </div>
+                {typeof ratePercent === 'number' && (
+                    <div className="mt-3 h-1.5 w-full rounded-full bg-gray-100 overflow-hidden" role="progressbar" aria-valuenow={Math.round(ratePercent)} aria-valuemin={0} aria-valuemax={100}>
+                        <div className={`h-full rounded-full ${t.bar} transition-all duration-700`} style={{ width: `${Math.min(Math.max(ratePercent, 0), 100)}%` }} />
+                    </div>
+                )}
+            </div>
+            <div className="bg-gray-50/80 px-5 py-2.5 border-t border-gray-100">
+                <div className="text-sm">
+                    {onClick ? (
+                        <button onClick={onClick} className="font-semibold text-brand-green hover:text-brand-green-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green rounded flex items-center gap-1">
+                            {linkText} <ArrowUpRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </button>
+                    ) : (
+                        <Link to={link || '#'} className="font-semibold text-brand-green hover:text-brand-green-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green rounded flex items-center gap-1">
+                            {linkText} <ArrowUpRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                        </Link>
+                    )}
                 </div>
             </div>
         </div>
-        <div className="bg-gray-50/80 px-5 py-2.5 border-t border-gray-100">
-            <div className="text-sm">
-                {onClick ? (
-                    <button onClick={onClick} className="font-semibold text-brand-green hover:text-brand-green-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green rounded flex items-center gap-1">
-                        {linkText} <ArrowUpRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </button>
-                ) : (
-                    <Link to={link || '#'} className="font-semibold text-brand-green hover:text-brand-green-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green rounded flex items-center gap-1">
-                        {linkText} <ArrowUpRight className="h-3.5 w-3.5 opacity-0 group-hover:opacity-100 transition-opacity" />
-                    </Link>
-                )}
-            </div>
-        </div>
-    </div>
-);
+    );
+};
 
 export default Dashboard;

@@ -1,11 +1,12 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-    Loader2, ShieldQuestion, UserX, FileQuestion, FileWarning, ClipboardCheck, AlertCircle,
+    Loader2, ShieldQuestion, UserX, FileQuestion, FileWarning, ClipboardCheck, AlertCircle, Bell,
 } from 'lucide-react';
 import { UserRole } from '../../types';
 import Badge from '../ui/Badge';
 import EmptyState from '../ui/EmptyState';
+import SectionHeading from '../ui/SectionHeading';
 import { getVerificationQueue, type VerificationQueueResponse } from '../../api/farmerVerification';
 import { getDataCorrectionQueue, type DataCorrectionQueueResponse } from '../../api/geometry';
 import { getApplications } from '../../api/applications';
@@ -189,9 +190,30 @@ const NeedsAttentionSection: React.FC<{ user: NeedsAttentionUser }> = ({ user })
 
     if (!hasAnythingToShow) return null;
 
+    // Shared card shell: a colored left accent bar (not just a small icon)
+    // makes each item read as a distinct, scannable alert tile rather than
+    // a plain bordered row — consistent with how urgency is communicated
+    // elsewhere in the app (e.g. StatCard tones on the Dashboard itself).
+    const ACCENT: Record<'amber' | 'red' | 'blue' | 'slate', string> = {
+        amber: 'border-l-amber-400 bg-amber-50/40',
+        red: 'border-l-red-400 bg-red-50/40',
+        blue: 'border-l-sky-400 bg-sky-50/40',
+        slate: 'border-l-gray-300 bg-gray-50',
+    };
+
+    const totalPending = data
+        ? data.unverifiedIdentities + data.conflictIdentities + data.missingInformation + data.farmIssues +
+          data.appQueues.reduce((sum, q) => sum + q.count, 0)
+        : 0;
+
     return (
         <div>
-            <h2 className="text-[11px] font-semibold text-brand-muted tracking-wide uppercase mb-4">Needs Attention</h2>
+            <SectionHeading
+                icon={<Bell />}
+                action={!loading && data ? <span className="text-[11px] font-semibold text-gray-400">{totalPending} item{totalPending === 1 ? '' : 's'} pending</span> : undefined}
+            >
+                Needs Attention
+            </SectionHeading>
             <div className="bg-white rounded-xl border border-gray-200 p-5">
                 {loading ? (
                     <div className="flex items-center gap-2 text-sm text-gray-500">
@@ -200,7 +222,7 @@ const NeedsAttentionSection: React.FC<{ user: NeedsAttentionUser }> = ({ user })
                 ) : data ? (
                     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
                         {data.identityUnavailable && (
-                            <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-dashed border-gray-200 text-left">
+                            <div className={`flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-l-4 border-dashed border-gray-200 ${ACCENT.slate} text-left`}>
                                 <span className="flex items-center gap-2 text-sm text-gray-500">
                                     <AlertCircle className="h-4 w-4 text-gray-400" /> Identity Verification
                                 </span>
@@ -210,7 +232,7 @@ const NeedsAttentionSection: React.FC<{ user: NeedsAttentionUser }> = ({ user })
                         {data.unverifiedIdentities > 0 && (
                             <button
                                 onClick={() => navigate('/farmers/verification?status=Unverified')}
-                                className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-gray-100 hover:bg-gray-50 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
+                                className={`flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-l-4 border-gray-100 ${ACCENT.amber} hover:brightness-95 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green`}
                             >
                                 <span className="flex items-center gap-2 text-sm text-gray-700">
                                     <ShieldQuestion className="h-4 w-4 text-amber-600" /> Unverified identities
@@ -221,7 +243,7 @@ const NeedsAttentionSection: React.FC<{ user: NeedsAttentionUser }> = ({ user })
                         {data.conflictIdentities > 0 && (
                             <button
                                 onClick={() => navigate('/farmers/verification?status=Conflict')}
-                                className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-gray-100 hover:bg-gray-50 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
+                                className={`flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-l-4 border-gray-100 ${ACCENT.red} hover:brightness-95 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green`}
                             >
                                 <span className="flex items-center gap-2 text-sm text-gray-700">
                                     <UserX className="h-4 w-4 text-red-600" /> Identity conflicts
@@ -232,7 +254,7 @@ const NeedsAttentionSection: React.FC<{ user: NeedsAttentionUser }> = ({ user })
                         {data.missingInformation > 0 && (
                             <button
                                 onClick={() => navigate('/farmers/verification?readiness=Missing Information')}
-                                className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-gray-100 hover:bg-gray-50 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
+                                className={`flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-l-4 border-gray-100 ${ACCENT.amber} hover:brightness-95 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green`}
                             >
                                 <span className="flex items-center gap-2 text-sm text-gray-700">
                                     <FileQuestion className="h-4 w-4 text-amber-600" /> Missing information
@@ -241,7 +263,7 @@ const NeedsAttentionSection: React.FC<{ user: NeedsAttentionUser }> = ({ user })
                             </button>
                         )}
                         {data.farmIssuesUnavailable && (
-                            <div className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-dashed border-gray-200 text-left">
+                            <div className={`flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-l-4 border-dashed border-gray-200 ${ACCENT.slate} text-left`}>
                                 <span className="flex items-center gap-2 text-sm text-gray-500">
                                     <AlertCircle className="h-4 w-4 text-gray-400" /> Data Correction Queue
                                 </span>
@@ -251,7 +273,7 @@ const NeedsAttentionSection: React.FC<{ user: NeedsAttentionUser }> = ({ user })
                         {data.farmIssues > 0 && (
                             <button
                                 onClick={() => navigate('/farms/data-correction-queue')}
-                                className="flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-gray-100 hover:bg-gray-50 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
+                                className={`flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-l-4 border-gray-100 ${ACCENT.amber} hover:brightness-95 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green`}
                             >
                                 <span className="flex items-center gap-2 text-sm text-gray-700">
                                     <FileWarning className="h-4 w-4 text-amber-600" /> Farm issues to correct
@@ -263,7 +285,7 @@ const NeedsAttentionSection: React.FC<{ user: NeedsAttentionUser }> = ({ user })
                             <button
                                 key={q.key}
                                 onClick={() => navigate(q.path)}
-                                className={`flex items-center justify-between gap-3 px-4 py-3 rounded-lg border text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green ${q.unavailable ? 'border-dashed border-gray-200' : 'border-gray-100 hover:bg-gray-50'}`}
+                                className={`flex items-center justify-between gap-3 px-4 py-3 rounded-lg border border-l-4 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green ${q.unavailable ? `border-dashed border-gray-200 ${ACCENT.slate}` : `border-gray-100 ${ACCENT.blue} hover:brightness-95`}`}
                             >
                                 <span className={`flex items-center gap-2 text-sm ${q.unavailable ? 'text-gray-500' : 'text-gray-700'}`}>
                                     {q.unavailable ? <AlertCircle className="h-4 w-4 text-gray-400" /> : <ClipboardCheck className="h-4 w-4 text-sky-600" />}
