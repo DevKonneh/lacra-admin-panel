@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useParams, Link } from 'react-router-dom';
-import { createUser, getUser, updateUser, getUserAuditLog } from '../../api/users';
+import { createUser, getUser, updateUser, getUserAuditLog, getSupervisorOptions } from '../../api/users';
 import { getRoles } from '../../api/roles';
 import type { Role, UserAuditLogEntry } from '../../types';
 import { UserRole, UserStatus } from '../../types';
@@ -16,7 +16,7 @@ import { ArrowLeft, AlertTriangle, History, Loader2 } from 'lucide-react';
 const ROLE_OPTIONS: string[] = [
     UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.DG,
     UserRole.COMMERCIAL, UserRole.TECHNICAL, UserRole.FINANCE, UserRole.IT,
-    UserRole.INSPECTOR, UserRole.BUYER, UserRole.EXPORTER, UserRole.FARMER,
+    UserRole.FIELD_SUPERVISOR, UserRole.INSPECTOR, UserRole.BUYER, UserRole.EXPORTER, UserRole.FARMER,
 ];
 
 const STATUS_OPTIONS: { value: string; hint: string }[] = [
@@ -43,8 +43,16 @@ const UserForm: React.FC = () => {
         status: UserStatus.ACTIVE as string,
         roleType: UserRole.INSPECTOR as string, // Access-control role (actually enforced).
         roleId: '', // Optional permission-group assignment (see note below).
+        // CMIS Monitoring: only meaningful for INSPECTOR (enumerator)
+        // accounts. supervisorId is the one direct FIELD_SUPERVISOR this
+        // enumerator reports to; assignedCounty/assignedDistrict is their
+        // declared "assigned area", kept separate from field-reported area.
+        supervisorId: '',
+        assignedCounty: '',
+        assignedDistrict: '',
     });
     const [roles, setRoles] = useState<Role[]>([]);
+    const [supervisors, setSupervisors] = useState<{ id: string; name: string; email: string }[]>([]);
     const [loading, setLoading] = useState(false);
     const [submitting, setSubmitting] = useState(false);
     const [error, setError] = useState('');
@@ -55,6 +63,7 @@ const UserForm: React.FC = () => {
 
     useEffect(() => {
         loadRoles();
+        loadSupervisors();
         if (isEditMode && id) {
             loadUser(id);
             loadAuditLog(id);
@@ -69,6 +78,17 @@ const UserForm: React.FC = () => {
             }
         } catch {
             // Non-fatal: the permission-group dropdown will just be empty.
+        }
+    };
+
+    const loadSupervisors = async () => {
+        try {
+            const data = await getSupervisorOptions();
+            if (data.data.status) {
+                setSupervisors(data.data.data);
+            }
+        } catch {
+            // Non-fatal: the supervisor dropdown will just be empty.
         }
     };
 
@@ -87,6 +107,9 @@ const UserForm: React.FC = () => {
                     status: user.status,
                     roleType: user.role,
                     roleId: user.assignedRole?.id || '',
+                    supervisorId: user.supervisorId || '',
+                    assignedCounty: user.assignedCounty || '',
+                    assignedDistrict: user.assignedDistrict || '',
                 });
             } else {
                 setError(data.data.message || 'Failed to load user details.');
@@ -127,6 +150,12 @@ const UserForm: React.FC = () => {
         if (!formData.roleId) {
             payload.roleId = null; // Explicitly clear if no permission group selected
         }
+        // Explicit null (not omitted) so clearing the supervisor/territory on
+        // an existing enumerator actually takes effect rather than being
+        // ignored by the backend's "undefined = leave untouched" semantics.
+        payload.supervisorId = formData.supervisorId || null;
+        payload.assignedCounty = formData.assignedCounty || null;
+        payload.assignedDistrict = formData.assignedDistrict || null;
 
         try {
             if (isEditMode && id) {
@@ -264,6 +293,66 @@ const UserForm: React.FC = () => {
                         </p>
                     </div>
                 </div>
+
+                {(formData.roleType === UserRole.INSPECTOR || formData.roleType === UserRole.FIELD_SUPERVISOR) && (
+                    <div className="bg-sky-50 p-4 rounded-md border border-sky-100 space-y-4">
+                        <div>
+                            <p className="text-sm font-semibold text-sky-900">Field Progress (Monitoring)</p>
+                            <p className="text-xs text-sky-800 mt-0.5">
+                                Supervisor assignment and declared territory for the CMIS Monitoring dashboard.
+                            </p>
+                        </div>
+
+                        {formData.roleType === UserRole.INSPECTOR && (
+                            <div>
+                                <label className={labelClass}>Field Supervisor</label>
+                                <select
+                                    className={selectClass}
+                                    value={formData.supervisorId}
+                                    onChange={e => setFormData({ ...formData, supervisorId: e.target.value })}
+                                >
+                                    <option value="">-- No supervisor assigned --</option>
+                                    {supervisors.map(s => (
+                                        <option key={s.id} value={s.id}>{s.name} ({s.email})</option>
+                                    ))}
+                                </select>
+                                <p className="text-xs text-gray-500 mt-1.5">
+                                    The field supervisor who can view this enumerator's activity, presence, and
+                                    sync status. Without a supervisor, this enumerator's monitoring data is
+                                    visible only to admins. Reassigning here takes effect immediately — the
+                                    previous supervisor loses access as soon as this is saved.
+                                </p>
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 gap-y-5 gap-x-4 sm:grid-cols-2">
+                            <div>
+                                <label className={labelClass}>Assigned County</label>
+                                <input
+                                    type="text"
+                                    className={inputClass}
+                                    placeholder="Optional"
+                                    value={formData.assignedCounty}
+                                    onChange={e => setFormData({ ...formData, assignedCounty: e.target.value })}
+                                />
+                            </div>
+                            <div>
+                                <label className={labelClass}>Assigned District</label>
+                                <input
+                                    type="text"
+                                    className={inputClass}
+                                    placeholder="Optional"
+                                    value={formData.assignedDistrict}
+                                    onChange={e => setFormData({ ...formData, assignedDistrict: e.target.value })}
+                                />
+                            </div>
+                        </div>
+                        <p className="text-xs text-gray-500">
+                            This is the declared "assigned area" only. It is tracked separately from the
+                            field-reported area actually observed from this user's check-in/check-out activity.
+                        </p>
+                    </div>
+                )}
 
                 <div className="bg-gray-50 p-4 rounded-md border border-gray-200">
                     <label className={labelClass}>Permission Group (Optional)</label>

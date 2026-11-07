@@ -18,6 +18,7 @@ export const ROLE_LABELS: Record<string, string> = {
     TECHNICAL: 'Technical Officer',
     FINANCE: 'Finance Officer',
     IT: 'IT Officer',
+    FIELD_SUPERVISOR: 'Field Supervisor',
 };
 
 export function roleLabel(role?: string | null): string {
@@ -40,6 +41,7 @@ export const ROLE_COLORS: Record<string, string> = {
     BUYER: 'bg-orange-100 text-orange-800',
     EXPORTER: 'bg-orange-100 text-orange-800',
     FARMER: 'bg-green-100 text-green-800',
+    FIELD_SUPERVISOR: 'bg-sky-100 text-sky-800',
 };
 
 export function roleColor(role?: string | null): string {
@@ -122,6 +124,10 @@ export function auditActionSummary(entry: {
             return 'Account rejected.';
         case 'LOGIN':
             return 'Signed in.';
+        case 'SUPERVISOR_CHANGED':
+            return entry.notes || 'Field supervisor assignment changed.';
+        case 'TERRITORY_CHANGED':
+            return entry.notes || 'Assigned territory (county/district) changed.';
         default:
             return entry.notes || entry.action;
     }

@@ -37,6 +37,13 @@ export const deleteUser = async (id: string) => {
     return apiClient.delete<ApiResponse<any>>(`/users/${id}`);
 };
 
+// CMIS Monitoring: active FIELD_SUPERVISOR accounts, for the supervisor
+// selection dropdown in UserForm. Admin-only route (registered before the
+// generic "/:id" route on the backend so it isn't swallowed by it).
+export const getSupervisorOptions = async () => {
+    return apiClient.get<ApiResponse<User[]>>('/users/supervisors/options');
+};
+
 // --- Pending self-registration approvals ---------------------------------
 // These three hit /auth/* (not /users/*) because that's where the backend
 // keeps the self-registration approval workflow, but they're colocated

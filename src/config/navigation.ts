@@ -21,6 +21,8 @@ import {
     Settings,
     UserCheck,
     UploadCloud,
+    Activity,
+    Radar,
 } from 'lucide-react';
 import { UserRole } from '../types';
 
@@ -251,6 +253,32 @@ export const navigationMenu: NavigationItem[] = [
                 label: 'Enforcement Actions',
                 path: '/admin/enforcement',
                 icon: Gavel
+            }
+        ]
+    },
+    {
+        // CMIS Monitoring. Visible to ADMIN (sees everyone) and
+        // FIELD_SUPERVISOR (sees only their own direct reports, scoped
+        // live server-side on every request). Named "Field Progress" for
+        // this release per the approved spec — record counts only, no
+        // assignment targets/completion percentages yet.
+        label: 'Field Progress',
+        icon: Radar,
+        roles: [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.FIELD_SUPERVISOR],
+        children: [
+            {
+                // Staff-wide presence + sign-in history — admin only, not
+                // shown to field supervisors even within this group.
+                label: 'User Activity',
+                path: '/monitoring/user-activity',
+                icon: Activity,
+                roles: [UserRole.ADMIN, UserRole.SUPER_ADMIN]
+            },
+            {
+                label: 'Enumerators',
+                path: '/monitoring/enumerators',
+                icon: Users,
+                roles: [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.FIELD_SUPERVISOR]
             }
         ]
     },

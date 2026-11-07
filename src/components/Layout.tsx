@@ -1,11 +1,41 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Outlet } from 'react-router-dom';
 import { Menu } from 'lucide-react';
 import Sidebar from './Sidebar';
 import OfflineBanner from './OfflineBanner';
 import NotificationBell from './NotificationBell';
+import { useAuth } from '../context/AuthContext';
+import { sendHeartbeat } from '../api/monitoring';
 
 const SIDEBAR_COLLAPSED_STORAGE_KEY = 'lacra.sidebar.collapsed';
+
+// CMIS Monitoring: per-tab identifier, generated once per browser tab (not
+// per user/device) so each open tab counts as its own presence session —
+// matches the backend's UserSession model keyed on (userId, tabId). Lives
+// in sessionStorage (NOT localStorage) specifically so it does NOT persist
+// across tabs or survive a tab being duplicated; each tab gets its own id
+// the first time this module runs in it.
+const TAB_ID_STORAGE_KEY = 'lacra.monitoring.tabId';
+function getTabId(): string {
+    try {
+        let id = window.sessionStorage.getItem(TAB_ID_STORAGE_KEY);
+        if (!id) {
+            id = `tab_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+            window.sessionStorage.setItem(TAB_ID_STORAGE_KEY, id);
+        }
+        return id;
+    } catch {
+        // Private browsing / storage disabled: fall back to a per-load id.
+        // This just means presence won't dedupe correctly within that one
+        // session, which is an acceptable degradation, not a hard failure.
+        return `tab_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    }
+}
+
+// Heartbeat interval mirrors the backend's documented default
+// (MONITORING_HEARTBEAT_INTERVAL_MS = 30s) so a session reliably stays
+// within the alive window (default 90s) under normal conditions.
+const HEARTBEAT_INTERVAL_MS = 30_000;
 
 // The topbar's job is ONLY to carry the constant application identity
 // ("LACRA CMIS" / "Commodity Management Information System") plus global
@@ -14,6 +44,7 @@ const SIDEBAR_COLLAPSED_STORAGE_KEY = 'lacra.sidebar.collapsed';
 // via the shared <PageHeader> component — this is the single place that
 // previously duplicated what pages already rendered themselves.
 const Layout: React.FC = () => {
+    const { isAuthenticated } = useAuth();
     const [sidebarOpen, setSidebarOpen] = useState(false);
     const [sidebarCollapsed, setSidebarCollapsed] = useState<boolean>(() => {
         try {
@@ -22,6 +53,41 @@ const Layout: React.FC = () => {
             return false;
         }
     });
+
+    // CMIS Monitoring: any authenticated web staff member may report their
+    // own heartbeat (no role restriction on the backend route). Tracks
+    // whether the user has interacted (click/keypress/scroll/pointer move)
+    // since the last heartbeat tick, so the backend can distinguish
+    // ONLINE (fresh heartbeat + recent interaction) from IDLE (fresh
+    // heartbeat, no recent interaction) per the approved presence model.
+    // Interaction tracking is intentionally lightweight (a ref flag, no
+    // state/re-renders) since it only needs to be read once per tick.
+    const interactedRef = useRef(false);
+    useEffect(() => {
+        if (!isAuthenticated) return;
+
+        const markInteracted = () => { interactedRef.current = true; };
+        const events: (keyof WindowEventMap)[] = ['click', 'keydown', 'scroll', 'pointermove'];
+        events.forEach(evt => window.addEventListener(evt, markInteracted, { passive: true }));
+
+        const tabId = getTabId();
+        const tick = () => {
+            const interacted = interactedRef.current;
+            interactedRef.current = false;
+            sendHeartbeat(tabId, interacted).catch(() => {
+                // Non-fatal: a missed heartbeat just means this session may
+                // read as IDLE/OFFLINE a little early; no user-facing error.
+            });
+        };
+
+        tick(); // send one immediately on mount/login, don't wait a full interval
+        const intervalId = window.setInterval(tick, HEARTBEAT_INTERVAL_MS);
+
+        return () => {
+            window.clearInterval(intervalId);
+            events.forEach(evt => window.removeEventListener(evt, markInteracted));
+        };
+    }, [isAuthenticated]);
 
     const toggleSidebarCollapsed = () => {
         setSidebarCollapsed(prev => {

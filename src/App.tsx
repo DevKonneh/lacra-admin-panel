@@ -74,6 +74,9 @@ const InspectorQueue = lazy(() => import('./pages/applications/InspectorQueue'))
 const BillingQueue = lazy(() => import('./pages/applications/BillingQueue'));
 const PaymentQueue = lazy(() => import('./pages/applications/PaymentQueue'));
 const ITQueue = lazy(() => import('./pages/applications/ITQueue'));
+const UserActivity = lazy(() => import('./pages/monitoring/UserActivity'));
+const EnumeratorList = lazy(() => import('./pages/monitoring/EnumeratorList'));
+const EnumeratorDetail = lazy(() => import('./pages/monitoring/EnumeratorDetail'));
 
 // Protected Route Component
 const PrivateRoute = () => {
@@ -103,6 +106,18 @@ const AdminRoute = () => {
 const AdminOrInspectorRoute = () => {
   const { user } = useAuth();
   const allowed = user?.role === UserRole.ADMIN || user?.role === UserRole.SUPER_ADMIN || user?.role === UserRole.INSPECTOR;
+  return allowed ? <Outlet /> : <Navigate to="/" />;
+};
+
+// CMIS Monitoring ("Field Progress") access — ADMIN/SUPER_ADMIN see every
+// enumerator; FIELD_SUPERVISOR sees only their own direct reports (scoped
+// server-side, live, on every request — see MonitoringAccessService). This
+// guard only controls whether the page itself renders; the backend
+// independently re-enforces per-enumerator visibility and returns 403 for
+// anything a field supervisor isn't (or no longer is) allowed to see.
+const AdminOrSupervisorRoute = () => {
+  const { user } = useAuth();
+  const allowed = user?.role === UserRole.ADMIN || user?.role === UserRole.SUPER_ADMIN || user?.role === UserRole.FIELD_SUPERVISOR;
   return allowed ? <Outlet /> : <Navigate to="/" />;
 };
 
@@ -198,6 +213,15 @@ function App() {
                 <Route path="applications/it-queue" element={<ITQueue />} />
 
                 <Route path="applications/:id" element={<ApplicationDetail />} />
+
+                {/* CMIS Monitoring ("Field Progress") */}
+                <Route element={<AdminRoute />}>
+                  <Route path="monitoring/user-activity" element={<UserActivity />} />
+                </Route>
+                <Route element={<AdminOrSupervisorRoute />}>
+                  <Route path="monitoring/enumerators" element={<EnumeratorList />} />
+                  <Route path="monitoring/enumerators/:id" element={<EnumeratorDetail />} />
+                </Route>
               </Route>
             </Route>
           </Routes>

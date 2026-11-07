@@ -20,7 +20,13 @@ export const UserRole = {
     // handles certificate printing/issuance. Matches backend UserRole
     // enum values exactly.
     FINANCE: "FINANCE",
-    IT: "IT"
+    IT: "IT",
+    // Field Supervisor — added for the CMIS Monitoring feature. A field
+    // supervisor oversees a set of enumerators (INSPECTOR role users) via
+    // User.supervisorId and has scoped access to their field activity,
+    // presence, and sync status under /api/monitoring/*. Matches backend
+    // UserRole enum value exactly.
+    FIELD_SUPERVISOR: "FIELD_SUPERVISOR"
 } as const;
 
 export type UserRole = typeof UserRole[keyof typeof UserRole];
@@ -60,6 +66,17 @@ export interface User {
     lastLoginAt?: string | null;
     createdAt: string;
     updatedAt: string;
+    // CMIS Monitoring fields (backend entities/User.ts). supervisorId is the
+    // direct (one, non-hierarchical) FIELD_SUPERVISOR this user reports to,
+    // relevant only for INSPECTOR (enumerator) users. assignedCounty/
+    // assignedDistrict are the enumerator's declared territory ("Assigned
+    // area"), kept explicitly separate from field-reported/observed area.
+    // supervisorName is a denormalized convenience field some endpoints
+    // may return alongside supervisorId for display purposes.
+    supervisorId?: string | null;
+    supervisorName?: string | null;
+    assignedCounty?: string | null;
+    assignedDistrict?: string | null;
 }
 
 // Matches the backend UserAuditAction enum exactly (entities/UserAuditLog.ts).
@@ -71,7 +88,11 @@ export type UserAuditAction =
     | 'PROFILE_UPDATED'
     | 'APPROVED'
     | 'REJECTED'
-    | 'LOGIN';
+    | 'LOGIN'
+    // CMIS Monitoring: logged by UserController.update() when an
+    // enumerator's supervisorId or assignedCounty/assignedDistrict changes.
+    | 'SUPERVISOR_CHANGED'
+    | 'TERRITORY_CHANGED';
 
 export interface UserAuditLogEntry {
     id: string;
