@@ -56,6 +56,7 @@ const LicenseList = lazy(() => import('./pages/licenses/LicenseList'));
 const LicenseApplication = lazy(() => import('./pages/licenses/LicenseApplication'));
 const PermitList = lazy(() => import('./pages/permits/PermitList'));
 const PermitApplication = lazy(() => import('./pages/permits/PermitApplication'));
+const LocalProduceBuyerRegister = lazy(() => import('./pages/permits/LocalProduceBuyerRegister'));
 const InspectionList = lazy(() => import('./pages/inspections/InspectionList'));
 const QualityControlList = lazy(() => import('./pages/quality/QualityControlList'));
 const EnforcementList = lazy(() => import('./pages/enforcement/EnforcementList'));
@@ -63,6 +64,7 @@ const InspectionForm = lazy(() => import('./pages/inspections/InspectionForm'));
 const QualityControlForm = lazy(() => import('./pages/quality/QualityControlForm'));
 const PublicBatchDetails = lazy(() => import('./pages/PublicBatchDetails'));
 const CertificateVerify = lazy(() => import('./pages/CertificateVerify'));
+const LocalProduceBuyerVerify = lazy(() => import('./pages/LocalProduceBuyerVerify'));
 const ApplicationWizard = lazy(() => import('./pages/apply/ApplicationWizard'));
 const CommercialQueue = lazy(() => import('./pages/applications/CommercialQueue'));
 const CommercialApplicationReview = lazy(() => import('./pages/applications/CommercialApplicationReview'));
@@ -140,6 +142,7 @@ function App() {
             <Route path="/public/farmers/:id" element={<PublicFarmerProfile />} />
             <Route path="/public/batches/:id" element={<PublicBatchDetails />} />
             <Route path="/verify/:certificateNumber" element={<CertificateVerify />} />
+            <Route path="/verify/local-produce-buyers/:token" element={<LocalProduceBuyerVerify />} />
             <Route path="/apply" element={<ApplicationWizard />} />
             <Route element={<PrivateRoute />}>
               <Route path="/" element={<Layout />}>
@@ -193,6 +196,7 @@ function App() {
                 {/* Permit Management */}
                 <Route path="permits" element={<PermitList />} />
                 <Route path="permits/apply" element={<PermitApplication />} />
+                <Route path="permits/local-produce-buyers" element={<LocalProduceBuyerRegister />} />
 
                 {/* Application Workflow: Commercial Verification + First DG Approval */}
                 <Route path="applications/commercial-queue" element={<CommercialQueue />} />
