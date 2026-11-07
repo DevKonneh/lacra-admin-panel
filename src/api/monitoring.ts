@@ -51,6 +51,19 @@ export interface SyncStatusSummary {
     lastSyncErrorAt: string | null;
 }
 
+// Farmer identity-verification states (Farmer.identityStatus) and farm
+// geometry-validation states (Farm.geometryStatus), counted ONLY across
+// the records this specific enumerator registered (registeredByUserId) —
+// a subset breakdown of recordCounts.farmers/farms above, never a
+// cross-enumerator queue/worklist. Deliberately kept as two SEPARATE
+// breakdowns rather than one blended "review progress %", matching this
+// backend's existing rule that verification/geometry/compliance numbers
+// are always reported independently (see ReportsController).
+export interface ReviewProgress {
+    identityStatus: { Verified: number; Unverified: number; Conflict: number };
+    geometryStatus: { Valid: number; 'Needs Review': number; Invalid: number; Missing: number };
+}
+
 export interface EnumeratorSummary {
     id: string;
     name: string;
@@ -63,6 +76,7 @@ export interface EnumeratorSummary {
     // Actual record counts only — no assignment targets/completion % yet
     // (explicitly deferred per the approved Monitoring spec).
     recordCounts: { farmers: number; farms: number };
+    reviewProgress: ReviewProgress;
     syncStatus: SyncStatusSummary | null;
 }
 

@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getEnumerators, type EnumeratorSummary, type FieldStatus } from '../../api/monitoring';
 import PageHeader from '../../components/ui/PageHeader';
-import { Loader2, AlertTriangle, RefreshCw, MapPin, Users as UsersIcon, CheckCircle2, LogOut, HelpCircle, RotateCw, AlertCircle } from 'lucide-react';
+import { Loader2, AlertTriangle, RefreshCw, MapPin, Users as UsersIcon, CheckCircle2, LogOut, HelpCircle, RotateCw, AlertCircle, ShieldCheck, Map as MapIcon } from 'lucide-react';
 
 /**
  * CMIS Monitoring — Enumerators ("Field Progress").
@@ -55,6 +55,48 @@ const SyncBadge: React.FC<{ e: EnumeratorSummary }> = ({ e }) => {
         <span className="inline-flex items-center gap-1 text-xs text-green-700">
             <CheckCircle2 className="h-3.5 w-3.5" /> Synced {s.lastSuccessfulSyncAt ? formatDateTime(s.lastSuccessfulSyncAt) : ''}
         </span>
+    );
+};
+
+/**
+ * Compact review-progress chips for the list view: farmer identity
+ * verification (Verified/Unverified/Conflict) and farm geometry
+ * validation (Valid/Needs Review/Invalid/Missing), counted ONLY across
+ * this enumerator's own registered farmers/farms. Deliberately shown as
+ * two separate mini-breakdowns, not a single blended percentage — see
+ * ReviewProgress's doc comment in api/monitoring.ts for why.
+ */
+const ReviewProgressCell: React.FC<{ e: EnumeratorSummary }> = ({ e }) => {
+    const rp = e.reviewProgress;
+    if (!rp) return <span className="text-xs text-gray-400">No data</span>;
+    const { identityStatus, geometryStatus } = rp;
+    return (
+        <div className="space-y-1 text-xs">
+            <div className="flex items-center gap-1 text-gray-600" title="Farmer identity verification">
+                <ShieldCheck className="h-3.5 w-3.5 text-gray-400" />
+                <span className="text-green-700">{identityStatus.Verified} verified</span>
+                <span className="text-gray-300">&middot;</span>
+                <span className="text-amber-700">{identityStatus.Unverified} unverified</span>
+                {identityStatus.Conflict > 0 && (
+                    <>
+                        <span className="text-gray-300">&middot;</span>
+                        <span className="text-red-600">{identityStatus.Conflict} conflict</span>
+                    </>
+                )}
+            </div>
+            <div className="flex items-center gap-1 text-gray-600" title="Farm geometry validation">
+                <MapIcon className="h-3.5 w-3.5 text-gray-400" />
+                <span className="text-green-700">{geometryStatus.Valid} valid</span>
+                <span className="text-gray-300">&middot;</span>
+                <span className="text-amber-700">{geometryStatus['Needs Review']} review</span>
+                {(geometryStatus.Invalid > 0 || geometryStatus.Missing > 0) && (
+                    <>
+                        <span className="text-gray-300">&middot;</span>
+                        <span className="text-red-600">{geometryStatus.Invalid + geometryStatus.Missing} invalid/missing</span>
+                    </>
+                )}
+            </div>
+        </div>
     );
 };
 
@@ -128,6 +170,7 @@ const EnumeratorList: React.FC = () => {
                                     <th className="px-6 py-2.5 text-left text-[11px] font-semibold text-gray-500 tracking-wide">Field Status</th>
                                     <th className="px-6 py-2.5 text-left text-[11px] font-semibold text-gray-500 tracking-wide">Last Location</th>
                                     <th className="px-6 py-2.5 text-left text-[11px] font-semibold text-gray-500 tracking-wide">Records</th>
+                                    <th className="px-6 py-2.5 text-left text-[11px] font-semibold text-gray-500 tracking-wide">Review Progress</th>
                                     <th className="px-6 py-2.5 text-left text-[11px] font-semibold text-gray-500 tracking-wide">Sync</th>
                                     <th className="px-6 py-2.5 text-right text-[11px] font-semibold text-gray-500 tracking-wide">Details</th>
                                 </tr>
@@ -162,6 +205,9 @@ const EnumeratorList: React.FC = () => {
                                             </td>
                                             <td className="px-6 py-3.5 whitespace-nowrap text-sm text-gray-700">
                                                 {e.recordCounts.farmers} farmers &middot; {e.recordCounts.farms} farms
+                                            </td>
+                                            <td className="px-6 py-3.5 whitespace-nowrap">
+                                                <ReviewProgressCell e={e} />
                                             </td>
                                             <td className="px-6 py-3.5 whitespace-nowrap">
                                                 <SyncBadge e={e} />

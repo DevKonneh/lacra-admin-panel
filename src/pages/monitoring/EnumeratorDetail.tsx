@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { getEnumeratorDetail, type EnumeratorDetail as EnumeratorDetailType, type FieldStatus } from '../../api/monitoring';
 import PageHeader from '../../components/ui/PageHeader';
-import { ArrowLeft, Loader2, AlertTriangle, RefreshCw, MapPin, CheckCircle2, LogOut, HelpCircle, RotateCw, AlertCircle, Clock } from 'lucide-react';
+import { ArrowLeft, Loader2, AlertTriangle, RefreshCw, MapPin, CheckCircle2, LogOut, HelpCircle, RotateCw, AlertCircle, Clock, ShieldCheck, ShieldAlert, ShieldX, Map as MapIcon, MapPinOff } from 'lucide-react';
 
 const FIELD_STATUS_META: Record<FieldStatus, { color: string; icon: React.ReactNode; label: string }> = {
     CHECKED_IN: { color: 'bg-green-50 text-green-700 border-green-200', icon: <CheckCircle2 className="h-3.5 w-3.5" />, label: 'Checked In' },
@@ -136,6 +136,56 @@ const EnumeratorDetail: React.FC = () => {
                             ) : (
                                 <p className="text-sm text-gray-400">No sync data reported</p>
                             )}
+                        </div>
+                    </div>
+
+                    {/* Review progress: farmer identity verification + farm geometry
+                        validation, counted ONLY across this enumerator's own
+                        registered farmers/farms. Two independent breakdowns —
+                        deliberately never blended into one compliance percentage,
+                        matching this codebase's existing reporting convention. */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div className="bg-white rounded-lg border border-gray-200 p-4">
+                            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                                <ShieldCheck className="h-3.5 w-3.5" /> Farmer Identity Verification
+                            </p>
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="flex items-center gap-1.5 text-gray-700"><CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> Verified</span>
+                                    <span className="font-semibold text-gray-900">{data.reviewProgress.identityStatus.Verified}</span>
+                                </div>
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="flex items-center gap-1.5 text-gray-700"><ShieldAlert className="h-3.5 w-3.5 text-amber-600" /> Unverified</span>
+                                    <span className="font-semibold text-gray-900">{data.reviewProgress.identityStatus.Unverified}</span>
+                                </div>
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="flex items-center gap-1.5 text-gray-700"><ShieldX className="h-3.5 w-3.5 text-red-600" /> Conflict</span>
+                                    <span className="font-semibold text-gray-900">{data.reviewProgress.identityStatus.Conflict}</span>
+                                </div>
+                            </div>
+                        </div>
+                        <div className="bg-white rounded-lg border border-gray-200 p-4">
+                            <p className="text-[11px] font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                                <MapIcon className="h-3.5 w-3.5" /> Farm Geometry Validation
+                            </p>
+                            <div className="space-y-2">
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="flex items-center gap-1.5 text-gray-700"><CheckCircle2 className="h-3.5 w-3.5 text-green-600" /> Valid</span>
+                                    <span className="font-semibold text-gray-900">{data.reviewProgress.geometryStatus.Valid}</span>
+                                </div>
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="flex items-center gap-1.5 text-gray-700"><RotateCw className="h-3.5 w-3.5 text-amber-600" /> Needs Review</span>
+                                    <span className="font-semibold text-gray-900">{data.reviewProgress.geometryStatus['Needs Review']}</span>
+                                </div>
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="flex items-center gap-1.5 text-gray-700"><AlertCircle className="h-3.5 w-3.5 text-red-600" /> Invalid</span>
+                                    <span className="font-semibold text-gray-900">{data.reviewProgress.geometryStatus.Invalid}</span>
+                                </div>
+                                <div className="flex items-center justify-between text-sm">
+                                    <span className="flex items-center gap-1.5 text-gray-700"><MapPinOff className="h-3.5 w-3.5 text-gray-400" /> Missing</span>
+                                    <span className="font-semibold text-gray-900">{data.reviewProgress.geometryStatus.Missing}</span>
+                                </div>
+                            </div>
                         </div>
                     </div>
 
