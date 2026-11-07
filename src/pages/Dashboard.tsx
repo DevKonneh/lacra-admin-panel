@@ -107,24 +107,27 @@ const QUICK_ACTIONS: QuickAction[] = [
 const DASHBOARD_HIDDEN_SECTIONS_KEY = 'dashboard_hidden_sections_v1';
 
 const VISIBILITY_GROUPS: VisibilityGroupDef[] = [
-    { group: 'Top', items: [
+    { group: 'Filters & Actions', items: [
+        { key: 'filters', label: 'Filters Bar' },
         { key: 'quickActions', label: 'Quick Actions' },
         { key: 'needsAttention', label: 'Needs Attention' },
     ] },
-    { group: 'Stat Cards', items: [
-        { key: 'overview', label: 'Farmer & Farm Overview' },
-        { key: 'geometry', label: 'Geometry & Compliance' },
-        { key: 'licensing', label: 'Licensing, Inspectorate & Traceability' },
-    ] },
-    { group: 'Breakdowns', items: [
+    { group: 'Farmer & Farm Overview', items: [
+        { key: 'overview', label: 'Overview Stat Cards' },
         { key: 'breakdownGender', label: 'Farmers by Gender' },
+    ] },
+    { group: 'Geometry & Compliance', items: [
+        { key: 'geometry', label: 'Geometry Stat Cards' },
+        { key: 'chartRisk', label: 'Farm Risk Distribution' },
+    ] },
+    { group: 'Licensing & Traceability', items: [
+        { key: 'licensing', label: 'Licensing Stat Cards' },
+        { key: 'chartShipment', label: 'Shipment Status' },
+    ] },
+    { group: 'Farms & Trends', items: [
         { key: 'breakdownCounty', label: 'Farms by County' },
         { key: 'breakdownCommodity', label: 'Farms by Commodity' },
-    ] },
-    { group: 'Analytics & Trends', items: [
         { key: 'chartGrowth', label: 'Farmer Registration Growth' },
-        { key: 'chartRisk', label: 'Farm Risk Distribution' },
-        { key: 'chartShipment', label: 'Shipment Status' },
     ] },
 ];
 
@@ -361,7 +364,13 @@ const Dashboard: React.FC = () => {
                 }
             />
 
-            {/* Filters */}
+            {/* Filters — hiding this bar only hides the UI control; any
+                filters already applied via the URL (and thus still driving
+                every stat/drill-down below) remain in effect. A small
+                "Filters hidden" reminder with a one-click way to bring it
+                back is shown instead whenever that's the case, so an
+                active filter is never silently invisible. */}
+            {isSectionVisible('filters') ? (
             <div className={`bg-white rounded-xl border p-4 transition-colors ${activeFilterCount > 0 ? 'border-brand-green/30 ring-1 ring-brand-green/10' : 'border-gray-200'}`}>
                 <div className="flex items-center gap-2 mb-3">
                     <SlidersHorizontal className="h-4 w-4 text-gray-400" />
@@ -435,6 +444,17 @@ const Dashboard: React.FC = () => {
                     </div>
                 </div>
             </div>
+            ) : activeFilterCount > 0 ? (
+                <div className="flex items-center justify-between gap-3 bg-brand-green/5 border border-brand-green/20 rounded-xl px-4 py-2.5 text-sm">
+                    <span className="flex items-center gap-2 text-gray-700">
+                        <Filter className="h-3.5 w-3.5 text-brand-green" />
+                        <b className="text-brand-green">{activeFilterCount}</b> filter{activeFilterCount === 1 ? '' : 's'} active — the Filters bar is hidden, but these are still applied below.
+                    </span>
+                    <button onClick={() => toggleSection('filters')} className="text-xs font-semibold text-brand-green hover:text-brand-green-hover flex-shrink-0 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green rounded px-1">
+                        Show Filters
+                    </button>
+                </div>
+            ) : null}
 
             {/* NOTE: a one-line "summary row" used to live here, repeating
                 Farmers/Farms/Verified Farmers/Assessment Coverage/Compliance
