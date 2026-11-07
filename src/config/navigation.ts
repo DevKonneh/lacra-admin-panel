@@ -23,6 +23,7 @@ import {
     UploadCloud,
     Activity,
     Radar,
+    Warehouse,
 } from 'lucide-react';
 import { UserRole } from '../types';
 
@@ -255,6 +256,19 @@ export const navigationMenu: NavigationItem[] = [
                 label: 'Inspection Management',
                 path: '/inspections',
                 icon: ClipboardCheck
+            },
+            {
+                // Same destination as "Inspector Assessment" under Licensing
+                // & Permits -> Applications & Review Queues (/applications/
+                // inspection-queue, the existing WarehouseAssessment-backed
+                // queue) — surfaced here as a second, more discoverable
+                // entry point under Inspections & Enforcement, where
+                // inspectors would also expect to find it. Not a new page,
+                // not a new route; same role gate as the original entry.
+                label: 'Warehouse Inspection',
+                path: '/applications/inspection-queue',
+                icon: Warehouse,
+                roles: [UserRole.INSPECTOR, UserRole.ADMIN]
             },
             {
                 label: 'Quality Control',
