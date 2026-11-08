@@ -241,6 +241,17 @@ export const navigationMenu: NavigationItem[] = [
                 permissionPrefixes: ['permit']
             },
             {
+                // Agency Register — Agencies (and their rostered Agents /
+                // Clerks) permitted to act on LACRA's behalf. A sibling
+                // destination to Permit Management and Local Produce
+                // Buyers, reusing the same ['permit'] permission prefix
+                // since it is still part of the overall permits domain.
+                label: 'Agencies',
+                path: '/permits/agencies',
+                icon: Building2,
+                permissionPrefixes: ['permit']
+            },
+            {
                 label: 'Certificate Issuance',
                 path: '/applications/it-queue',
                 icon: FileCheck2,

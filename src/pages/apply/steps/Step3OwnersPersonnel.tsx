@@ -16,10 +16,21 @@ import { isValidEmail, isValidPhone, type FieldErrors } from '../validators';
 const REQUIRED_BUYERS = 3;
 const REQUIRED_CLERKS = 1;
 
+// Mirrors the backend's AgencyStaffingService.countWizardPersonnel() EXACTLY
+// (parity contract documented there): only ACTIVE records count toward the
+// requirement, and Agents are de-duplicated by nationalId (falling back to
+// fullName) so that two rows accidentally describing the same person cannot
+// be miscounted as two distinct Agents. Without this, the wizard's own
+// count could pass client-side while the backend's post-submit gate (which
+// has always deduped) rejects the same roster, or vice versa.
 export function countPersonnel(personnel: ReturnType<typeof useRegistration>['state']['personnel']) {
-    const buyers = personnel.filter((p) => p.role === 'Agent').length;
-    const clerks = personnel.filter((p) => p.role === 'Clerk').length;
-    return { buyers, clerks };
+    const isActive = (p: (typeof personnel)[number]) => !p.status || p.status === 'ACTIVE';
+    const agentRecords = personnel.filter((p) => p.role === 'Agent' && isActive(p));
+    const clerkRecords = personnel.filter((p) => p.role === 'Clerk' && isActive(p));
+    const distinctAgentKeys = new Set(
+        agentRecords.map((p) => (p.nationalId && p.nationalId.trim()) || (p.fullName && p.fullName.trim()) || p.id)
+    );
+    return { buyers: distinctAgentKeys.size, clerks: clerkRecords.length };
 }
 
 export function validateStep3(category: string, state: ReturnType<typeof useRegistration>['state']): FieldErrors {
@@ -37,8 +48,8 @@ export function validateStep3(category: string, state: ReturnType<typeof useRegi
         if (a.signatoryPhone && !isValidPhone(a.signatoryPhone)) errors.signatoryPhone = 'Enter a valid Liberian phone number (8-9 digits after +231).';
 
         const { buyers, clerks } = countPersonnel(state.personnel);
-        if (buyers !== REQUIRED_BUYERS || clerks !== REQUIRED_CLERKS) {
-            errors.personnel = `Exactly ${REQUIRED_BUYERS} Agents and ${REQUIRED_CLERKS} Clerk are required. Currently: ${buyers} buyer(s), ${clerks} clerk(s).`;
+        if (buyers < REQUIRED_BUYERS || clerks !== REQUIRED_CLERKS) {
+            errors.personnel = `At least ${REQUIRED_BUYERS} distinct active Agents and exactly ${REQUIRED_CLERKS} active Clerk are required. Currently: ${buyers} agent(s), ${clerks} clerk(s).`;
         }
     } else if (category === 'COOPERATIVE') {
         const c = state.cooperative;
@@ -50,8 +61,8 @@ export function validateStep3(category: string, state: ReturnType<typeof useRegi
         if (c.repPhone && !isValidPhone(c.repPhone)) errors.repPhone = 'Enter a valid Liberian phone number (8-9 digits after +231).';
 
         const { buyers, clerks } = countPersonnel(state.personnel);
-        if (buyers !== REQUIRED_BUYERS || clerks !== REQUIRED_CLERKS) {
-            errors.personnel = `Exactly ${REQUIRED_BUYERS} Agents and ${REQUIRED_CLERKS} Clerk are required. Currently: ${buyers} buyer(s), ${clerks} clerk(s).`;
+        if (buyers < REQUIRED_BUYERS || clerks !== REQUIRED_CLERKS) {
+            errors.personnel = `At least ${REQUIRED_BUYERS} distinct active Agents and exactly ${REQUIRED_CLERKS} active Clerk are required. Currently: ${buyers} agent(s), ${clerks} clerk(s).`;
         }
         if (state.farmers.length === 0) {
             errors.farmers = 'Add at least one farmer/member record.';
@@ -188,11 +199,11 @@ const Step3OwnersPersonnel: React.FC<Step3Props> = ({ errors }) => {
                 <section>
                     {errors.personnel && <Alert variant="warning" title="Personnel requirement not met">{errors.personnel}</Alert>}
                     <div className="mt-3 flex items-center gap-2 text-xs text-slate-500 mb-2">
-                        Required: exactly {REQUIRED_BUYERS} Agents and {REQUIRED_CLERKS} Clerk — currently {buyers} buyer(s), {clerks} clerk(s).
+                        Required: at least {REQUIRED_BUYERS} distinct active Agents and exactly {REQUIRED_CLERKS} active Clerk — currently {buyers} agent(s), {clerks} clerk(s).
                     </div>
                     <PersonnelManager
                         title="Agency Personnel"
-                        description="Register the required personnel: 3 Agents and 1 Clerk."
+                        description="Register the required personnel: at least 3 Agents and exactly 1 Clerk."
                         records={state.personnel}
                         onChange={setPersonnel}
                         roleOptions={['Agent', 'Clerk']}
@@ -286,11 +297,11 @@ const Step3OwnersPersonnel: React.FC<Step3Props> = ({ errors }) => {
                 <section>
                     {errors.personnel && <Alert variant="warning" title="Personnel requirement not met">{errors.personnel}</Alert>}
                     <div className="mt-3 flex items-center gap-2 text-xs text-slate-500 mb-2">
-                        Required: exactly {REQUIRED_BUYERS} Agents and {REQUIRED_CLERKS} Clerk — currently {buyers} buyer(s), {clerks} clerk(s).
+                        Required: at least {REQUIRED_BUYERS} distinct active Agents and exactly {REQUIRED_CLERKS} active Clerk — currently {buyers} agent(s), {clerks} clerk(s).
                     </div>
                     <PersonnelManager
                         title="Cooperative Personnel"
-                        description="Register the required personnel: 3 Agents and 1 Clerk."
+                        description="Register the required personnel: at least 3 Agents and exactly 1 Clerk."
                         records={state.personnel}
                         onChange={setPersonnel}
                         roleOptions={['Agent', 'Clerk']}
