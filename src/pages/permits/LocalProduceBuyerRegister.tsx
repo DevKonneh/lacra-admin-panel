@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
 import {
     Search,
@@ -13,15 +13,91 @@ import {
     Users,
     FileWarning,
     Inbox,
+    User,
+    Camera,
+    History,
 } from 'lucide-react';
 import {
     getLocalProduceBuyers,
     getLocalProduceBuyerCounties,
     downloadLocalProduceBuyerQrCode,
+    uploadLocalProduceBuyerPhoto,
     type LocalProduceBuyerRecord,
     type LocalProduceBuyerStatus,
 } from '../../api/localProduceBuyers';
+import {
+    createLocalProduceBuyerComplianceAction,
+    listLocalProduceBuyerComplianceActions,
+    type ComplianceActionType,
+} from '../../api/complianceActions';
 import PageHeader from '../../components/ui/PageHeader';
+import ComplianceActionsMenu from '../../components/compliance/ComplianceActionsMenu';
+import ComplianceHistoryModal from '../../components/compliance/ComplianceHistoryModal';
+import SafeImage from '../../components/SafeImage';
+import { useAuth } from '../../context/AuthContext';
+import { UserRole } from '../../types';
+
+// Circular fallback avatar shown whenever a Local Produce Buyer has no
+// uploaded profile photo yet — same gradient-circle-with-icon pattern used
+// for Farmers (src/pages/farmers/FarmersList.tsx's FallbackAvatar) and
+// Agencies (AgencyRegister.tsx's AgencyAvatarFallback), with a distinct
+// green/teal gradient + generic person icon for this register.
+const BuyerAvatarFallback: React.FC<{ className?: string }> = ({ className = 'h-10 w-10' }) => (
+    <div className={`${className} rounded-full bg-gradient-to-br from-teal-500 to-emerald-600 flex items-center justify-center text-white shadow-sm flex-shrink-0`}>
+        <User className="h-[45%] w-[45%]" />
+    </div>
+);
+
+// Click-to-upload circular avatar for a Local Produce Buyer row — the
+// register has no individual profile/detail page (unlike Agency), so the
+// photo upload affordance lives directly on the avatar in the list/card
+// view itself. Mirrors AgencyProfile.tsx's AgencyLogoUploader/
+// PersonnelPhotoCell click-to-upload pattern, just inline in the register
+// row instead of on a separate profile page.
+const BuyerAvatarUploader: React.FC<{
+    record: LocalProduceBuyerRecord;
+    uploading: boolean;
+    onUpload: (file: File) => void;
+    className?: string;
+}> = ({ record, uploading, onUpload, className = 'h-9 w-9' }) => {
+    const inputRef = useRef<HTMLInputElement>(null);
+    return (
+        <div className="flex-shrink-0">
+            <input
+                ref={inputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) onUpload(file);
+                    e.target.value = '';
+                }}
+            />
+            <button
+                type="button"
+                onClick={() => inputRef.current?.click()}
+                disabled={uploading}
+                title={record.photoUrl ? `Replace ${record.buyerName || 'buyer'}'s photo` : `Upload ${record.buyerName || 'buyer'}'s photo`}
+                className={`relative group ${className} rounded-full border-2 border-white shadow-sm overflow-hidden flex-shrink-0 hover:ring-2 hover:ring-brand-green/40 transition-shadow disabled:opacity-60`}
+            >
+                <SafeImage
+                    src={record.photoUrl || undefined}
+                    alt={`${record.buyerName || 'Buyer'} photo`}
+                    className={`${className} object-cover`}
+                    fallback={<BuyerAvatarFallback className={className} />}
+                />
+                <span className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {uploading ? (
+                        <Loader2 className="h-3.5 w-3.5 text-white animate-spin" />
+                    ) : (
+                        <Camera className="h-3.5 w-3.5 text-white" />
+                    )}
+                </span>
+            </button>
+        </div>
+    );
+};
 
 // Local Produce Buyers register — sits alongside (NOT inside) the existing
 // Permit Management page/api module, per the standing instruction to never
@@ -155,6 +231,9 @@ const TableSkeleton: React.FC = () => (
 );
 
 const LocalProduceBuyerRegister: React.FC = () => {
+    const { user } = useAuth();
+    const isAdmin = user?.role === UserRole.ADMIN;
+
     const [records, setRecords] = useState<LocalProduceBuyerRecord[]>([]);
     const [counties, setCounties] = useState<string[]>([]);
     const [loading, setLoading] = useState(true);
@@ -165,6 +244,9 @@ const LocalProduceBuyerRegister: React.FC = () => {
     const [downloadingId, setDownloadingId] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState<string | null>(null);
     const [downloadSuccessId, setDownloadSuccessId] = useState<string | null>(null);
+    const [uploadingPhotoId, setUploadingPhotoId] = useState<string | null>(null);
+    const [photoError, setPhotoError] = useState<string | null>(null);
+    const [historyRecord, setHistoryRecord] = useState<LocalProduceBuyerRecord | null>(null);
 
     useEffect(() => {
         load();
@@ -229,6 +311,41 @@ const LocalProduceBuyerRegister: React.FC = () => {
         setCountyFilter('ALL');
         setStatusFilter('ALL');
     };
+
+    // Uploads a new profile photo for a Buyer, immediately reusing the same
+    // generic Certificate.logoUrl column the Agency register uses for its
+    // logo (see uploadLocalProduceBuyerPhoto() in api/localProduceBuyers.ts)
+    // then reloads the register so the new avatar shows right away.
+    const handleUploadPhoto = async (record: LocalProduceBuyerRecord, file: File) => {
+        try {
+            setPhotoError(null);
+            setUploadingPhotoId(record.id);
+            await uploadLocalProduceBuyerPhoto(record.id, file);
+            await load();
+        } catch (err: any) {
+            setPhotoError(err?.response?.data?.message || 'Failed to upload photo. Please try again.');
+        } finally {
+            setUploadingPhotoId(null);
+        }
+    };
+
+    // Fires a compliance action (Warning/Fine/Suspend/Revoke/Reinstate)
+    // against a Buyer's Certificate, then reloads the register so the
+    // status badge reflects the change immediately.
+    const handleComplianceAction = async (
+        record: LocalProduceBuyerRecord,
+        actionType: ComplianceActionType,
+        payload: { reason: string; fineAmount?: number; fineCurrency?: string }
+    ) => {
+        await createLocalProduceBuyerComplianceAction(record.id, { actionType, ...payload });
+        await load();
+    };
+
+    // Local Produce Buyers have no individual profile/detail page (unlike
+    // Agency, which hosts a full Compliance History panel on
+    // AgencyProfile.tsx) — so a Buyer's compliance history is shown in a
+    // lightweight modal instead, launched directly from the register row.
+    const handleViewHistory = (record: LocalProduceBuyerRecord) => setHistoryRecord(record);
 
     const handleDownloadQr = async (record: LocalProduceBuyerRecord) => {
         if (record.isPubliclyBlocked || !record.hasVerificationToken) return;
@@ -386,6 +503,13 @@ const LocalProduceBuyerRegister: React.FC = () => {
                     </div>
                 )}
 
+                {photoError && (
+                    <div className="px-4 py-2 bg-red-50 border-b border-red-100 text-xs text-red-700 flex items-center justify-between gap-2">
+                        <span>{photoError}</span>
+                        <button onClick={() => setPhotoError(null)} className="text-red-400 hover:text-red-600 flex-shrink-0"><X size={14} /></button>
+                    </div>
+                )}
+
                 <div className="p-2.5">
                     {loading ? (
                         <TableSkeleton />
@@ -416,6 +540,9 @@ const LocalProduceBuyerRegister: React.FC = () => {
                                             <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Expiration</th>
                                             <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Status</th>
                                             <th className="px-4 py-3 text-right text-[11px] font-semibold text-slate-600 uppercase tracking-wide">QR Code</th>
+                                            {isAdmin && (
+                                                <th className="px-2 py-3 text-right text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Actions</th>
+                                            )}
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 bg-white">
@@ -426,6 +553,11 @@ const LocalProduceBuyerRegister: React.FC = () => {
                                                 downloading={downloadingId === r.id}
                                                 justDownloaded={downloadSuccessId === r.id}
                                                 onDownload={() => handleDownloadQr(r)}
+                                                uploadingPhoto={uploadingPhotoId === r.id}
+                                                onUploadPhoto={(file) => handleUploadPhoto(r, file)}
+                                                isAdmin={isAdmin}
+                                                onComplianceAction={(actionType, payload) => handleComplianceAction(r, actionType, payload)}
+                                                onViewHistory={() => handleViewHistory(r)}
                                             />
                                         ))}
                                     </tbody>
@@ -441,6 +573,11 @@ const LocalProduceBuyerRegister: React.FC = () => {
                                         downloading={downloadingId === r.id}
                                         justDownloaded={downloadSuccessId === r.id}
                                         onDownload={() => handleDownloadQr(r)}
+                                        uploadingPhoto={uploadingPhotoId === r.id}
+                                        onUploadPhoto={(file) => handleUploadPhoto(r, file)}
+                                        isAdmin={isAdmin}
+                                        onComplianceAction={(actionType, payload) => handleComplianceAction(r, actionType, payload)}
+                                        onViewHistory={() => handleViewHistory(r)}
                                     />
                                 ))}
                             </div>
@@ -453,6 +590,17 @@ const LocalProduceBuyerRegister: React.FC = () => {
                 Need to manage issued permits for Local Buyers, Agencies, or Cooperatives generally? Use{' '}
                 <Link to="/permits" className="text-brand-green hover:underline">Permit Management</Link>.
             </p>
+
+            <ComplianceHistoryModal
+                open={!!historyRecord}
+                subjectLabel={historyRecord ? `${historyRecord.buyerName || 'Buyer'} — ${historyRecord.permitNumber || historyRecord.stagedPermitNumber || ''}` : ''}
+                onClose={() => setHistoryRecord(null)}
+                onLoad={async () => {
+                    if (!historyRecord) return [];
+                    const res = await listLocalProduceBuyerComplianceActions(historyRecord.id);
+                    return res.data.data || [];
+                }}
+            />
         </div>
     );
 };
@@ -505,7 +653,12 @@ const RegisterRow: React.FC<{
     downloading: boolean;
     justDownloaded: boolean;
     onDownload: () => void;
-}> = ({ record: r, downloading, justDownloaded, onDownload }) => {
+    uploadingPhoto: boolean;
+    onUploadPhoto: (file: File) => void;
+    isAdmin: boolean;
+    onComplianceAction: (actionType: ComplianceActionType, payload: { reason: string; fineAmount?: number; fineCurrency?: string }) => Promise<void>;
+    onViewHistory: () => void;
+}> = ({ record: r, downloading, justDownloaded, onDownload, uploadingPhoto, onUploadPhoto, isAdmin, onComplianceAction, onViewHistory }) => {
     const held = r.isPubliclyBlocked;
     return (
         <tr className={held ? 'bg-amber-50/70 hover:bg-amber-50' : 'hover:bg-slate-50'}>
@@ -514,20 +667,25 @@ const RegisterRow: React.FC<{
                     the largest/boldest text in the row, permit number is
                     monospaced directly beneath it (not buried in its own
                     column), so both are readable together at a glance. */}
-                <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-semibold text-brand-text">{r.buyerName}</span>
-                    {r.isAgent && <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-indigo-100 text-indigo-700">AGENT</span>}
-                    {r.isRenewal && <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-blue-100 text-blue-700">RENEWAL</span>}
-                </div>
-                <div className="text-sm font-mono text-slate-600 mt-0.5">
-                    {r.permitNumber || <span className="text-slate-400 italic font-sans">Staged: {r.stagedPermitNumber}</span>}
-                </div>
-                {held && r.publicBlockReason && (
-                    <div className="mt-1.5 flex items-start gap-1 text-xs text-amber-800 max-w-sm">
-                        <Lock size={12} className="flex-shrink-0 mt-0.5" />
-                        <span>{r.publicBlockReason}</span>
+                <div className="flex items-start gap-2.5">
+                    <BuyerAvatarUploader record={r} uploading={uploadingPhoto} onUpload={onUploadPhoto} className="h-9 w-9 mt-0.5" />
+                    <div className="min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                            <span className="text-sm font-semibold text-brand-text">{r.buyerName}</span>
+                            {r.isAgent && <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-indigo-100 text-indigo-700">AGENT</span>}
+                            {r.isRenewal && <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-blue-100 text-blue-700">RENEWAL</span>}
+                        </div>
+                        <div className="text-sm font-mono text-slate-600 mt-0.5">
+                            {r.permitNumber || <span className="text-slate-400 italic font-sans">Staged: {r.stagedPermitNumber}</span>}
+                        </div>
+                        {held && r.publicBlockReason && (
+                            <div className="mt-1.5 flex items-start gap-1 text-xs text-amber-800 max-w-sm">
+                                <Lock size={12} className="flex-shrink-0 mt-0.5" />
+                                <span>{r.publicBlockReason}</span>
+                            </div>
+                        )}
                     </div>
-                )}
+                </div>
             </td>
             <td className="px-4 py-3.5 align-top text-sm text-slate-600 whitespace-nowrap">
                 {r.county || '—'}
@@ -541,6 +699,25 @@ const RegisterRow: React.FC<{
             <td className="px-4 py-3.5 align-top text-right whitespace-nowrap">
                 <QrAction record={r} downloading={downloading} justDownloaded={justDownloaded} onDownload={onDownload} />
             </td>
+            {isAdmin && (
+                <td className="px-2 py-3.5 align-top text-right whitespace-nowrap">
+                    <div className="flex items-center justify-end gap-1">
+                        <button
+                            onClick={onViewHistory}
+                            title="View compliance history"
+                            className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                        >
+                            <History size={14} />
+                        </button>
+                        <ComplianceActionsMenu
+                            visible={isAdmin}
+                            subjectLabel={`${r.buyerName || 'Buyer'} — ${r.permitNumber || r.stagedPermitNumber || ''}`}
+                            currentStatus={r.status}
+                            onAction={onComplianceAction}
+                        />
+                    </div>
+                </td>
+            )}
         </tr>
     );
 };
@@ -550,7 +727,12 @@ const RegisterCard: React.FC<{
     downloading: boolean;
     justDownloaded: boolean;
     onDownload: () => void;
-}> = ({ record: r, downloading, justDownloaded, onDownload }) => {
+    uploadingPhoto: boolean;
+    onUploadPhoto: (file: File) => void;
+    isAdmin: boolean;
+    onComplianceAction: (actionType: ComplianceActionType, payload: { reason: string; fineAmount?: number; fineCurrency?: string }) => Promise<void>;
+    onViewHistory: () => void;
+}> = ({ record: r, downloading, justDownloaded, onDownload, uploadingPhoto, onUploadPhoto, isAdmin, onComplianceAction, onViewHistory }) => {
     const held = r.isPubliclyBlocked;
     return (
         <div className={`rounded-xl border p-3 space-y-2 ${held ? 'border-amber-300 bg-amber-50/70' : 'border-slate-200 bg-white'}`}>
@@ -559,17 +741,39 @@ const RegisterCard: React.FC<{
                 phone without scrolling the card — county/dates follow
                 below in a compact two-column strip. */}
             <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="text-sm font-semibold text-brand-text">{r.buyerName}</span>
-                        {r.isAgent && <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-indigo-100 text-indigo-700">AGENT</span>}
-                        {r.isRenewal && <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-blue-100 text-blue-700">RENEWAL</span>}
-                    </div>
-                    <div className="text-sm font-mono text-slate-600">
-                        {r.permitNumber || <span className="text-slate-400 italic font-sans">Staged: {r.stagedPermitNumber}</span>}
+                <div className="flex items-start gap-2.5 min-w-0">
+                    <BuyerAvatarUploader record={r} uploading={uploadingPhoto} onUpload={onUploadPhoto} className="h-9 w-9 mt-0.5" />
+                    <div className="min-w-0">
+                        <div className="flex items-center gap-1.5 flex-wrap">
+                            <span className="text-sm font-semibold text-brand-text">{r.buyerName}</span>
+                            {r.isAgent && <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-indigo-100 text-indigo-700">AGENT</span>}
+                            {r.isRenewal && <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-blue-100 text-blue-700">RENEWAL</span>}
+                        </div>
+                        <div className="text-sm font-mono text-slate-600">
+                            {r.permitNumber || <span className="text-slate-400 italic font-sans">Staged: {r.stagedPermitNumber}</span>}
+                        </div>
                     </div>
                 </div>
-                <StatusBadge status={displayStatus(r)} className="flex-shrink-0" />
+                <div className="flex items-start gap-1 flex-shrink-0">
+                    <StatusBadge status={displayStatus(r)} />
+                    {isAdmin && (
+                        <>
+                            <button
+                                onClick={onViewHistory}
+                                title="View compliance history"
+                                className="p-1.5 rounded-lg text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+                            >
+                                <History size={14} />
+                            </button>
+                            <ComplianceActionsMenu
+                                visible={isAdmin}
+                                subjectLabel={`${r.buyerName || 'Buyer'} — ${r.permitNumber || r.stagedPermitNumber || ''}`}
+                                currentStatus={r.status}
+                                onAction={onComplianceAction}
+                            />
+                        </>
+                    )}
+                </div>
             </div>
 
             {held && r.publicBlockReason && (

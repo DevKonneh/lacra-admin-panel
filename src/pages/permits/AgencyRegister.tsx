@@ -15,6 +15,7 @@ import {
     Inbox,
     UserCheck,
     ClipboardList,
+    Building2,
 } from 'lucide-react';
 import {
     getAgencies,
@@ -23,10 +24,33 @@ import {
     type AgencyRecord,
     type AgencyPermitStatus,
 } from '../../api/agencies';
+import { createAgencyComplianceAction, type ComplianceActionType } from '../../api/complianceActions';
 import PageHeader from '../../components/ui/PageHeader';
 import AgencyImportPanel from '../../components/agencies/AgencyImportPanel';
+import ComplianceActionsMenu from '../../components/compliance/ComplianceActionsMenu';
+import SafeImage from '../../components/SafeImage';
 import { useAuth } from '../../context/AuthContext';
 import { UserRole } from '../../types';
+
+// Circular fallback avatar shown whenever an Agency has no uploaded logo
+// yet — same gradient-circle-with-icon pattern used for Farmers
+// (src/pages/farmers/FarmersList.tsx's FallbackAvatar), just with a
+// building icon and a blue/indigo gradient to visually distinguish
+// Agencies from Farmer/Buyer avatars at a glance.
+const AgencyAvatarFallback: React.FC<{ className?: string }> = ({ className = 'h-10 w-10' }) => (
+    <div className={`${className} rounded-full bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center text-white shadow-sm flex-shrink-0`}>
+        <Building2 className="h-[45%] w-[45%]" />
+    </div>
+);
+
+const AgencyAvatar: React.FC<{ record: AgencyRecord; className?: string }> = ({ record, className = 'h-10 w-10' }) => (
+    <SafeImage
+        src={record.logoUrl || undefined}
+        alt={`${record.agencyName || 'Agency'} logo`}
+        className={`${className} rounded-full object-cover border-2 border-white shadow-sm flex-shrink-0`}
+        fallback={<AgencyAvatarFallback className={className} />}
+    />
+);
 
 // Agency Register — sits alongside (NOT inside) the existing Permit
 // Management page/api module and the Local Produce Buyer register, per
@@ -259,6 +283,20 @@ const AgencyRegister: React.FC = () => {
         setStaffingFilter('ALL');
     };
 
+    // Fires a compliance action (Warning/Fine/Suspend/Revoke/Reinstate)
+    // against an Agency's Certificate, then reloads the register so the
+    // status badge (SUSPEND/REVOKE/REINSTATE flip the underlying
+    // Application.status, which the live status computation already
+    // checks) reflects the change immediately.
+    const handleComplianceAction = async (
+        record: AgencyRecord,
+        actionType: ComplianceActionType,
+        payload: { reason: string; fineAmount?: number; fineCurrency?: string }
+    ) => {
+        await createAgencyComplianceAction(record.id, { actionType, ...payload });
+        await load();
+    };
+
     const handleDownloadQr = async (record: AgencyRecord) => {
         if (record.isPubliclyBlocked || !record.hasVerificationToken) return;
         try {
@@ -476,6 +514,9 @@ const AgencyRegister: React.FC = () => {
                                             <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Expires</th>
                                             <th className="px-4 py-3 text-left text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Status</th>
                                             <th className="px-4 py-3 text-right text-[11px] font-semibold text-slate-600 uppercase tracking-wide">QR Code</th>
+                                            {isAdmin && (
+                                                <th className="px-2 py-3 text-right text-[11px] font-semibold text-slate-600 uppercase tracking-wide">Actions</th>
+                                            )}
                                         </tr>
                                     </thead>
                                     <tbody className="divide-y divide-slate-100 bg-white">
@@ -486,6 +527,8 @@ const AgencyRegister: React.FC = () => {
                                                 downloading={downloadingId === r.id}
                                                 justDownloaded={downloadSuccessId === r.id}
                                                 onDownload={() => handleDownloadQr(r)}
+                                                isAdmin={isAdmin}
+                                                onComplianceAction={(actionType, payload) => handleComplianceAction(r, actionType, payload)}
                                             />
                                         ))}
                                     </tbody>
@@ -501,6 +544,8 @@ const AgencyRegister: React.FC = () => {
                                         downloading={downloadingId === r.id}
                                         justDownloaded={downloadSuccessId === r.id}
                                         onDownload={() => handleDownloadQr(r)}
+                                        isAdmin={isAdmin}
+                                        onComplianceAction={(actionType, payload) => handleComplianceAction(r, actionType, payload)}
                                     />
                                 ))}
                             </div>
@@ -565,23 +610,30 @@ const RegisterRow: React.FC<{
     downloading: boolean;
     justDownloaded: boolean;
     onDownload: () => void;
-}> = ({ record: r, downloading, justDownloaded, onDownload }) => {
+    isAdmin: boolean;
+    onComplianceAction: (actionType: ComplianceActionType, payload: { reason: string; fineAmount?: number; fineCurrency?: string }) => Promise<void>;
+}> = ({ record: r, downloading, justDownloaded, onDownload, isAdmin, onComplianceAction }) => {
     const held = r.isPubliclyBlocked;
     return (
         <tr className={held ? 'bg-amber-50/70 hover:bg-amber-50' : 'hover:bg-slate-50'}>
             <td className="px-4 py-3.5 align-top">
-                <Link to={`/permits/agencies/${r.id}`} className="text-sm font-semibold text-brand-text hover:text-brand-green hover:underline">
-                    {r.agencyName}
-                </Link>
-                <div className="text-sm font-mono text-slate-600 mt-0.5">
-                    {r.permitNumber || <span className="text-slate-400 italic font-sans">Staged: {r.stagedPermitNumber}</span>}
-                </div>
-                {held && r.publicBlockReason && (
-                    <div className="mt-1.5 flex items-start gap-1 text-xs text-amber-800 max-w-sm">
-                        <Lock size={12} className="flex-shrink-0 mt-0.5" />
-                        <span>{r.publicBlockReason}</span>
+                <div className="flex items-start gap-2.5">
+                    <AgencyAvatar record={r} className="h-9 w-9 mt-0.5" />
+                    <div className="min-w-0">
+                        <Link to={`/permits/agencies/${r.id}`} className="text-sm font-semibold text-brand-text hover:text-brand-green hover:underline">
+                            {r.agencyName}
+                        </Link>
+                        <div className="text-sm font-mono text-slate-600 mt-0.5">
+                            {r.permitNumber || <span className="text-slate-400 italic font-sans">Staged: {r.stagedPermitNumber}</span>}
+                        </div>
+                        {held && r.publicBlockReason && (
+                            <div className="mt-1.5 flex items-start gap-1 text-xs text-amber-800 max-w-sm">
+                                <Lock size={12} className="flex-shrink-0 mt-0.5" />
+                                <span>{r.publicBlockReason}</span>
+                            </div>
+                        )}
                     </div>
-                )}
+                </div>
             </td>
             <td className="px-4 py-3.5 align-top text-sm text-slate-600 whitespace-nowrap">
                 {r.county || '—'}
@@ -597,6 +649,16 @@ const RegisterRow: React.FC<{
             <td className="px-4 py-3.5 align-top text-right whitespace-nowrap">
                 <QrAction record={r} downloading={downloading} justDownloaded={justDownloaded} onDownload={onDownload} />
             </td>
+            {isAdmin && (
+                <td className="px-2 py-3.5 align-top text-right whitespace-nowrap">
+                    <ComplianceActionsMenu
+                        visible={isAdmin}
+                        subjectLabel={`${r.agencyName || 'Agency'} — ${r.permitNumber || r.stagedPermitNumber || ''}`}
+                        currentStatus={r.status}
+                        onAction={onComplianceAction}
+                    />
+                </td>
+            )}
         </tr>
     );
 };
@@ -606,20 +668,35 @@ const RegisterCard: React.FC<{
     downloading: boolean;
     justDownloaded: boolean;
     onDownload: () => void;
-}> = ({ record: r, downloading, justDownloaded, onDownload }) => {
+    isAdmin: boolean;
+    onComplianceAction: (actionType: ComplianceActionType, payload: { reason: string; fineAmount?: number; fineCurrency?: string }) => Promise<void>;
+}> = ({ record: r, downloading, justDownloaded, onDownload, isAdmin, onComplianceAction }) => {
     const held = r.isPubliclyBlocked;
     return (
         <div className={`rounded-xl border p-3 space-y-2 ${held ? 'border-amber-300 bg-amber-50/70' : 'border-slate-200 bg-white'}`}>
             <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                    <Link to={`/permits/agencies/${r.id}`} className="text-sm font-semibold text-brand-text hover:text-brand-green hover:underline">
-                        {r.agencyName}
-                    </Link>
-                    <div className="text-sm font-mono text-slate-600">
-                        {r.permitNumber || <span className="text-slate-400 italic font-sans">Staged: {r.stagedPermitNumber}</span>}
+                <div className="flex items-start gap-2.5 min-w-0">
+                    <AgencyAvatar record={r} className="h-9 w-9 mt-0.5" />
+                    <div className="min-w-0">
+                        <Link to={`/permits/agencies/${r.id}`} className="text-sm font-semibold text-brand-text hover:text-brand-green hover:underline">
+                            {r.agencyName}
+                        </Link>
+                        <div className="text-sm font-mono text-slate-600">
+                            {r.permitNumber || <span className="text-slate-400 italic font-sans">Staged: {r.stagedPermitNumber}</span>}
+                        </div>
                     </div>
                 </div>
-                <StatusBadge status={displayStatus(r)} className="flex-shrink-0" />
+                <div className="flex items-start gap-1 flex-shrink-0">
+                    <StatusBadge status={displayStatus(r)} />
+                    {isAdmin && (
+                        <ComplianceActionsMenu
+                            visible={isAdmin}
+                            subjectLabel={`${r.agencyName || 'Agency'} — ${r.permitNumber || r.stagedPermitNumber || ''}`}
+                            currentStatus={r.status}
+                            onAction={onComplianceAction}
+                        />
+                    )}
+                </div>
             </div>
 
             {held && r.publicBlockReason && (

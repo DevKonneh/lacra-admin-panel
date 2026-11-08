@@ -38,6 +38,12 @@ export interface LocalProduceBuyerRecord {
     agencyCertificateId: string | null;
     hasVerificationToken: boolean;
     applicationId: string;
+    // The Buyer's own profile photo (Cloudinary secure_url), set via
+    // uploadLocalProduceBuyerPhoto() below. Reuses the same generic
+    // Certificate.logoUrl column the Agency Register uses for its logo —
+    // only the UI label differs per register. Null until a photo has been
+    // uploaded.
+    photoUrl: string | null;
 }
 
 export interface LocalProduceBuyerListResponse {
@@ -122,6 +128,19 @@ export const linkLocalProduceBuyerAgency = (id: string, agencyCertificateId: str
     });
 };
 
+// Profile-photo upload — multipart, field name "file", same convention as
+// uploadAgencyLogo() in src/api/agencies.ts. Stored on Cloudinary
+// server-side; the returned URL is persisted on Certificate.logoUrl and
+// reflected immediately in both this register's list view and the public
+// QR-scan verification page.
+export const uploadLocalProduceBuyerPhoto = (id: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post<ApiResponse<{ photoUrl: string }>>(`/local-produce-buyers/${id}/photo`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    });
+};
+
 // Public, token-based verification result — the exact field whitelist
 // returned by GET /api/public/permits/verify/:token (see the backend's
 // PermitVerificationService.toPublicPermitView(), the single source of
@@ -134,6 +153,10 @@ export interface PublicPermitVerificationResult {
     issueDate: string | null;
     expiryDate: string | null;
     status: LocalProduceBuyerStatus;
+    // Already returned by the backend's toPublicPermitView() (same field
+    // used by the Agency's public verify page) — just wasn't surfaced in
+    // this type/page until now.
+    logoUrl: string | null;
 }
 
 // Public verify-by-token endpoint — deliberately uses a bare axios call

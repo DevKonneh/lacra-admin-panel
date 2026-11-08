@@ -3,7 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import {
     ArrowLeft, QrCode, Lock, Loader2, ShieldAlert, CheckCircle2, XCircle,
     AlertTriangle, Plus, UserMinus, Repeat, Link2, Users, FileWarning,
-    Camera, Building2, UserCircle2,
+    Camera, Building2, UserCircle2, History,
 } from 'lucide-react';
 import {
     getAgency,
@@ -18,6 +18,15 @@ import {
     type AgentPersonnelRecord,
     type AgentPersonnelRole,
 } from '../../api/agencies';
+import {
+    createAgencyComplianceAction,
+    createPersonnelComplianceAction,
+    listAgencyComplianceActions,
+    type ComplianceAction,
+    type ComplianceActionType,
+} from '../../api/complianceActions';
+import ComplianceActionsMenu from '../../components/compliance/ComplianceActionsMenu';
+import ComplianceHistoryEntry from '../../components/compliance/ComplianceHistoryEntry';
 import { apiErrorMessage } from '../applications/statusHelpers';
 import PageHeader from '../../components/ui/PageHeader';
 
@@ -245,7 +254,8 @@ const PersonnelRow: React.FC<{
     onUploadPhoto: (id: string, file: File) => void;
     downloadingId: string | null;
     uploadingPhotoId: string | null;
-}> = ({ person: p, onDeactivate, onReplace, onDownloadQr, onUploadPhoto, downloadingId, uploadingPhotoId }) => {
+    onComplianceAction: (personnelId: string, actionType: ComplianceActionType, payload: { reason: string; fineAmount?: number; fineCurrency?: string }) => Promise<void>;
+}> = ({ person: p, onDeactivate, onReplace, onDownloadQr, onUploadPhoto, downloadingId, uploadingPhotoId, onComplianceAction }) => {
     const isAgent = p.role === 'AGENT';
     return (
         <tr className={p.status !== 'ACTIVE' ? 'bg-slate-50/70 text-slate-400' : ''}>
@@ -300,6 +310,13 @@ const PersonnelRow: React.FC<{
                             </button>
                         </>
                     )}
+                    <ComplianceActionsMenu
+                        visible
+                        subjectLabel={`${p.fullName} — ${p.permitNumber || p.role}`}
+                        currentStatus={p.status}
+                        statusDomain="PERSONNEL"
+                        onAction={(actionType, payload) => onComplianceAction(p.id, actionType, payload)}
+                    />
                 </div>
             </td>
         </tr>
@@ -320,6 +337,9 @@ const AgencyProfilePage: React.FC = () => {
     const [uploadingLogo, setUploadingLogo] = useState(false);
     const [uploadingPhotoId, setUploadingPhotoId] = useState<string | null>(null);
     const [uploadError, setUploadError] = useState('');
+    const [complianceHistory, setComplianceHistory] = useState<ComplianceAction[]>([]);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [historyError, setHistoryError] = useState('');
 
     const load = async () => {
         if (!id) return;
@@ -335,10 +355,49 @@ const AgencyProfilePage: React.FC = () => {
         }
     };
 
+    const loadComplianceHistory = async () => {
+        if (!id) return;
+        try {
+            setHistoryLoading(true);
+            setHistoryError('');
+            const res = await listAgencyComplianceActions(id);
+            setComplianceHistory(res.data.data || []);
+        } catch (err: any) {
+            setHistoryError(apiErrorMessage(err, 'Failed to load compliance history.'));
+        } finally {
+            setHistoryLoading(false);
+        }
+    };
+
     useEffect(() => {
         load();
+        loadComplianceHistory();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [id]);
+
+    // Fires a compliance action against the Agency's own Certificate (not
+    // an individual Agent/Clerk) — e.g. suspending the whole Agency's
+    // permit — then reloads both the profile (to pick up the status flip)
+    // and the compliance history panel.
+    const handleAgencyComplianceAction = async (
+        actionType: ComplianceActionType,
+        payload: { reason: string; fineAmount?: number; fineCurrency?: string }
+    ) => {
+        if (!id) return;
+        await createAgencyComplianceAction(id, { actionType, ...payload });
+        await Promise.all([load(), loadComplianceHistory()]);
+    };
+
+    // Fires a compliance action against one individual Agent/Clerk row.
+    const handlePersonnelComplianceAction = async (
+        personnelId: string,
+        actionType: ComplianceActionType,
+        payload: { reason: string; fineAmount?: number; fineCurrency?: string }
+    ) => {
+        if (!id) return;
+        await createPersonnelComplianceAction(id, personnelId, { actionType, ...payload });
+        await Promise.all([load(), loadComplianceHistory()]);
+    };
 
     const handleAppoint = async (payload: { fullName: string; county?: string; nationalId?: string; phone?: string }) => {
         if (!id || !appointingRole) return;
@@ -491,20 +550,30 @@ const AgencyProfilePage: React.FC = () => {
                         title={agency.agencyName || 'Agency'}
                         description={`${agency.county || 'County unknown'}${agency.locality ? ` / ${agency.locality}` : ''}`}
                         actions={
-                            agency.isPubliclyBlocked || !agency.hasVerificationToken ? (
-                                <span className="inline-flex items-center gap-1 text-sm text-amber-700">
-                                    <Lock size={14} /> {agency.isPubliclyBlocked ? 'QR unavailable while held' : 'No QR issued'}
-                                </span>
-                            ) : (
-                                <button
-                                    onClick={handleDownloadAgencyQr}
-                                    disabled={downloadingQrId === 'agency'}
-                                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-brand-green text-white hover:bg-brand-green-hover disabled:opacity-50"
-                                >
-                                    {downloadingQrId === 'agency' ? <Loader2 size={14} className="animate-spin" /> : <QrCode size={14} />}
-                                    Download Agency QR
-                                </button>
-                            )
+                            <div className="flex items-center gap-2">
+                                {agency.isPubliclyBlocked || !agency.hasVerificationToken ? (
+                                    <span className="inline-flex items-center gap-1 text-sm text-amber-700">
+                                        <Lock size={14} /> {agency.isPubliclyBlocked ? 'QR unavailable while held' : 'No QR issued'}
+                                    </span>
+                                ) : (
+                                    <button
+                                        onClick={handleDownloadAgencyQr}
+                                        disabled={downloadingQrId === 'agency'}
+                                        className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-brand-green text-white hover:bg-brand-green-hover disabled:opacity-50"
+                                    >
+                                        {downloadingQrId === 'agency' ? <Loader2 size={14} className="animate-spin" /> : <QrCode size={14} />}
+                                        Download Agency QR
+                                    </button>
+                                )}
+                                <ComplianceActionsMenu
+                                    visible
+                                    subjectLabel={`${agency.agencyName || 'Agency'} — ${agency.permitNumber || agency.stagedPermitNumber || ''}`}
+                                    currentStatus={agency.status}
+                                    statusDomain="CERTIFICATE"
+                                    onAction={handleAgencyComplianceAction}
+                                    align="right"
+                                />
+                            </div>
                         }
                     />
                 </div>
@@ -621,6 +690,7 @@ const AgencyProfilePage: React.FC = () => {
                                         onUploadPhoto={handleUploadPersonnelPhoto}
                                         downloadingId={downloadingQrId}
                                         uploadingPhotoId={uploadingPhotoId}
+                                        onComplianceAction={handlePersonnelComplianceAction}
                                     />
                                 ))}
                             </tbody>
@@ -677,6 +747,7 @@ const AgencyProfilePage: React.FC = () => {
                                         onUploadPhoto={handleUploadPersonnelPhoto}
                                         downloadingId={downloadingQrId}
                                         uploadingPhotoId={uploadingPhotoId}
+                                        onComplianceAction={handlePersonnelComplianceAction}
                                     />
                                 ))}
                             </tbody>
@@ -686,6 +757,36 @@ const AgencyProfilePage: React.FC = () => {
                 <p className="text-[11px] text-slate-400">
                     Clerks are internal staffing records only — they have no permit number and no public verification QR.
                 </p>
+            </div>
+
+            {/* Compliance action history — every Warning/Fine/Suspend/
+                Revoke/Reinstate ever applied to this Agency's Certificate
+                OR any of its Agents/Clerks, newest first. Each entry shows
+                who recorded it, when, and the mandatory staff-entered
+                reason — the permanent audit trail for "why was this
+                action taken". */}
+            <div className="bg-white rounded-xl border border-slate-200 p-4 space-y-3">
+                <h3 className="text-sm font-semibold text-slate-800 flex items-center gap-1.5">
+                    <History size={15} /> Compliance History
+                </h3>
+
+                {historyError && (
+                    <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{historyError}</div>
+                )}
+
+                {historyLoading ? (
+                    <div className="flex items-center justify-center py-8">
+                        <Loader2 className="h-5 w-5 animate-spin text-brand-green" />
+                    </div>
+                ) : complianceHistory.length === 0 ? (
+                    <p className="text-sm text-slate-400 text-center py-6">No compliance actions recorded yet.</p>
+                ) : (
+                    <div className="divide-y divide-slate-100">
+                        {complianceHistory.map((a) => (
+                            <ComplianceHistoryEntry key={a.id} action={a} />
+                        ))}
+                    </div>
+                )}
             </div>
         </div>
     );
