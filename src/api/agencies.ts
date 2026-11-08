@@ -46,6 +46,9 @@ export interface AgencyRecord {
     isHistoricalImport: boolean;
     hasVerificationToken: boolean;
     applicationId: string;
+    // The Agency's own logo image (Cloudinary secure_url), set via
+    // uploadAgencyLogo() below. Null until a logo has been uploaded.
+    logoUrl: string | null;
     staffing: AgencyStaffingSummary;
 }
 
@@ -68,6 +71,11 @@ export interface AgentPersonnelRecord {
     county: string | null;
     nationalId: string | null;
     phone: string | null;
+    // This person's own photo (Cloudinary secure_url), set via
+    // uploadAgencyPersonnelPhoto() below. Null until a photo has been
+    // uploaded. Available for either role — a Clerk's photo is only ever
+    // shown on this internal roster view, never on a public page.
+    photoUrl: string | null;
     status: AgentPersonnelStatus;
     appointedAt: string | null;
     deactivatedAt: string | null;
@@ -125,6 +133,27 @@ export const downloadAgencyQrCode = (id: string) => {
 
 export const downloadAgentQrCode = (agencyId: string, personnelId: string) => {
     return api.get(`/agencies/${agencyId}/personnel/${personnelId}/qr-code`, { responseType: 'blob' });
+};
+
+// Logo/photo uploads — multipart, field name "file", same convention as
+// uploadApplicationDocument() in src/api/applications.ts. Stored on
+// Cloudinary server-side; the returned URL is persisted on
+// Certificate.logoUrl / AgentPersonnel.photoUrl and reflected immediately
+// in both the admin views and the public verification pages.
+export const uploadAgencyLogo = (agencyId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post<ApiResponse<{ logoUrl: string }>>(`/agencies/${agencyId}/logo`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    });
+};
+
+export const uploadAgencyPersonnelPhoto = (agencyId: string, personnelId: string, file: File) => {
+    const formData = new FormData();
+    formData.append('file', file);
+    return api.post<ApiResponse<{ photoUrl: string }>>(`/agencies/${agencyId}/personnel/${personnelId}/photo`, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+    });
 };
 
 export interface AppointPersonnelPayload {
@@ -250,6 +279,7 @@ export interface PublicAgencyVerificationResult {
     issueDate: string | null;
     expiryDate: string | null;
     status: AgencyPermitStatus;
+    logoUrl: string | null;
 }
 
 export type PublicAgentStatus = AgencyPermitStatus | 'AGENT_NOT_ACTIVE';
@@ -262,6 +292,8 @@ export interface PublicAgentVerificationResult {
     agencyName: string;
     agencyStatus: AgencyPermitStatus;
     status: PublicAgentStatus;
+    photoUrl: string | null;
+    agencyLogoUrl: string | null;
 }
 
 // Public verify-by-token endpoints — deliberately use a bare axios call

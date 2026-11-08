@@ -122,7 +122,15 @@ const AgentVerify: React.FC = () => {
                     <div className={`px-5 py-5 ${headerClass} text-white`}>
                         <p className="text-[11px] font-semibold uppercase tracking-wide opacity-80">LACRA Agent Verification</p>
                         <div className="flex items-center gap-2.5 mt-1">
-                            <Icon className="h-8 w-8 flex-shrink-0" aria-hidden="true" />
+                            {result.photoUrl ? (
+                                <img
+                                    src={result.photoUrl}
+                                    alt={result.agentName}
+                                    className="h-10 w-10 rounded-full object-cover flex-shrink-0 border-2 border-white/40 bg-white"
+                                />
+                            ) : (
+                                <Icon className="h-8 w-8 flex-shrink-0" aria-hidden="true" />
+                            )}
                             <div className="min-w-0">
                                 <h1 className="text-xl font-bold leading-tight">{label}</h1>
                                 <p className="text-sm opacity-90 font-mono truncate">{result.permitNumber}</p>

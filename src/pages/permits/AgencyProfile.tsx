@@ -1,8 +1,9 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import {
     ArrowLeft, QrCode, Lock, Loader2, ShieldAlert, CheckCircle2, XCircle,
     AlertTriangle, Plus, UserMinus, Repeat, Link2, Users, FileWarning,
+    Camera, Building2, UserCircle2,
 } from 'lucide-react';
 import {
     getAgency,
@@ -11,6 +12,8 @@ import {
     appointAgencyPersonnel,
     replaceAgencyPersonnel,
     deactivateAgencyPersonnel,
+    uploadAgencyLogo,
+    uploadAgencyPersonnelPhoto,
     type AgencyProfile as AgencyProfileData,
     type AgentPersonnelRecord,
     type AgentPersonnelRole,
@@ -69,6 +72,100 @@ const PersonnelStatusBadge: React.FC<{ status: AgentPersonnelRecord['status'] }>
         REPLACED: 'bg-blue-100 text-blue-700',
     };
     return <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${map[status]}`}>{status}</span>;
+};
+
+// Small square logo uploader for the Agency profile header. Clicking the
+// thumbnail (or placeholder) opens a hidden file input; the selected
+// image is uploaded immediately via uploadAgencyLogo() and the parent
+// page re-fetches the Agency to pick up the new logoUrl.
+const AgencyLogoUploader: React.FC<{
+    logoUrl: string | null;
+    uploading: boolean;
+    onUpload: (file: File) => void;
+}> = ({ logoUrl, uploading, onUpload }) => {
+    const inputRef = useRef<HTMLInputElement>(null);
+    return (
+        <div className="flex-shrink-0">
+            <input
+                ref={inputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) onUpload(file);
+                    e.target.value = '';
+                }}
+            />
+            <button
+                type="button"
+                onClick={() => inputRef.current?.click()}
+                disabled={uploading}
+                title={logoUrl ? 'Replace Agency logo' : 'Upload Agency logo'}
+                className="relative group h-16 w-16 rounded-xl border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center hover:border-brand-green transition-colors disabled:opacity-60"
+            >
+                {logoUrl ? (
+                    <img src={logoUrl} alt="Agency logo" className="h-full w-full object-cover" />
+                ) : (
+                    <Building2 className="h-7 w-7 text-slate-300" />
+                )}
+                <span className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {uploading ? (
+                        <Loader2 className="h-4 w-4 text-white animate-spin" />
+                    ) : (
+                        <Camera className="h-4 w-4 text-white" />
+                    )}
+                </span>
+            </button>
+        </div>
+    );
+};
+
+// Small circular photo thumbnail + uploader used inline in each
+// Agent/Clerk roster row. Same click-to-upload pattern as
+// AgencyLogoUploader above, scoped to one personnel record.
+const PersonnelPhotoCell: React.FC<{
+    photoUrl: string | null;
+    fullName: string;
+    uploading: boolean;
+    onUpload: (file: File) => void;
+}> = ({ photoUrl, fullName, uploading, onUpload }) => {
+    const inputRef = useRef<HTMLInputElement>(null);
+    return (
+        <div className="flex-shrink-0">
+            <input
+                ref={inputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) onUpload(file);
+                    e.target.value = '';
+                }}
+            />
+            <button
+                type="button"
+                onClick={() => inputRef.current?.click()}
+                disabled={uploading}
+                title={photoUrl ? `Replace ${fullName}'s photo` : `Upload ${fullName}'s photo`}
+                className="relative group h-9 w-9 rounded-full border border-slate-200 bg-slate-50 overflow-hidden flex items-center justify-center hover:border-brand-green transition-colors disabled:opacity-60"
+            >
+                {photoUrl ? (
+                    <img src={photoUrl} alt={fullName} className="h-full w-full object-cover" />
+                ) : (
+                    <UserCircle2 className="h-5 w-5 text-slate-300" />
+                )}
+                <span className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity">
+                    {uploading ? (
+                        <Loader2 className="h-3 w-3 text-white animate-spin" />
+                    ) : (
+                        <Camera className="h-3 w-3 text-white" />
+                    )}
+                </span>
+            </button>
+        </div>
+    );
 };
 
 // Inline appoint-new-person form — role is fixed per section (Agents
@@ -145,19 +242,31 @@ const PersonnelRow: React.FC<{
     onDeactivate: (id: string) => void;
     onReplace: (id: string) => void;
     onDownloadQr: (id: string, name: string) => void;
+    onUploadPhoto: (id: string, file: File) => void;
     downloadingId: string | null;
-}> = ({ person: p, onDeactivate, onReplace, onDownloadQr, downloadingId }) => {
+    uploadingPhotoId: string | null;
+}> = ({ person: p, onDeactivate, onReplace, onDownloadQr, onUploadPhoto, downloadingId, uploadingPhotoId }) => {
     const isAgent = p.role === 'AGENT';
     return (
         <tr className={p.status !== 'ACTIVE' ? 'bg-slate-50/70 text-slate-400' : ''}>
             <td className="px-3 py-3 align-top">
-                <div className="text-sm font-medium text-slate-800">{p.fullName}</div>
-                {isAgent && p.permitNumber && <div className="text-xs font-mono text-slate-500 mt-0.5">{p.permitNumber}</div>}
-                {p.requiresAgencyConfirmation && (
-                    <div className="mt-1 flex items-center gap-1 text-[11px] text-amber-700">
-                        <AlertTriangle size={11} /> Pending Agency confirmation
+                <div className="flex items-center gap-2.5">
+                    <PersonnelPhotoCell
+                        photoUrl={p.photoUrl}
+                        fullName={p.fullName}
+                        uploading={uploadingPhotoId === p.id}
+                        onUpload={(file) => onUploadPhoto(p.id, file)}
+                    />
+                    <div>
+                        <div className="text-sm font-medium text-slate-800">{p.fullName}</div>
+                        {isAgent && p.permitNumber && <div className="text-xs font-mono text-slate-500 mt-0.5">{p.permitNumber}</div>}
+                        {p.requiresAgencyConfirmation && (
+                            <div className="mt-1 flex items-center gap-1 text-[11px] text-amber-700">
+                                <AlertTriangle size={11} /> Pending Agency confirmation
+                            </div>
+                        )}
                     </div>
-                )}
+                </div>
             </td>
             <td className="px-3 py-3 align-top text-sm text-slate-600 whitespace-nowrap">{p.county || '—'}</td>
             <td className="px-3 py-3 align-top whitespace-nowrap"><PersonnelStatusBadge status={p.status} /></td>
@@ -208,6 +317,9 @@ const AgencyProfilePage: React.FC = () => {
     const [actionSubmitting, setActionSubmitting] = useState(false);
     const [downloadingQrId, setDownloadingQrId] = useState<string | null>(null);
     const [downloadError, setDownloadError] = useState('');
+    const [uploadingLogo, setUploadingLogo] = useState(false);
+    const [uploadingPhotoId, setUploadingPhotoId] = useState<string | null>(null);
+    const [uploadError, setUploadError] = useState('');
 
     const load = async () => {
         if (!id) return;
@@ -291,6 +403,34 @@ const AgencyProfilePage: React.FC = () => {
         }
     };
 
+    const handleUploadLogo = async (file: File) => {
+        if (!agency) return;
+        setUploadError('');
+        setUploadingLogo(true);
+        try {
+            await uploadAgencyLogo(agency.id, file);
+            await load();
+        } catch (err: any) {
+            setUploadError(apiErrorMessage(err, 'Failed to upload the Agency logo.'));
+        } finally {
+            setUploadingLogo(false);
+        }
+    };
+
+    const handleUploadPersonnelPhoto = async (personnelId: string, file: File) => {
+        if (!id) return;
+        setUploadError('');
+        setUploadingPhotoId(personnelId);
+        try {
+            await uploadAgencyPersonnelPhoto(id, personnelId, file);
+            await load();
+        } catch (err: any) {
+            setUploadError(apiErrorMessage(err, 'Failed to upload this photo.'));
+        } finally {
+            setUploadingPhotoId(null);
+        }
+    };
+
     const handleDownloadAgentQr = async (personnelId: string, name: string) => {
         if (!id) return;
         try {
@@ -343,30 +483,39 @@ const AgencyProfilePage: React.FC = () => {
                 <ArrowLeft size={15} /> Back to Agency Register
             </Link>
 
-            <PageHeader
-                breadcrumb={[{ label: 'Licensing & Permits' }, { label: 'Agencies', }, { label: agency.agencyName || 'Agency' }]}
-                title={agency.agencyName || 'Agency'}
-                description={`${agency.county || 'County unknown'}${agency.locality ? ` / ${agency.locality}` : ''}`}
-                actions={
-                    agency.isPubliclyBlocked || !agency.hasVerificationToken ? (
-                        <span className="inline-flex items-center gap-1 text-sm text-amber-700">
-                            <Lock size={14} /> {agency.isPubliclyBlocked ? 'QR unavailable while held' : 'No QR issued'}
-                        </span>
-                    ) : (
-                        <button
-                            onClick={handleDownloadAgencyQr}
-                            disabled={downloadingQrId === 'agency'}
-                            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-brand-green text-white hover:bg-brand-green-hover disabled:opacity-50"
-                        >
-                            {downloadingQrId === 'agency' ? <Loader2 size={14} className="animate-spin" /> : <QrCode size={14} />}
-                            Download Agency QR
-                        </button>
-                    )
-                }
-            />
+            <div className="flex items-start gap-3">
+                <AgencyLogoUploader logoUrl={agency.logoUrl} uploading={uploadingLogo} onUpload={handleUploadLogo} />
+                <div className="flex-1 min-w-0">
+                    <PageHeader
+                        breadcrumb={[{ label: 'Licensing & Permits' }, { label: 'Agencies', }, { label: agency.agencyName || 'Agency' }]}
+                        title={agency.agencyName || 'Agency'}
+                        description={`${agency.county || 'County unknown'}${agency.locality ? ` / ${agency.locality}` : ''}`}
+                        actions={
+                            agency.isPubliclyBlocked || !agency.hasVerificationToken ? (
+                                <span className="inline-flex items-center gap-1 text-sm text-amber-700">
+                                    <Lock size={14} /> {agency.isPubliclyBlocked ? 'QR unavailable while held' : 'No QR issued'}
+                                </span>
+                            ) : (
+                                <button
+                                    onClick={handleDownloadAgencyQr}
+                                    disabled={downloadingQrId === 'agency'}
+                                    className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-sm font-medium bg-brand-green text-white hover:bg-brand-green-hover disabled:opacity-50"
+                                >
+                                    {downloadingQrId === 'agency' ? <Loader2 size={14} className="animate-spin" /> : <QrCode size={14} />}
+                                    Download Agency QR
+                                </button>
+                            )
+                        }
+                    />
+                </div>
+            </div>
 
             {downloadError && (
                 <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{downloadError}</div>
+            )}
+
+            {uploadError && (
+                <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-800">{uploadError}</div>
             )}
 
             {/* Summary strip */}
@@ -469,7 +618,9 @@ const AgencyProfilePage: React.FC = () => {
                                         onDeactivate={handleDeactivate}
                                         onReplace={handleReplace}
                                         onDownloadQr={handleDownloadAgentQr}
+                                        onUploadPhoto={handleUploadPersonnelPhoto}
                                         downloadingId={downloadingQrId}
+                                        uploadingPhotoId={uploadingPhotoId}
                                     />
                                 ))}
                             </tbody>
@@ -523,7 +674,9 @@ const AgencyProfilePage: React.FC = () => {
                                         onDeactivate={handleDeactivate}
                                         onReplace={handleReplace}
                                         onDownloadQr={handleDownloadAgentQr}
+                                        onUploadPhoto={handleUploadPersonnelPhoto}
                                         downloadingId={downloadingQrId}
+                                        uploadingPhotoId={uploadingPhotoId}
                                     />
                                 ))}
                             </tbody>
