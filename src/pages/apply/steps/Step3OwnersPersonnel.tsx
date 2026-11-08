@@ -16,14 +16,29 @@ import { isValidEmail, isValidPhone, type FieldErrors } from '../validators';
 const REQUIRED_BUYERS = 3;
 const REQUIRED_CLERKS = 1;
 
-// Mirrors the backend's AgencyStaffingService.countWizardPersonnel() EXACTLY
-// (parity contract documented there): only ACTIVE records count toward the
-// requirement, and Agents are de-duplicated by nationalId (falling back to
-// fullName) so that two rows accidentally describing the same person cannot
-// be miscounted as two distinct Agents. Without this, the wizard's own
-// count could pass client-side while the backend's post-submit gate (which
-// has always deduped) rejects the same roster, or vice versa.
+// Original, UNCHANGED personnel count — still used as-is for COOPERATIVE.
+// IMPORTANT: this Agency-release change must not alter Cooperative's
+// pre-existing "exactly 3 Agents + 1 Clerk" requirement, which has no
+// corresponding enforcement in AgencyStaffingService on the backend (that
+// service only ever runs for ApplicationCategory.AGENCY — see
+// ApplicationController's DG-approval and certificate-issuance gates).
+// Left exactly as it was before this release so Cooperative applicants see
+// no behavior change.
 export function countPersonnel(personnel: ReturnType<typeof useRegistration>['state']['personnel']) {
+    const buyers = personnel.filter((p) => p.role === 'Agent').length;
+    const clerks = personnel.filter((p) => p.role === 'Clerk').length;
+    return { buyers, clerks };
+}
+
+// AGENCY-ONLY count, added for this release to mirror the backend's
+// AgencyStaffingService.countWizardPersonnel() EXACTLY (parity contract
+// documented there): only ACTIVE records count toward the requirement, and
+// Agents are de-duplicated by nationalId (falling back to fullName) so two
+// rows accidentally describing the same person cannot be miscounted as two
+// distinct Agents. Deliberately NOT used for COOPERATIVE (see countPersonnel
+// above) since the backend has no staffing gate for that category and this
+// release must not change its existing behavior.
+export function countAgencyPersonnel(personnel: ReturnType<typeof useRegistration>['state']['personnel']) {
     const isActive = (p: (typeof personnel)[number]) => !p.status || p.status === 'ACTIVE';
     const agentRecords = personnel.filter((p) => p.role === 'Agent' && isActive(p));
     const clerkRecords = personnel.filter((p) => p.role === 'Clerk' && isActive(p));
@@ -47,7 +62,7 @@ export function validateStep3(category: string, state: ReturnType<typeof useRegi
         if (a.signatoryEmail && !isValidEmail(a.signatoryEmail)) errors.signatoryEmail = 'Enter a valid email address.';
         if (a.signatoryPhone && !isValidPhone(a.signatoryPhone)) errors.signatoryPhone = 'Enter a valid Liberian phone number (8-9 digits after +231).';
 
-        const { buyers, clerks } = countPersonnel(state.personnel);
+        const { buyers, clerks } = countAgencyPersonnel(state.personnel);
         if (buyers < REQUIRED_BUYERS || clerks !== REQUIRED_CLERKS) {
             errors.personnel = `At least ${REQUIRED_BUYERS} distinct active Agents and exactly ${REQUIRED_CLERKS} active Clerk are required. Currently: ${buyers} agent(s), ${clerks} clerk(s).`;
         }
@@ -60,9 +75,11 @@ export function validateStep3(category: string, state: ReturnType<typeof useRegi
         if (c.repEmail && !isValidEmail(c.repEmail)) errors.repEmail = 'Enter a valid email address.';
         if (c.repPhone && !isValidPhone(c.repPhone)) errors.repPhone = 'Enter a valid Liberian phone number (8-9 digits after +231).';
 
+        // UNCHANGED for this release: Cooperative keeps its original
+        // exact-equality requirement (see countPersonnel's doc comment).
         const { buyers, clerks } = countPersonnel(state.personnel);
-        if (buyers < REQUIRED_BUYERS || clerks !== REQUIRED_CLERKS) {
-            errors.personnel = `At least ${REQUIRED_BUYERS} distinct active Agents and exactly ${REQUIRED_CLERKS} active Clerk are required. Currently: ${buyers} agent(s), ${clerks} clerk(s).`;
+        if (buyers !== REQUIRED_BUYERS || clerks !== REQUIRED_CLERKS) {
+            errors.personnel = `Exactly ${REQUIRED_BUYERS} Agents and ${REQUIRED_CLERKS} Clerk are required. Currently: ${buyers} buyer(s), ${clerks} clerk(s).`;
         }
         if (state.farmers.length === 0) {
             errors.farmers = 'Add at least one farmer/member record.';
@@ -107,7 +124,7 @@ const Step3OwnersPersonnel: React.FC<Step3Props> = ({ errors }) => {
     if (category === 'AGENCY') {
         const a = state.agency;
         const update = (patch: Partial<AgencyInfo>) => setAgency({ ...a, ...patch });
-        const { buyers, clerks } = countPersonnel(state.personnel);
+        const { buyers, clerks } = countAgencyPersonnel(state.personnel);
         return (
             <div className="space-y-8">
                 <section>
@@ -297,11 +314,11 @@ const Step3OwnersPersonnel: React.FC<Step3Props> = ({ errors }) => {
                 <section>
                     {errors.personnel && <Alert variant="warning" title="Personnel requirement not met">{errors.personnel}</Alert>}
                     <div className="mt-3 flex items-center gap-2 text-xs text-slate-500 mb-2">
-                        Required: at least {REQUIRED_BUYERS} distinct active Agents and exactly {REQUIRED_CLERKS} active Clerk — currently {buyers} agent(s), {clerks} clerk(s).
+                        Required: exactly {REQUIRED_BUYERS} Agents and {REQUIRED_CLERKS} Clerk — currently {buyers} buyer(s), {clerks} clerk(s).
                     </div>
                     <PersonnelManager
                         title="Cooperative Personnel"
-                        description="Register the required personnel: at least 3 Agents and exactly 1 Clerk."
+                        description="Register the required personnel: 3 Agents and 1 Clerk."
                         records={state.personnel}
                         onChange={setPersonnel}
                         roleOptions={['Agent', 'Clerk']}
