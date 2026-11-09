@@ -25,6 +25,7 @@ import {
     Activity,
     Radar,
     Warehouse,
+    Sprout,
 } from 'lucide-react';
 import { UserRole } from '../types';
 
@@ -224,6 +225,22 @@ export const navigationMenu: NavigationItem[] = [
                 permissionPrefixes: ['license']
             },
             {
+                // Register Manual/Historical License — a separate action
+                // from the License Registry list view above, for
+                // Commercial/Marketing staff (and Admins) to backfill a
+                // license/permit (Local Buyer, Agency, Cooperative, or
+                // Exporter) that was already approved and issued manually
+                // on paper in the past. Gated to COMMERCIAL + ADMIN,
+                // mirroring the backend's own
+                // authMiddleware([UserRole.COMMERCIAL, UserRole.ADMIN])
+                // on POST /api/manual-license-entries — staff without
+                // this role never see the entry point at all.
+                label: 'Register Manual/Historical License',
+                path: '/licenses/register-manual',
+                icon: Sprout,
+                roles: [UserRole.COMMERCIAL, UserRole.ADMIN]
+            },
+            {
                 label: 'Permit Management',
                 path: '/permits',
                 icon: Stamp,
@@ -265,6 +282,22 @@ export const navigationMenu: NavigationItem[] = [
                 label: 'Exporters',
                 path: '/permits/exporters',
                 icon: Container,
+                permissionPrefixes: ['permit']
+            },
+            {
+                // Cooperative Register — NEW Certificate-based register (built
+                // from scratch for the manual historical license-entry
+                // feature); distinct from the "Cooperative Registry" CDA
+                // directory entry elsewhere in this nav config (membership/
+                // location reference data, no Certificate linkage). A sibling
+                // destination to Permit Management, Local Produce Buyers,
+                // Agencies, and Exporters, reusing the same ['permit']
+                // permission prefix since it is still part of the overall
+                // permits domain. Placed directly below Exporters per the
+                // same ordering convention used for every prior register.
+                label: 'Cooperatives',
+                path: '/permits/cooperatives',
+                icon: Sprout,
                 permissionPrefixes: ['permit']
             },
             {

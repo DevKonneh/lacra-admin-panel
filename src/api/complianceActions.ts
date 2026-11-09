@@ -53,16 +53,19 @@ export interface CreateComplianceActionPayload {
 }
 
 // ---------------------------------------------------------------------
-// Certificate-level (Agency, Local Produce Buyer, or Exporter) compliance
-// actions. `basePath` is '/agencies', '/local-produce-buyers', or
-// '/exporters' — all three routers mount an identical pair of routes via
-// the shared ComplianceActionController, so a single generic pair of
-// functions here covers all three registers instead of duplicating
-// near-identical functions per module.
+// Certificate-level (Agency, Local Produce Buyer, Exporter, or
+// Cooperative) compliance actions. `basePath` is '/agencies',
+// '/local-produce-buyers', '/exporters', or '/cooperative-permits' — all
+// four routers mount an identical pair of routes via the shared
+// ComplianceActionController, so a single generic pair of functions here
+// covers all four registers instead of duplicating near-identical
+// functions per module.
 // ---------------------------------------------------------------------
 
+export type CertificateRegisterBasePath = '/agencies' | '/local-produce-buyers' | '/exporters' | '/cooperative-permits';
+
 export const createCertificateComplianceAction = (
-    basePath: '/agencies' | '/local-produce-buyers' | '/exporters',
+    basePath: CertificateRegisterBasePath,
     certificateId: string,
     payload: CreateComplianceActionPayload
 ) => {
@@ -73,7 +76,7 @@ export const createCertificateComplianceAction = (
 };
 
 export const listCertificateComplianceActions = (
-    basePath: '/agencies' | '/local-produce-buyers' | '/exporters',
+    basePath: CertificateRegisterBasePath,
     certificateId: string
 ) => {
     return api.get<ApiResponse<ComplianceAction[]>>(`${basePath}/${certificateId}/compliance-actions`);
@@ -119,3 +122,9 @@ export const createExporterComplianceAction = (exporterId: string, payload: Crea
 
 export const listExporterComplianceActions = (exporterId: string) =>
     listCertificateComplianceActions('/exporters', exporterId);
+
+export const createCooperativePermitComplianceAction = (cooperativePermitId: string, payload: CreateComplianceActionPayload) =>
+    createCertificateComplianceAction('/cooperative-permits', cooperativePermitId, payload);
+
+export const listCooperativePermitComplianceActions = (cooperativePermitId: string) =>
+    listCertificateComplianceActions('/cooperative-permits', cooperativePermitId);

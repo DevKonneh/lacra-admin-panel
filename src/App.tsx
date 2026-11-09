@@ -36,6 +36,7 @@ const DataCorrectionQueue = lazy(() => import('./pages/farms/DataCorrectionQueue
 const RiskAnalysis = lazy(() => import('./pages/RiskAnalysis'));
 const MapView = lazy(() => import('./pages/MapView'));
 const LicenseDashboard = lazy(() => import('./pages/licenses/LicenseDashboard'));
+const ManualLicenseEntryForm = lazy(() => import('./pages/licenses/ManualLicenseEntryForm'));
 const AdminLicenseList = lazy(() => import('./pages/admin/LicenseList'));
 const CooperativeRegistry = lazy(() => import('./pages/admin/CooperativeRegistry'));
 const CooperativeRegistryManage = lazy(() => import('./pages/admin/CooperativeRegistryManage'));
@@ -61,6 +62,8 @@ const AgencyRegister = lazy(() => import('./pages/permits/AgencyRegister'));
 const AgencyProfile = lazy(() => import('./pages/permits/AgencyProfile'));
 const ExporterRegister = lazy(() => import('./pages/permits/ExporterRegister'));
 const ExporterProfile = lazy(() => import('./pages/permits/ExporterProfile'));
+const CooperativeRegister = lazy(() => import('./pages/permits/CooperativeRegister'));
+const CooperativeProfile = lazy(() => import('./pages/permits/CooperativeProfile'));
 const InspectionList = lazy(() => import('./pages/inspections/InspectionList'));
 const QualityControlList = lazy(() => import('./pages/quality/QualityControlList'));
 const EnforcementList = lazy(() => import('./pages/enforcement/EnforcementList'));
@@ -72,6 +75,7 @@ const LocalProduceBuyerVerify = lazy(() => import('./pages/LocalProduceBuyerVeri
 const AgencyVerify = lazy(() => import('./pages/AgencyVerify'));
 const AgentVerify = lazy(() => import('./pages/AgentVerify'));
 const ExporterVerify = lazy(() => import('./pages/ExporterVerify'));
+const CooperativeVerify = lazy(() => import('./pages/CooperativeVerify'));
 const ApplicationWizard = lazy(() => import('./pages/apply/ApplicationWizard'));
 const CommercialQueue = lazy(() => import('./pages/applications/CommercialQueue'));
 const CommercialApplicationReview = lazy(() => import('./pages/applications/CommercialApplicationReview'));
@@ -153,6 +157,7 @@ function App() {
             <Route path="/verify/agencies/:token" element={<AgencyVerify />} />
             <Route path="/verify/agents/:token" element={<AgentVerify />} />
             <Route path="/verify/exporters/:token" element={<ExporterVerify />} />
+            <Route path="/verify/cooperatives/:token" element={<CooperativeVerify />} />
             <Route path="/apply" element={<ApplicationWizard />} />
             <Route element={<PrivateRoute />}>
               <Route path="/" element={<Layout />}>
@@ -172,6 +177,7 @@ function App() {
                 <Route path="risk-analysis" element={<RiskAnalysis />} />
                 <Route path="map" element={<MapView />} />
                 <Route path="licenses" element={<LicenseDashboard />} />
+                <Route path="licenses/register-manual" element={<ManualLicenseEntryForm />} />
                 <Route path="admin/licenses" element={<AdminLicenseList />} />
                 <Route path="admin/cooperatives" element={<CooperativeRegistry />} />
                 <Route element={<AdminRoute />}>
@@ -211,6 +217,8 @@ function App() {
                 <Route path="permits/agencies/:id" element={<AgencyProfile />} />
                 <Route path="permits/exporters" element={<ExporterRegister />} />
                 <Route path="permits/exporters/:id" element={<ExporterProfile />} />
+                <Route path="permits/cooperatives" element={<CooperativeRegister />} />
+                <Route path="permits/cooperatives/:id" element={<CooperativeProfile />} />
 
                 {/* Application Workflow: Commercial Verification + First DG Approval */}
                 <Route path="applications/commercial-queue" element={<CommercialQueue />} />

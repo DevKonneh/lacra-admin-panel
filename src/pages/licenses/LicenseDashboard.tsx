@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from 'react';
+import { Link } from 'react-router-dom';
 import { applyLicense, getMyLicenses } from '../../api/licenses';
 import type { License } from '../../api/licenses';
-import { CheckCircle2, Clock, XCircle, HelpCircle, Inbox } from 'lucide-react';
+import { CheckCircle2, Clock, XCircle, HelpCircle, Inbox, Sprout } from 'lucide-react';
 import PageHeader from '../../components/ui/PageHeader';
 import { buttonClasses } from '../../components/ui/buttonStyles';
 import Badge from '../../components/ui/Badge';
 import type { BadgeTone } from '../../components/ui/Badge';
 import EmptyState from '../../components/ui/EmptyState';
+import { useAuth } from '../../context/AuthContext';
+import { UserRole } from '../../types';
 
 // Icon+text+color status badge so status is never shown by color alone.
 const STATUS_META: Record<string, { tone: BadgeTone; icon: React.ReactNode }> = {
@@ -21,6 +24,8 @@ const STATUS_META: Record<string, { tone: BadgeTone; icon: React.ReactNode }> = 
 const getStatusMeta = (status: string) => STATUS_META[status] || { tone: 'slate' as BadgeTone, icon: <HelpCircle /> };
 
 const LicenseDashboard: React.FC = () => {
+    const { user } = useAuth();
+    const canRegisterManual = user?.role === UserRole.COMMERCIAL || user?.role === UserRole.ADMIN;
     const [licenses, setLicenses] = useState<License[]>([]);
     const [type, setType] = useState('LOCAL_BUYER');
     const [holderName, setHolderName] = useState('');
@@ -62,6 +67,13 @@ const LicenseDashboard: React.FC = () => {
                 breadcrumb={[{ label: 'Licensing' }]}
                 title="My Licenses"
                 description="Apply for a new license and track the status of your applications."
+                actions={
+                    canRegisterManual ? (
+                        <Link to="/licenses/register-manual" className={buttonClasses('outline', 'md')}>
+                            <Sprout className="h-4 w-4" /> Register Manual/Historical License
+                        </Link>
+                    ) : undefined
+                }
             />
 
             {/* Application Form */}
