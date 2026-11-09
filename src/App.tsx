@@ -59,6 +59,8 @@ const PermitApplication = lazy(() => import('./pages/permits/PermitApplication')
 const LocalProduceBuyerRegister = lazy(() => import('./pages/permits/LocalProduceBuyerRegister'));
 const AgencyRegister = lazy(() => import('./pages/permits/AgencyRegister'));
 const AgencyProfile = lazy(() => import('./pages/permits/AgencyProfile'));
+const ExporterRegister = lazy(() => import('./pages/permits/ExporterRegister'));
+const ExporterProfile = lazy(() => import('./pages/permits/ExporterProfile'));
 const InspectionList = lazy(() => import('./pages/inspections/InspectionList'));
 const QualityControlList = lazy(() => import('./pages/quality/QualityControlList'));
 const EnforcementList = lazy(() => import('./pages/enforcement/EnforcementList'));
@@ -69,6 +71,7 @@ const CertificateVerify = lazy(() => import('./pages/CertificateVerify'));
 const LocalProduceBuyerVerify = lazy(() => import('./pages/LocalProduceBuyerVerify'));
 const AgencyVerify = lazy(() => import('./pages/AgencyVerify'));
 const AgentVerify = lazy(() => import('./pages/AgentVerify'));
+const ExporterVerify = lazy(() => import('./pages/ExporterVerify'));
 const ApplicationWizard = lazy(() => import('./pages/apply/ApplicationWizard'));
 const CommercialQueue = lazy(() => import('./pages/applications/CommercialQueue'));
 const CommercialApplicationReview = lazy(() => import('./pages/applications/CommercialApplicationReview'));
@@ -149,6 +152,7 @@ function App() {
             <Route path="/verify/local-produce-buyers/:token" element={<LocalProduceBuyerVerify />} />
             <Route path="/verify/agencies/:token" element={<AgencyVerify />} />
             <Route path="/verify/agents/:token" element={<AgentVerify />} />
+            <Route path="/verify/exporters/:token" element={<ExporterVerify />} />
             <Route path="/apply" element={<ApplicationWizard />} />
             <Route element={<PrivateRoute />}>
               <Route path="/" element={<Layout />}>
@@ -205,6 +209,8 @@ function App() {
                 <Route path="permits/local-produce-buyers" element={<LocalProduceBuyerRegister />} />
                 <Route path="permits/agencies" element={<AgencyRegister />} />
                 <Route path="permits/agencies/:id" element={<AgencyProfile />} />
+                <Route path="permits/exporters" element={<ExporterRegister />} />
+                <Route path="permits/exporters/:id" element={<ExporterProfile />} />
 
                 {/* Application Workflow: Commercial Verification + First DG Approval */}
                 <Route path="applications/commercial-queue" element={<CommercialQueue />} />

@@ -12,6 +12,7 @@ import {
     Truck,
     Link2,
     Ship,
+    Container,
     FileCheck2,
     FileBadge,
     Stamp,
@@ -249,6 +250,21 @@ export const navigationMenu: NavigationItem[] = [
                 label: 'Agencies',
                 path: '/permits/agencies',
                 icon: Building2,
+                permissionPrefixes: ['permit']
+            },
+            {
+                // Exporter Register — Local/Foreign exporters holding an
+                // issued export license, using the same unified register
+                // design as Local Produce Buyers and Agencies above (no
+                // separate Local/Foreign split in this view). A sibling
+                // destination to Permit Management, Local Produce Buyers,
+                // and Agencies, reusing the same ['permit'] permission
+                // prefix since it is still part of the overall permits
+                // domain. Placed directly below Agencies per the approved
+                // nav ordering.
+                label: 'Exporters',
+                path: '/permits/exporters',
+                icon: Container,
                 permissionPrefixes: ['permit']
             },
             {
