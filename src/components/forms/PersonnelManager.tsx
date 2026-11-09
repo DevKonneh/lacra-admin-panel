@@ -27,6 +27,26 @@ interface PersonnelManagerProps {
     // If omitted, role is a free-text position field (used for leadership).
     roleOptions?: string[];
     freeRoleLabel?: string; // e.g. "Leadership Position"
+    // Optional display-only label override per roleOptions value (the
+    // STORED value, e.g. "Clerk", is unchanged so it keeps matching the
+    // backend's AgentPersonnelRole.CLERK / AgencyStaffingService role
+    // checks exactly) — lets the dropdown show "Weighing Clerk" per
+    // LACRA's exact regulation wording without touching the underlying
+    // role string anywhere else in the codebase.
+    roleLabels?: Record<string, string>;
+    // When true, renders ONLY the 3 fields LACRA's regulation actually asks
+    // for on the "Linked Persons" roster (Full name, Liberian ID/passport
+    // number, Phone number) — omitting email, start date, county/district/
+    // community/address and the per-person photo upload, which are not
+    // part of that spec. Passport-size photos for these 3 buyers + 1 clerk
+    // are instead collected as their own separate Required Document
+    // checklist items (see documentRequirements.ts), not per-person here.
+    // Status still defaults to ACTIVE internally (no UI control) since the
+    // backend staffing check (AgencyStaffingService) still needs every
+    // wizard-submitted record treated as active. Used for the Agency/
+    // Cooperative "3 Buyers + 1 Clerk" roster only — Cooperative Leadership
+    // keeps the full field set since it isn't covered by this spec.
+    simple?: boolean;
 }
 
 // Reusable repeatable-personnel section: renders existing records in a
@@ -35,7 +55,7 @@ interface PersonnelManagerProps {
 // or updating a single record at a time. Used for Agency/Cooperative
 // personnel (3 Agents + 1 Clerk) and Cooperative leadership.
 const PersonnelManager: React.FC<PersonnelManagerProps> = ({
-    title, description, records, onChange, roleOptions, freeRoleLabel = 'Position',
+    title, description, records, onChange, roleOptions, freeRoleLabel = 'Position', roleLabels, simple = false,
 }) => {
     const [editing, setEditing] = useState<PersonnelRecord | null>(null);
     const [duplicateIdError, setDuplicateIdError] = useState('');
@@ -66,22 +86,26 @@ const PersonnelManager: React.FC<PersonnelManagerProps> = ({
     };
 
     const columns: ColumnDef<PersonnelRecord>[] = [
-        { header: roleOptions ? 'Role' : freeRoleLabel, render: (r) => r.role || '—' },
+        { header: roleOptions ? 'Role' : freeRoleLabel, render: (r) => roleLabels?.[r.role] || r.role || '—' },
         { header: 'Full Name', render: (r) => r.fullName },
-        { header: 'National ID', render: (r) => r.nationalId },
+        { header: 'Liberian ID / Passport Number', render: (r) => r.nationalId },
         { header: 'Phone', render: (r) => r.phone },
-        {
-            header: 'Status',
-            render: (r) => (
-                <span
-                    className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${
-                        r.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : r.status === 'PENDING' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'
-                    }`}
-                >
-                    {r.status}
-                </span>
-            ),
-        },
+        ...(simple
+            ? []
+            : [
+                  {
+                      header: 'Status',
+                      render: (r: PersonnelRecord) => (
+                          <span
+                              className={`inline-flex items-center px-2 py-0.5 rounded-full text-[11px] font-medium ${
+                                  r.status === 'ACTIVE' ? 'bg-green-100 text-green-700' : r.status === 'PENDING' ? 'bg-amber-100 text-amber-700' : 'bg-slate-100 text-slate-600'
+                              }`}
+                          >
+                              {r.status}
+                          </span>
+                      ),
+                  },
+              ]),
     ];
 
     return (
@@ -137,7 +161,7 @@ const PersonnelManager: React.FC<PersonnelManagerProps> = ({
                             <FormField label="Personnel Role" required>
                                 <SelectInput value={editing.role} onChange={(e) => setEditing({ ...editing, role: e.target.value })}>
                                     {roleOptions.map((r) => (
-                                        <option key={r} value={r}>{r}</option>
+                                        <option key={r} value={r}>{roleLabels?.[r] || r}</option>
                                     ))}
                                 </SelectInput>
                             </FormField>
@@ -149,48 +173,52 @@ const PersonnelManager: React.FC<PersonnelManagerProps> = ({
                         <FormField label="Full Name" required>
                             <TextInput value={editing.fullName} onChange={(e) => setEditing({ ...editing, fullName: e.target.value })} />
                         </FormField>
-                        <FormField label="National ID Number" required error={duplicateIdError}>
+                        <FormField label="Liberian ID / Passport Number" required error={duplicateIdError}>
                             <TextInput value={editing.nationalId} onChange={(e) => { setEditing({ ...editing, nationalId: e.target.value }); setDuplicateIdError(''); }} />
                         </FormField>
                         <FormField label="Phone Number" required>
                             <PhoneInput value={editing.phone} onChange={(v) => setEditing({ ...editing, phone: v })} />
                         </FormField>
-                        <FormField label="Email Address">
-                            <TextInput type="email" value={editing.email} onChange={(e) => setEditing({ ...editing, email: e.target.value })} />
-                        </FormField>
-                        <FormField label="Effective / Start Date">
-                            <TextInput type="date" value={editing.startDate} onChange={(e) => setEditing({ ...editing, startDate: e.target.value })} />
-                        </FormField>
-                        <CountyDistrictFields
-                            county={editing.county}
-                            district={editing.district}
-                            onChange={(county, district) => setEditing({ ...editing, county, district })}
-                            idPrefix={`personnel-${editing.id}`}
-                        />
-                        <FormField label="Community">
-                            <TextInput value={editing.community} onChange={(e) => setEditing({ ...editing, community: e.target.value })} />
-                        </FormField>
-                        <FormField label="Complete Address" full>
-                            <TextInput value={editing.address} onChange={(e) => setEditing({ ...editing, address: e.target.value })} />
-                        </FormField>
-                        <FormField label="Status">
-                            <SelectInput value={editing.status} onChange={(e) => setEditing({ ...editing, status: e.target.value as PersonnelStatus })}>
-                                <option value="ACTIVE">Active</option>
-                                <option value="INACTIVE">Inactive</option>
-                                <option value="PENDING">Pending</option>
-                            </SelectInput>
-                        </FormField>
-                        <div className="sm:col-span-2">
-                            <DocumentUpload
-                                label="Passport-size Photograph"
-                                required
-                                accept=".jpg,.jpeg,.png"
-                                acceptDisplay="JPG, PNG"
-                                maxSizeMb={2}
-                                value={editing.photo}
-                                onChange={(f) => setEditing({ ...editing, photo: f })}
-                            />
-                        </div>
+                        {!simple && (
+                            <>
+                                <FormField label="Email Address">
+                                    <TextInput type="email" value={editing.email} onChange={(e) => setEditing({ ...editing, email: e.target.value })} />
+                                </FormField>
+                                <FormField label="Effective / Start Date">
+                                    <TextInput type="date" value={editing.startDate} onChange={(e) => setEditing({ ...editing, startDate: e.target.value })} />
+                                </FormField>
+                                <CountyDistrictFields
+                                    county={editing.county}
+                                    district={editing.district}
+                                    onChange={(county, district) => setEditing({ ...editing, county, district })}
+                                    idPrefix={`personnel-${editing.id}`}
+                                />
+                                <FormField label="Community">
+                                    <TextInput value={editing.community} onChange={(e) => setEditing({ ...editing, community: e.target.value })} />
+                                </FormField>
+                                <FormField label="Complete Address" full>
+                                    <TextInput value={editing.address} onChange={(e) => setEditing({ ...editing, address: e.target.value })} />
+                                </FormField>
+                                <FormField label="Status">
+                                    <SelectInput value={editing.status} onChange={(e) => setEditing({ ...editing, status: e.target.value as PersonnelStatus })}>
+                                        <option value="ACTIVE">Active</option>
+                                        <option value="INACTIVE">Inactive</option>
+                                        <option value="PENDING">Pending</option>
+                                    </SelectInput>
+                                </FormField>
+                                <div className="sm:col-span-2">
+                                    <DocumentUpload
+                                        label="Passport-size Photograph"
+                                        required
+                                        accept=".jpg,.jpeg,.png"
+                                        acceptDisplay="JPG, PNG"
+                                        maxSizeMb={2}
+                                        value={editing.photo}
+                                        onChange={(f) => setEditing({ ...editing, photo: f })}
+                                    />
+                                </div>
+                            </>
+                        )}
                     </div>
 
                     <div className="flex justify-end gap-2 mt-4">

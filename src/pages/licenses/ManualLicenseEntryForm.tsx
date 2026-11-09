@@ -100,6 +100,12 @@ interface FormState {
     licenseNumber: string;
     issuedOn: string;
     notes: string;
+    // Exporter-only, optional — see ManualLicenseEntryPayload's doc
+    // comment in ../../api/manualLicenseEntry.ts for why this is not
+    // required: SBA tracking is new going forward, and historical
+    // records being backfilled here were never asked for it.
+    sbaExecuted: boolean;
+    sbaNotes: string;
 }
 
 const emptyForm: FormState = {
@@ -127,6 +133,8 @@ const emptyForm: FormState = {
     licenseNumber: '',
     issuedOn: '',
     notes: '',
+    sbaExecuted: false,
+    sbaNotes: '',
 };
 
 type FieldErrors = Partial<Record<keyof FormState, string>>;
@@ -249,6 +257,13 @@ const ManualLicenseEntryForm: React.FC = () => {
             issuedOn: form.issuedOn || undefined,
             documents: documentList,
             notes: form.notes.trim() || undefined,
+            // Exporter-only, optional — omitted entirely for every other
+            // category so the backend's per-category null-out logic is
+            // never relied upon to hide a value that was never meant to
+            // apply in the first place.
+            ...(form.category === 'EXPORTER'
+                ? { sbaExecuted: form.sbaExecuted, sbaNotes: form.sbaNotes.trim() || undefined }
+                : {}),
         };
 
         setSubmitting(true);
@@ -451,6 +466,30 @@ const ManualLicenseEntryForm: React.FC = () => {
                         </FormField>
                     </div>
                 </section>
+
+                {/* Exporter-only — Standard Basic Agreement (SBA), optional */}
+                {form.category === 'EXPORTER' && (
+                    <section className="bg-white border border-gray-200 rounded-lg p-6 space-y-5">
+                        <div>
+                            <h3 className="text-base font-bold text-slate-800 tracking-tight">Standard Basic Agreement (SBA)</h3>
+                            <p className="text-sm text-slate-500 mt-1">
+                                Per LACRA&rsquo;s Exporter requirements, an SBA must be executed before operational commencement where
+                                required as part of issuance/control. This field is currently <span className="font-semibold">optional</span> —
+                                it will become mandatory for new entries later, but historical records being backfilled here were never
+                                asked for it, so leave it blank if this information was not collected at the time.
+                            </p>
+                        </div>
+                        <Checkbox
+                            id="sba-executed"
+                            label="Standard Basic Agreement (SBA) has been executed for this Exporter"
+                            checked={form.sbaExecuted}
+                            onChange={(e) => update({ sbaExecuted: e.target.checked })}
+                        />
+                        <FormField label="SBA Notes" hint="Optional — e.g. execution date, reference number, or why this was not collected">
+                            <TextArea rows={2} value={form.sbaNotes} onChange={(e) => update({ sbaNotes: e.target.value })} />
+                        </FormField>
+                    </section>
+                )}
 
                 {/* Section C — Operational Information */}
                 <section className="bg-white border border-gray-200 rounded-lg p-6 space-y-5">

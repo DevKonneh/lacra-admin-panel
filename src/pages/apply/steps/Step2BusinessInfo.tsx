@@ -1,15 +1,15 @@
 import React, { useEffect } from 'react';
 import { useRegistration } from '../RegistrationContext';
-import type { BuyerInfo, AgencyInfo, CooperativeInfo, ExporterInfo, IdType, EntityType } from '../types';
+import type { BuyerInfo, AgencyInfo, CooperativeInfo, ExporterInfo, IdType, EntityType, Commodity } from '../types';
 import { COMMODITY_LABELS, ENTITY_TYPE_LABELS } from '../types';
 import FormField from '../../../components/forms/FormField';
-import { TextInput, SelectInput, TextArea } from '../../../components/forms/inputs';
+import { TextInput, SelectInput, TextArea, Checkbox } from '../../../components/forms/inputs';
 import CountyDistrictFields from '../../../components/forms/CountyDistrictFields';
 import DocumentUpload from '../../../components/forms/DocumentUpload';
 import PhoneInput from '../../../components/forms/PhoneInput';
 import CooperativeLegalNameField from '../../../components/forms/CooperativeLegalNameField';
 import DateField from '../../../components/forms/DateField';
-import { isValidEmail, isValidPhone, type FieldErrors } from '../validators';
+import { isValidEmail, isValidPhone, isPositiveNumber, type FieldErrors } from '../validators';
 
 // Reusable Entity Type dropdown (Sole Proprietorship / Partnership / LLC /
 // Corporation / Cooperative Society) shared by every category branch
@@ -24,6 +24,60 @@ const EntityTypeSelect: React.FC<{ value: EntityType | ''; onChange: (v: EntityT
             ))}
         </SelectInput>
     </FormField>
+);
+
+// Shared "Operational Information" (Section C per LACRA's regulation)
+// block: Intended Commodities (multi-select — an applicant may deal in
+// more than one), Estimated Annual Purchase Volume and Expected Areas of
+// Operation. Used identically by Agency, Cooperative and Exporter — Local
+// Produce Buyer keeps its existing single-commodity/single-county
+// behavior (tied to the registered buying county) and does not use this.
+const OperationalInfoSection: React.FC<{
+    intendedCommodities: Commodity[];
+    onToggleCommodity: (c: Commodity) => void;
+    commoditiesError?: string;
+    estimatedAnnualPurchaseVolume: string;
+    onVolumeChange: (v: string) => void;
+    volumeError?: string;
+    expectedAreasOfOperation: string;
+    onAreasChange: (v: string) => void;
+    areasError?: string;
+    idPrefix: string;
+}> = ({
+    intendedCommodities, onToggleCommodity, commoditiesError,
+    estimatedAnnualPurchaseVolume, onVolumeChange, volumeError,
+    expectedAreasOfOperation, onAreasChange, areasError, idPrefix,
+}) => (
+    <section>
+        <h2 className="text-base font-bold text-slate-800 tracking-tight mb-4">Operational Information</h2>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <FormField
+                label="Intended Commodities"
+                required
+                error={commoditiesError}
+                full
+                hint="You may deal in more than one commodity — select all that apply"
+            >
+                <div className="flex flex-wrap gap-x-5 gap-y-2 mt-1">
+                    {(Object.keys(COMMODITY_LABELS) as Commodity[]).map((c) => (
+                        <Checkbox
+                            key={c}
+                            id={`${idPrefix}-commodity-${c}`}
+                            label={COMMODITY_LABELS[c]}
+                            checked={intendedCommodities.includes(c)}
+                            onChange={() => onToggleCommodity(c)}
+                        />
+                    ))}
+                </div>
+            </FormField>
+            <FormField label="Estimated Annual Purchase Volume (tonnes)" required error={volumeError} hint="e.g. 50">
+                <TextInput type="number" min={0} value={estimatedAnnualPurchaseVolume} onChange={(e) => onVolumeChange(e.target.value)} />
+            </FormField>
+            <FormField label="Expected Areas of Operation" required error={areasError} hint="Counties, districts and communities" full>
+                <TextArea rows={2} value={expectedAreasOfOperation} onChange={(e) => onAreasChange(e.target.value)} />
+            </FormField>
+        </div>
+    </section>
 );
 
 export function validateStep2(category: string, state: ReturnType<typeof useRegistration>['state']): FieldErrors {
@@ -49,6 +103,14 @@ export function validateStep2(category: string, state: ReturnType<typeof useRegi
         if (a.phone && !isValidPhone(a.phone)) errors.phone = 'Enter a valid Liberian phone number (8-9 digits after +231).';
         if (a.email && !isValidEmail(a.email)) errors.email = 'Enter a valid email address.';
         req(a.county, 'county', 'County');
+        if (!a.intendedCommodities || a.intendedCommodities.length === 0) {
+            errors.intendedCommodities = 'Select at least one commodity this Agency intends to deal in.';
+        }
+        req(a.estimatedAnnualPurchaseVolume, 'estimatedAnnualPurchaseVolume', 'Estimated annual purchase volume');
+        if (a.estimatedAnnualPurchaseVolume && !isPositiveNumber(a.estimatedAnnualPurchaseVolume)) {
+            errors.estimatedAnnualPurchaseVolume = 'Estimated annual purchase volume must be a valid number.';
+        }
+        req(a.expectedAreasOfOperation, 'expectedAreasOfOperation', 'Expected areas of operation');
     } else if (category === 'COOPERATIVE') {
         const c = state.cooperative;
         req(c.legalName, 'legalName', "Cooperative's legal name");
@@ -59,6 +121,14 @@ export function validateStep2(category: string, state: ReturnType<typeof useRegi
         if (c.phone && !isValidPhone(c.phone)) errors.phone = 'Enter a valid Liberian phone number (8-9 digits after +231).';
         if (c.email && !isValidEmail(c.email)) errors.email = 'Enter a valid email address.';
         req(c.county, 'county', 'County');
+        if (!c.intendedCommodities || c.intendedCommodities.length === 0) {
+            errors.intendedCommodities = 'Select at least one commodity this Cooperative intends to deal in.';
+        }
+        req(c.estimatedAnnualPurchaseVolume, 'estimatedAnnualPurchaseVolume', 'Estimated annual purchase volume');
+        if (c.estimatedAnnualPurchaseVolume && !isPositiveNumber(c.estimatedAnnualPurchaseVolume)) {
+            errors.estimatedAnnualPurchaseVolume = 'Estimated annual purchase volume must be a valid number.';
+        }
+        req(c.expectedAreasOfOperation, 'expectedAreasOfOperation', 'Expected areas of operation');
     } else if (category === 'LOCAL_EXPORTER' || category === 'FOREIGN_EXPORTER') {
         const x = state.exporter;
         req(x.legalName, 'legalName', "Company's legal name");
@@ -69,6 +139,14 @@ export function validateStep2(category: string, state: ReturnType<typeof useRegi
         if (x.phone && !isValidPhone(x.phone)) errors.phone = 'Enter a valid Liberian phone number (8-9 digits after +231).';
         if (x.email && !isValidEmail(x.email)) errors.email = 'Enter a valid email address.';
         req(x.county, 'county', 'County');
+        if (!x.intendedCommodities || x.intendedCommodities.length === 0) {
+            errors.intendedCommodities = 'Select at least one commodity this Exporter intends to deal in.';
+        }
+        req(x.estimatedAnnualPurchaseVolume, 'estimatedAnnualPurchaseVolume', 'Estimated annual purchase volume');
+        if (x.estimatedAnnualPurchaseVolume && !isPositiveNumber(x.estimatedAnnualPurchaseVolume)) {
+            errors.estimatedAnnualPurchaseVolume = 'Estimated annual purchase volume must be a valid number.';
+        }
+        req(x.expectedAreasOfOperation, 'expectedAreasOfOperation', 'Expected areas of operation');
     }
     return errors;
 }
@@ -221,175 +299,235 @@ const Step2BusinessInfo: React.FC<Step2Props> = ({ errors }) => {
     if (category === 'AGENCY') {
         const a = state.agency;
         const update = (patch: Partial<AgencyInfo>) => setAgency({ ...a, ...patch });
+        const toggleCommodity = (c: Commodity) => {
+            const has = a.intendedCommodities.includes(c);
+            update({
+                intendedCommodities: has
+                    ? a.intendedCommodities.filter((x) => x !== c)
+                    : [...a.intendedCommodities, c],
+            });
+        };
         return (
-            <section>
-                <h2 className="text-base font-bold text-slate-800 tracking-tight mb-4">Organization Information</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <FormField label="Business Name" required error={errors.legalName}>
-                        <TextInput value={a.legalName} onChange={(e) => update({ legalName: e.target.value })} />
-                    </FormField>
-                    <EntityTypeSelect label="Business Type" value={a.entityType} onChange={(v) => update({ entityType: v })} />
-                    <FormField label="Business Registration Number" required error={errors.businessRegNumber}>
-                        <TextInput value={a.businessRegNumber} onChange={(e) => update({ businessRegNumber: e.target.value })} />
-                    </FormField>
-                    <FormField label="TIN" required error={errors.tin}>
-                        <TextInput value={a.tin} onChange={(e) => update({ tin: e.target.value })} />
-                    </FormField>
-                    <FormField label="Tax-Clearance Number">
-                        <TextInput value={a.taxClearanceNumber} onChange={(e) => update({ taxClearanceNumber: e.target.value })} />
-                    </FormField>
-                    <FormField label="Contact Phone Number" required error={errors.phone}>
-                        <PhoneInput value={a.phone} onChange={(v) => update({ phone: v })} hasError={!!errors.phone} />
-                    </FormField>
-                    <FormField label="Alternative Phone Number">
-                        <PhoneInput value={a.altPhone} onChange={(v) => update({ altPhone: v })} />
-                    </FormField>
-                    <FormField label="Contact Email" error={errors.email}>
-                        <TextInput type="email" value={a.email} onChange={(e) => update({ email: e.target.value })} />
-                    </FormField>
-                    <CountyDistrictFields
-                        county={a.county} district={a.district}
-                        onChange={(county, district) => update({ county, district })}
-                        countyError={errors.county}
-                        idPrefix="agency-org"
-                    />
-                    <FormField label="Community">
-                        <TextInput value={a.community} onChange={(e) => update({ community: e.target.value })} />
-                    </FormField>
-                    <FormField label="Complete Physical Address" full>
-                        <TextArea rows={2} value={a.address} onChange={(e) => update({ address: e.target.value })} />
-                    </FormField>
-                    <FormField label="Selected Commodity" full>
-                        <p className="text-sm text-slate-600">{state.step1.commodity ? COMMODITY_LABELS[state.step1.commodity] : 'None selected in Step 1'}</p>
-                    </FormField>
-                </div>
-            </section>
+            <div className="space-y-8">
+                <section>
+                    <h2 className="text-base font-bold text-slate-800 tracking-tight mb-4">Organization Information</h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <FormField label="Business Name" required error={errors.legalName}>
+                            <TextInput value={a.legalName} onChange={(e) => update({ legalName: e.target.value })} />
+                        </FormField>
+                        <EntityTypeSelect label="Business Type" value={a.entityType} onChange={(v) => update({ entityType: v })} />
+                        <FormField label="Business Registration Number" required error={errors.businessRegNumber}>
+                            <TextInput value={a.businessRegNumber} onChange={(e) => update({ businessRegNumber: e.target.value })} />
+                        </FormField>
+                        <FormField label="TIN" required error={errors.tin}>
+                            <TextInput value={a.tin} onChange={(e) => update({ tin: e.target.value })} />
+                        </FormField>
+                        <FormField label="Tax-Clearance Number">
+                            <TextInput value={a.taxClearanceNumber} onChange={(e) => update({ taxClearanceNumber: e.target.value })} />
+                        </FormField>
+                        <FormField label="Contact Phone Number" required error={errors.phone}>
+                            <PhoneInput value={a.phone} onChange={(v) => update({ phone: v })} hasError={!!errors.phone} />
+                        </FormField>
+                        <FormField label="Alternative Phone Number">
+                            <PhoneInput value={a.altPhone} onChange={(v) => update({ altPhone: v })} />
+                        </FormField>
+                        <FormField label="Contact Email" error={errors.email}>
+                            <TextInput type="email" value={a.email} onChange={(e) => update({ email: e.target.value })} />
+                        </FormField>
+                        <CountyDistrictFields
+                            county={a.county} district={a.district}
+                            onChange={(county, district) => update({ county, district })}
+                            countyError={errors.county}
+                            idPrefix="agency-org"
+                        />
+                        <FormField label="Community">
+                            <TextInput value={a.community} onChange={(e) => update({ community: e.target.value })} />
+                        </FormField>
+                        <FormField label="Complete Physical Address" full>
+                            <TextArea rows={2} value={a.address} onChange={(e) => update({ address: e.target.value })} />
+                        </FormField>
+                    </div>
+                </section>
+
+                <OperationalInfoSection
+                    intendedCommodities={a.intendedCommodities}
+                    onToggleCommodity={toggleCommodity}
+                    commoditiesError={errors.intendedCommodities}
+                    estimatedAnnualPurchaseVolume={a.estimatedAnnualPurchaseVolume}
+                    onVolumeChange={(v) => update({ estimatedAnnualPurchaseVolume: v })}
+                    volumeError={errors.estimatedAnnualPurchaseVolume}
+                    expectedAreasOfOperation={a.expectedAreasOfOperation}
+                    onAreasChange={(v) => update({ expectedAreasOfOperation: v })}
+                    areasError={errors.expectedAreasOfOperation}
+                    idPrefix="agency"
+                />
+            </div>
         );
     }
 
     if (category === 'COOPERATIVE') {
         const c = state.cooperative;
         const update = (patch: Partial<CooperativeInfo>) => setCooperative({ ...c, ...patch });
+        const toggleCommodity = (commodity: Commodity) => {
+            const has = c.intendedCommodities.includes(commodity);
+            update({
+                intendedCommodities: has
+                    ? c.intendedCommodities.filter((x) => x !== commodity)
+                    : [...c.intendedCommodities, commodity],
+            });
+        };
         return (
-            <section>
-                <h2 className="text-base font-bold text-slate-800 tracking-tight mb-4">Cooperative Information</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <CooperativeLegalNameField
-                        value={c.legalName}
-                        onChange={(v) => update({ legalName: v })}
-                        error={errors.legalName}
-                        idPrefix="coop-info-legal-name"
-                    />
-                    <FormField label="Entity Type" hint="Cooperative applications are automatically registered as a Cooperative Society">
-                        <TextInput value={ENTITY_TYPE_LABELS.COOPERATIVE_SOCIETY} disabled />
-                    </FormField>
-                    <FormField label="CDA Registration / Certification Number" required error={errors.cdaNumber}>
-                        <TextInput value={c.cdaNumber} onChange={(e) => update({ cdaNumber: e.target.value })} />
-                    </FormField>
-                    <FormField label="Business Registration Number" required error={errors.businessRegNumber}>
-                        <TextInput value={c.businessRegNumber} onChange={(e) => update({ businessRegNumber: e.target.value })} />
-                    </FormField>
-                    <FormField label="TIN" required error={errors.tin}>
-                        <TextInput value={c.tin} onChange={(e) => update({ tin: e.target.value })} />
-                    </FormField>
-                    <FormField label="Tax-Clearance Number">
-                        <TextInput value={c.taxClearanceNumber} onChange={(e) => update({ taxClearanceNumber: e.target.value })} />
-                    </FormField>
-                    <FormField label="Date Established">
-                        <DateField
-                            id="coop-date-established"
-                            value={c.dateEstablished}
-                            onChange={(v) => update({ dateEstablished: v })}
-                            max={new Date().toISOString().slice(0, 10)}
+            <div className="space-y-8">
+                <section>
+                    <h2 className="text-base font-bold text-slate-800 tracking-tight mb-4">Cooperative Information</h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <CooperativeLegalNameField
+                            value={c.legalName}
+                            onChange={(v) => update({ legalName: v })}
+                            error={errors.legalName}
+                            idPrefix="coop-info-legal-name"
                         />
-                    </FormField>
-                    <FormField label="Contact Phone Number" required error={errors.phone}>
-                        <PhoneInput value={c.phone} onChange={(v) => update({ phone: v })} hasError={!!errors.phone} />
-                    </FormField>
-                    <FormField label="Alternative Phone Number">
-                        <PhoneInput value={c.altPhone} onChange={(v) => update({ altPhone: v })} />
-                    </FormField>
-                    <FormField label="Contact Email" error={errors.email}>
-                        <TextInput type="email" value={c.email} onChange={(e) => update({ email: e.target.value })} />
-                    </FormField>
-                    <CountyDistrictFields
-                        county={c.county} district={c.district}
-                        onChange={(county, district) => update({ county, district })}
-                        countyError={errors.county}
-                        idPrefix="coop-info"
-                    />
-                    <FormField label="Community">
-                        <TextInput value={c.community} onChange={(e) => update({ community: e.target.value })} />
-                    </FormField>
-                    <FormField label="Complete Physical Address" full>
-                        <TextArea rows={2} value={c.address} onChange={(e) => update({ address: e.target.value })} />
-                    </FormField>
-                    <FormField label="Selected Commodity" full>
-                        <p className="text-sm text-slate-600">{state.step1.commodity ? COMMODITY_LABELS[state.step1.commodity] : 'None selected in Step 1'}</p>
-                    </FormField>
-                </div>
-            </section>
+                        <FormField label="Entity Type" hint="Cooperative applications are automatically registered as a Cooperative Society">
+                            <TextInput value={ENTITY_TYPE_LABELS.COOPERATIVE_SOCIETY} disabled />
+                        </FormField>
+                        <FormField label="CDA Registration / Certification Number" required error={errors.cdaNumber}>
+                            <TextInput value={c.cdaNumber} onChange={(e) => update({ cdaNumber: e.target.value })} />
+                        </FormField>
+                        <FormField label="Business Registration Number" required error={errors.businessRegNumber}>
+                            <TextInput value={c.businessRegNumber} onChange={(e) => update({ businessRegNumber: e.target.value })} />
+                        </FormField>
+                        <FormField label="TIN" required error={errors.tin}>
+                            <TextInput value={c.tin} onChange={(e) => update({ tin: e.target.value })} />
+                        </FormField>
+                        <FormField label="Tax-Clearance Number">
+                            <TextInput value={c.taxClearanceNumber} onChange={(e) => update({ taxClearanceNumber: e.target.value })} />
+                        </FormField>
+                        <FormField label="Date Established">
+                            <DateField
+                                id="coop-date-established"
+                                value={c.dateEstablished}
+                                onChange={(v) => update({ dateEstablished: v })}
+                                max={new Date().toISOString().slice(0, 10)}
+                            />
+                        </FormField>
+                        <FormField label="Contact Phone Number" required error={errors.phone}>
+                            <PhoneInput value={c.phone} onChange={(v) => update({ phone: v })} hasError={!!errors.phone} />
+                        </FormField>
+                        <FormField label="Alternative Phone Number">
+                            <PhoneInput value={c.altPhone} onChange={(v) => update({ altPhone: v })} />
+                        </FormField>
+                        <FormField label="Contact Email" error={errors.email}>
+                            <TextInput type="email" value={c.email} onChange={(e) => update({ email: e.target.value })} />
+                        </FormField>
+                        <CountyDistrictFields
+                            county={c.county} district={c.district}
+                            onChange={(county, district) => update({ county, district })}
+                            countyError={errors.county}
+                            idPrefix="coop-info"
+                        />
+                        <FormField label="Community">
+                            <TextInput value={c.community} onChange={(e) => update({ community: e.target.value })} />
+                        </FormField>
+                        <FormField label="Complete Physical Address" full>
+                            <TextArea rows={2} value={c.address} onChange={(e) => update({ address: e.target.value })} />
+                        </FormField>
+                    </div>
+                </section>
+
+                <OperationalInfoSection
+                    intendedCommodities={c.intendedCommodities}
+                    onToggleCommodity={toggleCommodity}
+                    commoditiesError={errors.intendedCommodities}
+                    estimatedAnnualPurchaseVolume={c.estimatedAnnualPurchaseVolume}
+                    onVolumeChange={(v) => update({ estimatedAnnualPurchaseVolume: v })}
+                    volumeError={errors.estimatedAnnualPurchaseVolume}
+                    expectedAreasOfOperation={c.expectedAreasOfOperation}
+                    onAreasChange={(v) => update({ expectedAreasOfOperation: v })}
+                    areasError={errors.expectedAreasOfOperation}
+                    idPrefix="coop"
+                />
+            </div>
         );
     }
 
     if (category === 'LOCAL_EXPORTER' || category === 'FOREIGN_EXPORTER') {
         const x = state.exporter;
         const update = (patch: Partial<ExporterInfo>) => setExporter({ ...x, ...patch });
+        const toggleCommodity = (commodity: Commodity) => {
+            const has = x.intendedCommodities.includes(commodity);
+            update({
+                intendedCommodities: has
+                    ? x.intendedCommodities.filter((v) => v !== commodity)
+                    : [...x.intendedCommodities, commodity],
+            });
+        };
         return (
-            <section>
-                <h2 className="text-base font-bold text-slate-800 tracking-tight mb-4">Company Information</h2>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <FormField label="Organization's Legal Name" required error={errors.legalName}>
-                        <TextInput value={x.legalName} onChange={(e) => update({ legalName: e.target.value })} />
-                    </FormField>
-                    <FormField label="Trading Name">
-                        <TextInput value={x.tradingName} onChange={(e) => update({ tradingName: e.target.value })} />
-                    </FormField>
-                    <FormField label="Exporter Category">
-                        <TextInput value={category === 'LOCAL_EXPORTER' ? 'Local Exporter' : 'Foreign Exporter'} disabled />
-                    </FormField>
-                    <EntityTypeSelect value={x.entityType} onChange={(v) => update({ entityType: v })} />
-                    <FormField label="Business Registration Number" required error={errors.businessRegNumber}>
-                        <TextInput value={x.businessRegNumber} onChange={(e) => update({ businessRegNumber: e.target.value })} />
-                    </FormField>
-                    <FormField label="TIN" required error={errors.tin}>
-                        <TextInput value={x.tin} onChange={(e) => update({ tin: e.target.value })} />
-                    </FormField>
-                    <FormField label="Tax-Clearance Number">
-                        <TextInput value={x.taxClearanceNumber} onChange={(e) => update({ taxClearanceNumber: e.target.value })} />
-                    </FormField>
-                    <FormField label="Country of Incorporation" required error={errors.countryOfIncorporation}>
-                        <TextInput value={x.countryOfIncorporation} onChange={(e) => update({ countryOfIncorporation: e.target.value })} />
-                    </FormField>
-                    <FormField label="Date of Incorporation">
-                        <TextInput type="date" value={x.dateOfIncorporation} onChange={(e) => update({ dateOfIncorporation: e.target.value })} />
-                    </FormField>
-                    <FormField label="Contact Phone Number" required error={errors.phone}>
-                        <PhoneInput value={x.phone} onChange={(v) => update({ phone: v })} hasError={!!errors.phone} />
-                    </FormField>
-                    <FormField label="Alternative Phone Number">
-                        <PhoneInput value={x.altPhone} onChange={(v) => update({ altPhone: v })} />
-                    </FormField>
-                    <FormField label="Contact Email" error={errors.email}>
-                        <TextInput type="email" value={x.email} onChange={(e) => update({ email: e.target.value })} />
-                    </FormField>
-                    <CountyDistrictFields
-                        county={x.county} district={x.district}
-                        onChange={(county, district) => update({ county, district })}
-                        countyError={errors.county}
-                        idPrefix="exporter-info"
-                    />
-                    <FormField label="Community">
-                        <TextInput value={x.community} onChange={(e) => update({ community: e.target.value })} />
-                    </FormField>
-                    <FormField label="Complete Physical Address" full>
-                        <TextArea rows={2} value={x.address} onChange={(e) => update({ address: e.target.value })} />
-                    </FormField>
-                    <FormField label="Selected Commodity" full>
-                        <p className="text-sm text-slate-600">{state.step1.commodity ? COMMODITY_LABELS[state.step1.commodity] : 'None selected in Step 1'}</p>
-                    </FormField>
-                </div>
-            </section>
+            <div className="space-y-8">
+                <section>
+                    <h2 className="text-base font-bold text-slate-800 tracking-tight mb-4">Company Information</h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <FormField label="Organization's Legal Name" required error={errors.legalName}>
+                            <TextInput value={x.legalName} onChange={(e) => update({ legalName: e.target.value })} />
+                        </FormField>
+                        <FormField label="Trading Name">
+                            <TextInput value={x.tradingName} onChange={(e) => update({ tradingName: e.target.value })} />
+                        </FormField>
+                        <FormField label="Exporter Category">
+                            <TextInput value={category === 'LOCAL_EXPORTER' ? 'Local Exporter' : 'Foreign Exporter'} disabled />
+                        </FormField>
+                        <EntityTypeSelect value={x.entityType} onChange={(v) => update({ entityType: v })} />
+                        <FormField label="Business Registration Number" required error={errors.businessRegNumber}>
+                            <TextInput value={x.businessRegNumber} onChange={(e) => update({ businessRegNumber: e.target.value })} />
+                        </FormField>
+                        <FormField label="TIN" required error={errors.tin}>
+                            <TextInput value={x.tin} onChange={(e) => update({ tin: e.target.value })} />
+                        </FormField>
+                        <FormField label="Tax-Clearance Number">
+                            <TextInput value={x.taxClearanceNumber} onChange={(e) => update({ taxClearanceNumber: e.target.value })} />
+                        </FormField>
+                        <FormField label="Country of Incorporation" required error={errors.countryOfIncorporation}>
+                            <TextInput value={x.countryOfIncorporation} onChange={(e) => update({ countryOfIncorporation: e.target.value })} />
+                        </FormField>
+                        <FormField label="Date of Incorporation">
+                            <TextInput type="date" value={x.dateOfIncorporation} onChange={(e) => update({ dateOfIncorporation: e.target.value })} />
+                        </FormField>
+                        <FormField label="Contact Phone Number" required error={errors.phone}>
+                            <PhoneInput value={x.phone} onChange={(v) => update({ phone: v })} hasError={!!errors.phone} />
+                        </FormField>
+                        <FormField label="Alternative Phone Number">
+                            <PhoneInput value={x.altPhone} onChange={(v) => update({ altPhone: v })} />
+                        </FormField>
+                        <FormField label="Contact Email" error={errors.email}>
+                            <TextInput type="email" value={x.email} onChange={(e) => update({ email: e.target.value })} />
+                        </FormField>
+                        <CountyDistrictFields
+                            county={x.county} district={x.district}
+                            onChange={(county, district) => update({ county, district })}
+                            countyError={errors.county}
+                            idPrefix="exporter-info"
+                        />
+                        <FormField label="Community">
+                            <TextInput value={x.community} onChange={(e) => update({ community: e.target.value })} />
+                        </FormField>
+                        <FormField label="Complete Physical Address" full>
+                            <TextArea rows={2} value={x.address} onChange={(e) => update({ address: e.target.value })} />
+                        </FormField>
+                    </div>
+                </section>
+
+                <OperationalInfoSection
+                    intendedCommodities={x.intendedCommodities}
+                    onToggleCommodity={toggleCommodity}
+                    commoditiesError={errors.intendedCommodities}
+                    estimatedAnnualPurchaseVolume={x.estimatedAnnualPurchaseVolume}
+                    onVolumeChange={(v) => update({ estimatedAnnualPurchaseVolume: v })}
+                    volumeError={errors.estimatedAnnualPurchaseVolume}
+                    expectedAreasOfOperation={x.expectedAreasOfOperation}
+                    onAreasChange={(v) => update({ expectedAreasOfOperation: v })}
+                    areasError={errors.expectedAreasOfOperation}
+                    idPrefix="exporter"
+                />
+            </div>
         );
     }
 

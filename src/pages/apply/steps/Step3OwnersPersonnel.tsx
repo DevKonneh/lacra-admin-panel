@@ -11,10 +11,19 @@ import PersonnelManager from '../../../components/forms/PersonnelManager';
 import FarmerManager from '../../../components/forms/FarmerManager';
 import OwnerManager from '../../../components/forms/OwnerManager';
 import Alert from '../../../components/forms/Alert';
-import { isValidEmail, isValidPhone, type FieldErrors } from '../validators';
+import { MIN_BANK_BALANCE } from '../documentRequirements';
+import { isValidEmail, isValidPhone, isPositiveNumber, type FieldErrors } from '../validators';
 
 const REQUIRED_BUYERS = 3;
 const REQUIRED_CLERKS = 1;
+
+// Display label shown in the Personnel Role dropdown and roster table for
+// the "Clerk" role, per LACRA's exact regulation wording ("Weighing
+// Clerk") \u2014 the underlying STORED role value stays "Clerk" everywhere
+// (AgencyStaffingService.countWizardPersonnel / AgentPersonnelRole.CLERK
+// on the backend, countPersonnel/countAgencyPersonnel above) so this is
+// purely a display-layer change.
+const PERSONNEL_ROLE_LABELS: Record<string, string> = { Agent: 'Agent', Clerk: 'Weighing Clerk' };
 
 // Original, UNCHANGED personnel count — still used as-is for COOPERATIVE.
 // IMPORTANT: this Agency-release change must not alter Cooperative's
@@ -52,26 +61,45 @@ export function validateStep3(category: string, state: ReturnType<typeof useRegi
     const errors: FieldErrors = {};
     const req = (val: string, key: string, label: string) => { if (!val || !val.trim()) errors[key] = `${label} is required.`; };
 
+    // Shared bank-balance check: validates presence, numeric validity and
+    // the category's MIN_BANK_BALANCE minimum (per LACRA's regulation —
+    // previously MIN_BANK_BALANCE was only ever shown as an informational
+    // hint and never actually enforced here).
+    const checkBankBalance = (balance: string, min: number) => {
+        req(balance, 'bankBalance', 'Balance / equivalent in USD');
+        if (balance) {
+            if (!isPositiveNumber(balance)) {
+                errors.bankBalance = 'Balance / equivalent in USD must be a valid number.';
+            } else if (Number(balance) < min) {
+                errors.bankBalance = `Balance / equivalent in USD must be at least US$${min.toLocaleString()}.`;
+            }
+        }
+    };
+
     if (category === 'AGENCY') {
         const a = state.agency;
         req(a.ownerFullName, 'ownerFullName', "Owner's full name");
         req(a.ownerIdNumber, 'ownerIdNumber', "Owner's National ID/passport number");
         req(a.signatoryName, 'signatoryName', "Authorized signatory's name");
         req(a.bankName, 'bankName', 'Bank name');
+        req(a.bankAccountName, 'bankAccountName', 'Bank account name');
         req(a.bankAccountNumber, 'bankAccountNumber', 'Bank account number');
+        checkBankBalance(a.bankBalance, MIN_BANK_BALANCE.AGENCY);
         if (a.signatoryEmail && !isValidEmail(a.signatoryEmail)) errors.signatoryEmail = 'Enter a valid email address.';
         if (a.signatoryPhone && !isValidPhone(a.signatoryPhone)) errors.signatoryPhone = 'Enter a valid Liberian phone number (8-9 digits after +231).';
 
         const { buyers, clerks } = countAgencyPersonnel(state.personnel);
         if (buyers < REQUIRED_BUYERS || clerks !== REQUIRED_CLERKS) {
-            errors.personnel = `At least ${REQUIRED_BUYERS} distinct active Agents and exactly ${REQUIRED_CLERKS} active Clerk are required. Currently: ${buyers} agent(s), ${clerks} clerk(s).`;
+            errors.personnel = `At least ${REQUIRED_BUYERS} distinct active Agents and exactly ${REQUIRED_CLERKS} active Weighing Clerk are required. Currently: ${buyers} agent(s), ${clerks} clerk(s).`;
         }
     } else if (category === 'COOPERATIVE') {
         const c = state.cooperative;
         req(c.repFullName, 'repFullName', "Authorized representative's full name");
         req(c.repNationalId, 'repNationalId', "Authorized representative's National ID number");
         req(c.bankName, 'bankName', 'Bank name');
+        req(c.bankAccountName, 'bankAccountName', 'Bank account name');
         req(c.bankAccountNumber, 'bankAccountNumber', 'Bank account number');
+        checkBankBalance(c.bankBalance, MIN_BANK_BALANCE.COOPERATIVE);
         if (c.repEmail && !isValidEmail(c.repEmail)) errors.repEmail = 'Enter a valid email address.';
         if (c.repPhone && !isValidPhone(c.repPhone)) errors.repPhone = 'Enter a valid Liberian phone number (8-9 digits after +231).';
 
@@ -79,7 +107,7 @@ export function validateStep3(category: string, state: ReturnType<typeof useRegi
         // exact-equality requirement (see countPersonnel's doc comment).
         const { buyers, clerks } = countPersonnel(state.personnel);
         if (buyers !== REQUIRED_BUYERS || clerks !== REQUIRED_CLERKS) {
-            errors.personnel = `Exactly ${REQUIRED_BUYERS} Agents and ${REQUIRED_CLERKS} Clerk are required. Currently: ${buyers} buyer(s), ${clerks} clerk(s).`;
+            errors.personnel = `Exactly ${REQUIRED_BUYERS} Agents and ${REQUIRED_CLERKS} Weighing Clerk are required. Currently: ${buyers} buyer(s), ${clerks} clerk(s).`;
         }
         if (state.farmers.length === 0) {
             errors.farmers = 'Add at least one farmer/member record.';
@@ -89,7 +117,9 @@ export function validateStep3(category: string, state: ReturnType<typeof useRegi
         req(x.signatoryName, 'signatoryName', "Authorized signatory's full name");
         req(x.signatoryIdNumber, 'signatoryIdNumber', "Authorized signatory's ID number");
         req(x.bankName, 'bankName', 'Bank name');
+        req(x.bankAccountName, 'bankAccountName', 'Bank account name');
         req(x.bankAccountNumber, 'bankAccountNumber', 'Bank account number');
+        checkBankBalance(x.bankBalance, MIN_BANK_BALANCE[category]);
         if (x.signatoryEmail && !isValidEmail(x.signatoryEmail)) errors.signatoryEmail = 'Enter a valid email address.';
         if (x.signatoryPhone && !isValidPhone(x.signatoryPhone)) errors.signatoryPhone = 'Enter a valid Liberian phone number (8-9 digits after +231).';
 
@@ -195,16 +225,19 @@ const Step3OwnersPersonnel: React.FC<Step3Props> = ({ errors }) => {
                 </section>
 
                 <section>
-                    <h2 className="text-base font-bold text-slate-800 tracking-tight mb-4">Banking Information</h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <h2 className="text-base font-bold text-slate-800 tracking-tight mb-4">Organization Banking Details</h2>
+                    <Alert variant="info" title="Why we ask for this">
+                        These details support Commercial &amp; Marketing eligibility checks. Enter the statement balance in US dollars or its US-dollar equivalent; LACRA verifies the statement during review.
+                    </Alert>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
                         <BankNameField value={a.bankName} onChange={(v) => update({ bankName: v })} error={errors.bankName} idPrefix="agency" />
-                        <FormField label="Bank Account Name">
+                        <FormField label="Bank Account Name" required error={errors.bankAccountName}>
                             <TextInput value={a.bankAccountName} onChange={(e) => update({ bankAccountName: e.target.value })} />
                         </FormField>
                         <FormField label="Bank Account Number" required error={errors.bankAccountNumber}>
                             <TextInput value={a.bankAccountNumber} onChange={(e) => update({ bankAccountNumber: e.target.value })} />
                         </FormField>
-                        <FormField label="Confirmed Bank Balance">
+                        <FormField label="Balance / Equivalent in USD" required error={errors.bankBalance} hint={`Minimum required: US$${MIN_BANK_BALANCE.AGENCY.toLocaleString()}`}>
                             <TextInput type="number" min={0} value={a.bankBalance} onChange={(e) => update({ bankBalance: e.target.value })} />
                         </FormField>
                         <FormField label="Bank Statement Date">
@@ -214,16 +247,22 @@ const Step3OwnersPersonnel: React.FC<Step3Props> = ({ errors }) => {
                 </section>
 
                 <section>
+                    <h2 className="text-base font-bold text-slate-800 tracking-tight mb-1">Linked Persons · Three Buyers and One Weighing Clerk</h2>
+                    <p className="text-xs text-slate-500 mb-3">
+                        Record the four people to be registered. Attach their registration records and passport-size photos in the Supporting Documents checklist.
+                    </p>
                     {errors.personnel && <Alert variant="warning" title="Personnel requirement not met">{errors.personnel}</Alert>}
                     <div className="mt-3 flex items-center gap-2 text-xs text-slate-500 mb-2">
-                        Required: at least {REQUIRED_BUYERS} distinct active Agents and exactly {REQUIRED_CLERKS} active Clerk — currently {buyers} agent(s), {clerks} clerk(s).
+                        Required: at least {REQUIRED_BUYERS} distinct active Agents and exactly {REQUIRED_CLERKS} active Weighing Clerk — currently {buyers} agent(s), {clerks} clerk(s).
                     </div>
                     <PersonnelManager
                         title="Agency Personnel"
-                        description="Register the required personnel: at least 3 Agents and exactly 1 Clerk."
+                        description="Register the required personnel: at least 3 Agents and exactly 1 Weighing Clerk."
                         records={state.personnel}
                         onChange={setPersonnel}
                         roleOptions={['Agent', 'Clerk']}
+                        roleLabels={PERSONNEL_ROLE_LABELS}
+                        simple
                     />
                 </section>
             </div>
@@ -278,16 +317,19 @@ const Step3OwnersPersonnel: React.FC<Step3Props> = ({ errors }) => {
                 </section>
 
                 <section>
-                    <h2 className="text-base font-bold text-slate-800 tracking-tight mb-4">Banking Information</h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <h2 className="text-base font-bold text-slate-800 tracking-tight mb-4">Organization Banking Details</h2>
+                    <Alert variant="info" title="Why we ask for this">
+                        These details support Commercial &amp; Marketing eligibility checks. Enter the statement balance in US dollars or its US-dollar equivalent; LACRA verifies the statement during review.
+                    </Alert>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
                         <BankNameField value={c.bankName} onChange={(v) => update({ bankName: v })} error={errors.bankName} idPrefix="coop" />
-                        <FormField label="Bank Account Name">
+                        <FormField label="Bank Account Name" required error={errors.bankAccountName}>
                             <TextInput value={c.bankAccountName} onChange={(e) => update({ bankAccountName: e.target.value })} />
                         </FormField>
                         <FormField label="Bank Account Number" required error={errors.bankAccountNumber}>
                             <TextInput value={c.bankAccountNumber} onChange={(e) => update({ bankAccountNumber: e.target.value })} />
                         </FormField>
-                        <FormField label="Confirmed Bank Balance">
+                        <FormField label="Balance / Equivalent in USD" required error={errors.bankBalance} hint={`Minimum required: US$${MIN_BANK_BALANCE.COOPERATIVE.toLocaleString()}`}>
                             <TextInput type="number" min={0} value={c.bankBalance} onChange={(e) => update({ bankBalance: e.target.value })} />
                         </FormField>
                         <FormField label="Bank Statement Date">
@@ -312,16 +354,22 @@ const Step3OwnersPersonnel: React.FC<Step3Props> = ({ errors }) => {
                 </section>
 
                 <section>
+                    <h2 className="text-base font-bold text-slate-800 tracking-tight mb-1">Linked Persons · Three Buyers and One Weighing Clerk</h2>
+                    <p className="text-xs text-slate-500 mb-3">
+                        Record the four people to be registered. Attach their registration records and passport-size photos in the Supporting Documents checklist.
+                    </p>
                     {errors.personnel && <Alert variant="warning" title="Personnel requirement not met">{errors.personnel}</Alert>}
                     <div className="mt-3 flex items-center gap-2 text-xs text-slate-500 mb-2">
-                        Required: exactly {REQUIRED_BUYERS} Agents and {REQUIRED_CLERKS} Clerk — currently {buyers} buyer(s), {clerks} clerk(s).
+                        Required: exactly {REQUIRED_BUYERS} Agents and {REQUIRED_CLERKS} Weighing Clerk — currently {buyers} buyer(s), {clerks} clerk(s).
                     </div>
                     <PersonnelManager
                         title="Cooperative Personnel"
-                        description="Register the required personnel: 3 Agents and 1 Clerk."
+                        description="Register the required personnel: 3 Agents and 1 Weighing Clerk."
                         records={state.personnel}
                         onChange={setPersonnel}
                         roleOptions={['Agent', 'Clerk']}
+                        roleLabels={PERSONNEL_ROLE_LABELS}
+                        simple
                     />
                 </section>
             </div>
@@ -382,13 +430,14 @@ const Step3OwnersPersonnel: React.FC<Step3Props> = ({ errors }) => {
                 </section>
 
                 <section>
-                    <h2 className="text-base font-bold text-slate-800 tracking-tight mb-4">Banking Information</h2>
-                    <Alert variant="info" title="Minimum bank balance requirement">
-                        {category === 'LOCAL_EXPORTER' ? 'US$25,000 for a Local Exporter.' : 'US$50,000 for a Foreign Exporter.'}
+                    <h2 className="text-base font-bold text-slate-800 tracking-tight mb-4">Organization Banking Details</h2>
+                    <Alert variant="info" title="Why we ask for this">
+                        These details support Commercial &amp; Marketing eligibility checks. Enter the statement balance in US dollars or its US-dollar equivalent; LACRA verifies the statement during review.
+                        {' '}Minimum required: {category === 'LOCAL_EXPORTER' ? `US$${MIN_BANK_BALANCE.LOCAL_EXPORTER.toLocaleString()} for a Local Exporter.` : `US$${MIN_BANK_BALANCE.FOREIGN_EXPORTER.toLocaleString()} for a Foreign Exporter.`}
                     </Alert>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
                         <BankNameField value={x.bankName} onChange={(v) => update({ bankName: v })} error={errors.bankName} idPrefix="exporter" />
-                        <FormField label="Bank Account Name">
+                        <FormField label="Bank Account Name" required error={errors.bankAccountName}>
                             <TextInput value={x.bankAccountName} onChange={(e) => update({ bankAccountName: e.target.value })} />
                         </FormField>
                         <FormField label="Bank Account Number" required error={errors.bankAccountNumber}>
@@ -397,7 +446,7 @@ const Step3OwnersPersonnel: React.FC<Step3Props> = ({ errors }) => {
                         <FormField label="Currency">
                             <TextInput value={x.currency} onChange={(e) => update({ currency: e.target.value })} />
                         </FormField>
-                        <FormField label="Confirmed Bank Balance">
+                        <FormField label="Balance / Equivalent in USD" required error={errors.bankBalance}>
                             <TextInput type="number" min={0} value={x.bankBalance} onChange={(e) => update({ bankBalance: e.target.value })} />
                         </FormField>
                         <FormField label="Bank Statement Date">

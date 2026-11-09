@@ -173,6 +173,27 @@ export interface AgencyInfo {
     community: string;
     address: string;
 
+    // Operational Information (Section C per LACRA's Agency regulation) —
+    // an Agency may deal in more than one commodity, unlike Local Buyer/
+    // Cooperative/Exporter which keep the single Step 1 commodity choice.
+    // Deliberately a SEPARATE field from step1.commodity (not a
+    // replacement) so every other category's existing single-commodity
+    // behavior, filters and reports are entirely unaffected. Mirrors the
+    // exact field name already used by ManualLicenseEntryService's
+    // Section C (intendedCommodities) for consistency between the live
+    // wizard and the manual/historical backfill pathway.
+    intendedCommodities: Commodity[];
+
+    // Operational Information, per LACRA's Agency regulation Section C —
+    // added alongside intendedCommodities so the wizard captures the same
+    // Section C fields the Manual License Entry (historical backfill) form
+    // already collects via its own Section C (see
+    // ManualLicenseEntryService's estimatedAnnualPurchaseVolume /
+    // expectedAreasOfOperation), keeping the live wizard and the staff
+    // backfill pathway consistent.
+    estimatedAnnualPurchaseVolume: string;
+    expectedAreasOfOperation: string;
+
     ownerFullName: string;
     ownerNationality: string;
     ownerIdType: IdType | '';
@@ -219,6 +240,15 @@ export interface CooperativeInfo {
     repAddress: string;
     repPhoto: UploadedFile | null;
 
+    // Operational Information (Section C) — mirrors AgencyInfo's own
+    // addition of the same 3 fields: a Cooperative may also deal in more
+    // than one commodity, and LACRA's regulation requires the same
+    // estimated-volume / areas-of-operation data for Cooperative
+    // applicants as it does for Agency applicants.
+    intendedCommodities: Commodity[];
+    estimatedAnnualPurchaseVolume: string;
+    expectedAreasOfOperation: string;
+
     bankName: string;
     bankAccountName: string;
     bankAccountNumber: string;
@@ -242,6 +272,18 @@ export interface ExporterInfo {
     district: string;
     community: string;
     address: string;
+
+    // Operational Information (Section C) — mirrors AgencyInfo/
+    // CooperativeInfo's own addition: LACRA's regulation requires the same
+    // intended-commodities / estimated-volume / areas-of-operation data
+    // for Exporter applicants. Kept SEPARATE from exportVolume below,
+    // which captures expected annual EXPORT volume (an existing field) —
+    // estimatedAnnualPurchaseVolume instead captures annual LOCAL
+    // PURCHASE volume (from farmers/agents/cooperatives before export),
+    // a distinct figure the regulation also asks for.
+    intendedCommodities: Commodity[];
+    estimatedAnnualPurchaseVolume: string;
+    expectedAreasOfOperation: string;
 
     signatoryName: string;
     signatoryPosition: string;
@@ -332,6 +374,8 @@ export const emptyBuyerInfo: BuyerInfo = {
 export const emptyAgencyInfo: AgencyInfo = {
     legalName: '', entityType: '', businessRegNumber: '', tin: '', taxClearanceNumber: '',
     phone: '', altPhone: '', email: '', county: '', district: '', community: '', address: '',
+    intendedCommodities: [],
+    estimatedAnnualPurchaseVolume: '', expectedAreasOfOperation: '',
     ownerFullName: '', ownerNationality: 'Liberian', ownerIdType: '', ownerIdNumber: '', ownerCitizenshipProof: null,
     signatoryName: '', signatoryPosition: '', signatoryPhone: '', signatoryEmail: '', signatoryPhoto: null,
     businessLogo: null,
@@ -343,6 +387,8 @@ export const emptyCooperativeInfo: CooperativeInfo = {
     dateEstablished: '', phone: '', altPhone: '', email: '', county: '', district: '', community: '', address: '',
     repFullName: '', repPosition: '', repNationalId: '', repPhone: '', repEmail: '', repCounty: '', repDistrict: '',
     repAddress: '', repPhoto: null,
+    intendedCommodities: [],
+    estimatedAnnualPurchaseVolume: '', expectedAreasOfOperation: '',
     bankName: '', bankAccountName: '', bankAccountNumber: '', bankBalance: '', bankStatementDate: '',
 };
 
@@ -350,6 +396,8 @@ export const emptyExporterInfo: ExporterInfo = {
     legalName: '', tradingName: '', entityType: '', businessRegNumber: '', tin: '', taxClearanceNumber: '',
     countryOfIncorporation: 'Liberia', dateOfIncorporation: '', phone: '', altPhone: '', email: '',
     county: '', district: '', community: '', address: '',
+    intendedCommodities: [],
+    estimatedAnnualPurchaseVolume: '', expectedAreasOfOperation: '',
     signatoryName: '', signatoryPosition: '', signatoryIdNumber: '', signatoryPhone: '', signatoryEmail: '', signatoryPhoto: null,
     businessLogo: null,
     bankName: '', bankAccountName: '', bankAccountNumber: '', currency: 'USD', bankBalance: '', bankStatementDate: '',

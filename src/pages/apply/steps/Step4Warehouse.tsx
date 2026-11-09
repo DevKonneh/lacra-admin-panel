@@ -6,6 +6,7 @@ import { TextInput, SelectInput, TextArea } from '../../../components/forms/inpu
 import CountyDistrictFields from '../../../components/forms/CountyDistrictFields';
 import SupplierManager from '../../../components/forms/SupplierManager';
 import Alert from '../../../components/forms/Alert';
+import { MAX_OFFICE_WAREHOUSE_DISTANCE_METRES } from '../documentRequirements';
 import { isPositiveNumber, type FieldErrors } from '../validators';
 
 export function validateStep4(category: string, state: ReturnType<typeof useRegistration>['state']): FieldErrors {
@@ -21,10 +22,26 @@ export function validateStep4(category: string, state: ReturnType<typeof useRegi
 
     req(w.name, 'name', 'Warehouse name');
     req(w.county, 'county', 'Warehouse county');
+    req(w.district, 'district', 'Warehouse district');
+    req(w.type, 'type', 'Warehouse type');
     req(w.capacity, 'capacity', 'Storage capacity');
     if (w.capacity && !isPositiveNumber(w.capacity)) errors.capacity = 'Storage capacity must be a valid number.';
     req(w.capacityUnit, 'capacityUnit', 'Capacity unit');
     req(w.ownership, 'ownership', 'Ownership status');
+
+    // Office-to-warehouse distance, per LACRA's regulation: required for
+    // every category with a warehouse step, and capped at
+    // MAX_OFFICE_WAREHOUSE_DISTANCE_METRES (50m) \u2014 entered in METRES, not
+    // kilometers (previously the field's hint said "e.g. in kilometers",
+    // which contradicted the regulation's 50-metre cap).
+    req(w.distanceToOffice, 'distanceToOffice', 'Office distance from warehouse');
+    if (w.distanceToOffice) {
+        if (!isPositiveNumber(w.distanceToOffice)) {
+            errors.distanceToOffice = 'Office distance from warehouse must be a valid number (in metres).';
+        } else if (Number(w.distanceToOffice) > MAX_OFFICE_WAREHOUSE_DISTANCE_METRES) {
+            errors.distanceToOffice = `Office distance from warehouse must be no more than ${MAX_OFFICE_WAREHOUSE_DISTANCE_METRES} metres.`;
+        }
+    }
 
     if (category === 'LOCAL_EXPORTER' || category === 'FOREIGN_EXPORTER') {
         req(w.gps, 'gps', 'GPS coordinates');
@@ -71,13 +88,15 @@ const Step4Warehouse: React.FC<Step4Props> = ({ errors }) => {
                     <FormField label="Warehouse Code" hint="Where applicable">
                         <TextInput value={w.code} onChange={(e) => update({ code: e.target.value })} />
                     </FormField>
-                    <FormField label="Warehouse Type">
+                    <FormField label="Warehouse Type" required error={errors.type}>
                         <TextInput value={w.type} onChange={(e) => update({ type: e.target.value })} placeholder="e.g. Dry storage, Cold storage" />
                     </FormField>
                     <CountyDistrictFields
                         county={w.county} district={w.district}
                         onChange={(county, district) => update({ county, district })}
                         countyError={errors.county}
+                        districtError={errors.district}
+                        districtRequired
                         idPrefix="warehouse"
                     />
                     <FormField label="Community">
@@ -106,8 +125,13 @@ const Step4Warehouse: React.FC<Step4Props> = ({ errors }) => {
                             <option value="METRIC_TON">Metric Ton</option>
                         </SelectInput>
                     </FormField>
-                    <FormField label="Distance Between Office and Warehouse" hint="e.g. in kilometers">
-                        <TextInput value={w.distanceToOffice} onChange={(e) => update({ distanceToOffice: e.target.value })} />
+                    <FormField
+                        label="Office Distance From Warehouse (metres)"
+                        required
+                        error={errors.distanceToOffice}
+                        hint={`Must be no more than ${MAX_OFFICE_WAREHOUSE_DISTANCE_METRES} metres`}
+                    >
+                        <TextInput type="number" min={0} max={MAX_OFFICE_WAREHOUSE_DISTANCE_METRES} value={w.distanceToOffice} onChange={(e) => update({ distanceToOffice: e.target.value })} />
                     </FormField>
                     <FormField label="Type of Weighing Scale">
                         <TextInput value={w.scaleType} onChange={(e) => update({ scaleType: e.target.value })} />

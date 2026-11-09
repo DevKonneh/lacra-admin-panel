@@ -95,6 +95,22 @@ const ConfirmationPage: React.FC<ConfirmationPageProps> = ({ state, onStartNew }
     const applicantName = getApplicantName(state);
     const categoryLabel = state.step1?.category ? CATEGORY_LABELS[state.step1.category] : '—';
     const commodity = state.step1?.commodity ? COMMODITY_LABELS[state.step1.commodity] : '';
+    // Agency, Cooperative and Exporter applicants may each select multiple
+    // intended commodities (Section C of their respective registration) in
+    // addition to the single Step 1 commodity every category answers -
+    // shown here as a combined, de-duplicated list so the confirmation
+    // summary reflects everything the applicant actually selected rather
+    // than only the Step 1 value.
+    const category = state.step1?.category;
+    const intendedCommodities =
+        category === 'AGENCY' ? state.agency?.intendedCommodities :
+        category === 'COOPERATIVE' ? state.cooperative?.intendedCommodities :
+        category === 'LOCAL_EXPORTER' || category === 'FOREIGN_EXPORTER' ? state.exporter?.intendedCommodities :
+        undefined;
+    const selectedCommodities = (intendedCommodities || []).map((c) => COMMODITY_LABELS[c]);
+    const commodityDisplay = selectedCommodities.length > 0
+        ? Array.from(new Set([commodity, ...selectedCommodities].filter(Boolean))).join(', ')
+        : commodity;
     const submittedDate = state.submittedAt ? new Date(state.submittedAt).toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }) : '—';
     const applicantPhoto = getApplicantPhoto(state);
     const roster = getPersonnelRoster(state);
@@ -122,7 +138,7 @@ const ConfirmationPage: React.FC<ConfirmationPageProps> = ({ state, onStartNew }
         y += 4;
         addText(`Applicant / Business Name: ${applicantName || '—'}`);
         addText(`Application Category: ${categoryLabel}`);
-        addText(`Commodity: ${commodity || '—'}`);
+        addText(`Commodity: ${commodityDisplay || '—'}`);
         addText(`Submission Date: ${submittedDate}`);
         y += 4;
         addText('This document confirms that the application above was successfully submitted to the', { size: 10 });
@@ -204,7 +220,7 @@ const ConfirmationPage: React.FC<ConfirmationPageProps> = ({ state, onStartNew }
                     </div>
                     <div className="rounded-lg bg-slate-50 p-3">
                         <dt className="text-xs text-slate-500">Commodity</dt>
-                        <dd className="font-medium text-slate-800">{commodity || '—'}</dd>
+                        <dd className="font-medium text-slate-800">{commodityDisplay || '—'}</dd>
                     </div>
                     <div className="rounded-lg bg-slate-50 p-3">
                         <dt className="text-xs text-slate-500">Submission Date</dt>

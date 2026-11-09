@@ -59,6 +59,17 @@ export interface ManualLicenseEntryPayload {
     validityMonths?: number;
     documents?: ManualLicenseEntryDocument[];
     notes?: string;
+
+    // Exporter-only, OPTIONAL — Standard Basic Agreement (SBA) execution
+    // tracking. Per LACRA's regulation, an Exporter must execute an SBA
+    // "before operational commencement where required as part of
+    // issuance/control". This is a new field being tracked going forward
+    // and is intentionally NOT required: historical paper-issued records
+    // being backfilled here were never asked for it, so it will remain
+    // optional until LACRA makes it mandatory for new entries later.
+    // Ignored by the backend for every non-Exporter category.
+    sbaExecuted?: boolean;
+    sbaNotes?: string;
 }
 
 export interface ManualLicenseEntryResult {

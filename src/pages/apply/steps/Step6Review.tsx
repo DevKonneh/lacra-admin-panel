@@ -147,6 +147,29 @@ const Step6Review: React.FC<Step6Props> = ({ errors, onEditStep, captchaA, captc
                 </ReviewSection>
             )}
 
+            {(category === 'AGENCY' || category === 'COOPERATIVE' || category === 'LOCAL_EXPORTER' || category === 'FOREIGN_EXPORTER') && (
+                <ReviewSection title="Operational Information" onEdit={() => onEditStep(1)}>
+                    {(() => {
+                        const opInfo =
+                            category === 'AGENCY' ? state.agency :
+                            category === 'COOPERATIVE' ? state.cooperative :
+                            state.exporter;
+                        return (
+                            <>
+                                <Row
+                                    label="Intended Commodities"
+                                    value={opInfo.intendedCommodities.length > 0
+                                        ? opInfo.intendedCommodities.map((c) => COMMODITY_LABELS[c]).join(', ')
+                                        : undefined}
+                                />
+                                <Row label="Estimated Annual Purchase Volume" value={opInfo.estimatedAnnualPurchaseVolume ? `${opInfo.estimatedAnnualPurchaseVolume} tonnes` : undefined} />
+                                <Row label="Expected Areas of Operation" value={opInfo.expectedAreasOfOperation} />
+                            </>
+                        );
+                    })()}
+                </ReviewSection>
+            )}
+
             {category !== 'LOCAL_BUYER' && category && (
                 <ReviewSection title="Owner and Responsible Persons" onEdit={() => onEditStep(2)}>
                     {category === 'AGENCY' && (
@@ -154,16 +177,18 @@ const Step6Review: React.FC<Step6Props> = ({ errors, onEditStep, captchaA, captc
                             <Row label="Owner" value={state.agency.ownerFullName} />
                             <Row label="Signatory" value={state.agency.signatoryName} />
                             <Row label="Bank" value={state.agency.bankName} />
-                            <Row label="Personnel Registered" value={`${state.personnel.length} record(s)`} />
+                            <Row label="Balance / Equivalent in USD" value={state.agency.bankBalance ? `US$${state.agency.bankBalance}` : undefined} />
+                            <Row label="Linked Persons Registered" value={`${state.personnel.length} record(s)`} />
                         </>
                     )}
                     {category === 'COOPERATIVE' && (
                         <>
                             <Row label="Authorized Representative" value={state.cooperative.repFullName} />
                             <Row label="Bank" value={state.cooperative.bankName} />
+                            <Row label="Balance / Equivalent in USD" value={state.cooperative.bankBalance ? `US$${state.cooperative.bankBalance}` : undefined} />
                             <Row label="Leadership Registered" value={`${state.leadership.length} record(s)`} />
                             <Row label="Farmers/Members Registered" value={`${state.farmers.length} record(s)`} />
-                            <Row label="Personnel Registered" value={`${state.personnel.length} record(s)`} />
+                            <Row label="Linked Persons Registered" value={`${state.personnel.length} record(s)`} />
                         </>
                     )}
                     {(category === 'LOCAL_EXPORTER' || category === 'FOREIGN_EXPORTER') && (
@@ -172,6 +197,7 @@ const Step6Review: React.FC<Step6Props> = ({ errors, onEditStep, captchaA, captc
                             <Row label="Total Ownership" value={`${state.owners.reduce((s, o) => s + (typeof o.ownershipPercent === 'number' ? o.ownershipPercent : 0), 0)}%`} />
                             <Row label="Authorized Signatory" value={state.exporter.signatoryName} />
                             <Row label="Bank" value={state.exporter.bankName} />
+                            <Row label="Balance / Equivalent in USD" value={state.exporter.bankBalance ? `US$${state.exporter.bankBalance}` : undefined} />
                         </>
                     )}
                 </ReviewSection>
@@ -180,9 +206,12 @@ const Step6Review: React.FC<Step6Props> = ({ errors, onEditStep, captchaA, captc
             {category !== 'LOCAL_BUYER' && (
                 <ReviewSection title="Operations and Warehouse" onEdit={() => onEditStep(3)}>
                     <Row label="Warehouse Name" value={state.warehouse.name} />
+                    <Row label="Warehouse Type" value={state.warehouse.type} />
                     <Row label="County" value={state.warehouse.county} />
+                    <Row label="District" value={state.warehouse.district} />
                     <Row label="Capacity" value={state.warehouse.capacity ? `${state.warehouse.capacity} ${state.warehouse.capacityUnit}` : undefined} />
                     <Row label="Ownership Status" value={state.warehouse.ownership} />
+                    <Row label="Office Distance From Warehouse" value={state.warehouse.distanceToOffice ? `${state.warehouse.distanceToOffice} metres` : undefined} />
                     {(category === 'LOCAL_EXPORTER' || category === 'FOREIGN_EXPORTER') && (
                         <>
                             <Row label="GPS Coordinates" value={state.warehouse.gps} />
