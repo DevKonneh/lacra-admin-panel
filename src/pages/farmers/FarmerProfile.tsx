@@ -721,10 +721,25 @@ const FarmerProfile: React.FC = () => {
             {showQr && (
                 <div className="bg-brand-card rounded-xl border border-brand-border shadow-card p-5 flex items-center gap-4">
                     <div className="bg-white p-2 border border-brand-border rounded-lg">
-                        <QRCodeCanvas value={`${window.location.origin}/public/farmers/${farmer.id}`} size={96} level="M" includeMargin />
+                        {farmer.qrCode ? (
+                            // Render the ACTUAL stored QR image (GeoJSON FeatureCollection
+                            // payload — see backend GeoIdService.buildFarmerGeoJsonFeatureCollection)
+                            // rather than re-deriving a plain-URL QR client-side: the two would
+                            // encode different content, and only the real stored image matches
+                            // what's on the physical printed ID card / what WHIMO's scanner needs.
+                            <img src={farmer.qrCode} alt="Farmer QR Code" className="w-24 h-24" />
+                        ) : (
+                            // Fallback for farmers registered before qrCode generation existed
+                            // on their registration path and not yet backfilled — shows a
+                            // profile-URL QR so the panel never renders a blank box, though this
+                            // legacy format will NOT scan as valid GeoJSON in WHIMO/LACRA Trace.
+                            <QRCodeCanvas value={`${window.location.origin}/public/farmers/${farmer.id}`} size={96} level="M" includeMargin />
+                        )}
                     </div>
                     <div className="text-sm text-brand-muted">
-                        Scan to open this farmer's public verification profile.
+                        {farmer.qrCode
+                            ? "Scan with LACRA Trace / WHIMO to read this farmer's registered farm geometry, or open the link below for the public verification profile."
+                            : "Scan to open this farmer's public verification profile."}
                         <br />
                         <span className="font-mono text-xs text-gray-400">{window.location.origin}/public/farmers/{farmer.id}</span>
                     </div>
