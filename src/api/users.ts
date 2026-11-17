@@ -37,6 +37,17 @@ export const deleteUser = async (id: string) => {
     return apiClient.delete<ApiResponse<any>>(`/users/${id}`);
 };
 
+// Security hardening (2033): explicit admin-triggered session revocation.
+// Forces this account to log in again everywhere it's currently signed in
+// — distinct from setUserStatus(), which revokes sessions as a side
+// effect of also changing the account's status. Use this when the account
+// itself is fine but its CURRENT sessions look suspicious (e.g. user
+// reports a lost/stolen device, or an admin wants to force re-auth after
+// a permission-group change).
+export const revokeUserSessions = async (id: string) => {
+    return apiClient.post<ApiResponse<null>>(`/users/${id}/revoke-sessions`);
+};
+
 // CMIS Monitoring: active FIELD_SUPERVISOR accounts, for the supervisor
 // selection dropdown in UserForm. Admin-only route (registered before the
 // generic "/:id" route on the backend so it isn't swallowed by it).

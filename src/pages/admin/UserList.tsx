@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { getUsers, deleteUser, setUserStatus } from '../../api/users';
+import { getUsers, deleteUser, setUserStatus, revokeUserSessions } from '../../api/users';
 import type { User } from '../../types';
 import { UserStatus, UserRole } from '../../types';
 import { apiErrorMessage } from '../applications/statusHelpers';
@@ -10,7 +10,7 @@ import {
 } from './userHelpers';
 import {
     Search, Plus, Users, ShieldCheck, Clock, Ban, UserCog,
-    Pencil, Power, Trash2, AlertTriangle,
+    Pencil, Power, Trash2, AlertTriangle, LogOut,
 } from 'lucide-react';
 
 // Every role a staff account can hold, in the order they should appear in
@@ -120,6 +120,27 @@ const UserList: React.FC = () => {
             }
         } catch (err) {
             setActionError(apiErrorMessage(err, `Failed to ${verb} user.`));
+        } finally {
+            setBusyId(null);
+        }
+    };
+
+    // Security hardening (2033): explicit "revoke sessions" row action.
+    // Distinct from handleToggleStatus above — this does NOT change the
+    // account's status at all, it only forces every currently-signed-in
+    // session for this account to re-authenticate on its next request
+    // (see UserController.revokeSessions() / User.tokenVersion).
+    const handleRevokeSessions = async (user: User) => {
+        if (!window.confirm(`Revoke all active sessions for ${user.name || user.email}? They will be signed out everywhere and must log in again.`)) return;
+        setActionError('');
+        setBusyId(user.id);
+        try {
+            const res = await revokeUserSessions(user.id);
+            if (!res.data.status) {
+                setActionError(res.data.message || 'Failed to revoke sessions.');
+            }
+        } catch (err) {
+            setActionError(apiErrorMessage(err, 'Failed to revoke sessions.'));
         } finally {
             setBusyId(null);
         }
@@ -328,6 +349,14 @@ const UserList: React.FC = () => {
                                                         className={`p-1.5 rounded-md transition-colors disabled:opacity-50 ${isSuspended ? 'text-green-600 hover:bg-green-50' : 'text-orange-500 hover:bg-orange-50'}`}
                                                     >
                                                         <Power className="h-4 w-4" />
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleRevokeSessions(user)}
+                                                        disabled={isBusy}
+                                                        title="Revoke active sessions (force re-login everywhere)"
+                                                        className="p-1.5 rounded-md text-blue-600 hover:bg-blue-50 transition-colors disabled:opacity-50"
+                                                    >
+                                                        <LogOut className="h-4 w-4" />
                                                     </button>
                                                     <button
                                                         onClick={() => handleDelete(user)}
