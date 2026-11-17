@@ -1,5 +1,5 @@
 import apiClient from './client';
-import type { Farm } from './farmers';
+import type { Farm, CommodityFormEntry } from './farmers';
 
 export interface FarmWithFarmer extends Farm {
     farmer: {
@@ -31,7 +31,11 @@ export const getFarm = async (id: string) => {
 
 export const createFarm = async (data: {
     name: string;
-    cropType: string;
+    // `cropType` is now optional: the backend accepts either the legacy
+    // single-crop `cropType` string OR the richer `commodities` array
+    // below (see FarmController.create()'s parseCommodities() fallback) —
+    // CreateFarm.tsx's multi-commodity form only ever sends `commodities`.
+    cropType?: string;
     lat: number;
     lng: number;
     location?: any;
@@ -39,6 +43,21 @@ export const createFarm = async (data: {
     documentType?: string;
     documentUrl?: string;
     farmerId?: string;
+    // Full farm-detail field set + multi-commodity structure, matching
+    // what FarmController.create() accepts (see CommodityFormEntry and
+    // CreateFarm.tsx's "Add Farm to Existing Farmer" form).
+    ownershipType?: string;
+    farmRegistrationStatus?: string;
+    numberOfTrees?: number;
+    yearsInCultivation?: number;
+    harvestSeason?: string;
+    averageYield?: string;
+    buyers?: string;
+    useChemicals?: boolean;
+    extensionServices?: boolean;
+    farmAddress?: string;
+    commodities?: CommodityFormEntry[];
+    farmPhotos?: FileList;
 }) => {
     return apiClient.post<ApiResponse<FarmWithFarmer>>('/farms', data);
 };

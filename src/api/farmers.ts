@@ -173,6 +173,66 @@ export const createFarmer = async (data: any) => {
     return apiClient.post<ApiResponse<Farmer>>('/farmers', data);
 };
 
+/**
+ * Mirrors the backend's CommodityInput shape (see
+ * gh-backend-clone/src/services/CommodityService.ts) — the per-commodity
+ * row sent when creating/updating a farm's multi-commodity plot
+ * structure. Used by CreateFarm.tsx's "Add Commodity" form rows; numeric
+ * fields accept `string` too since native number inputs round-trip
+ * through react-hook-form as strings before the caller converts them.
+ */
+export interface CommodityFormEntry {
+    commodityName: string;
+    role?: CommodityRole | string;
+    croppingSystem?: CroppingSystem | string;
+    plantedAreaHa?: number | string;
+    plantingYear?: number | string;
+    numberOfTrees?: number | string;
+    estimatedAnnualProduction?: number | string;
+    unitOfMeasurement?: string;
+    productionStatus?: ProductionStatus | string;
+    expectedHarvestPeriod?: string;
+    // Grouping / physical-plot fields (see CommodityService.ts)
+    plotGroup?: string;
+    plotName?: string;
+    plotBoundary?: any;
+    plotAreaHa?: number | string;
+    // For updates to an existing PlotCommodity row
+    id?: string;
+    isActive?: boolean;
+}
+
+/**
+ * Lightweight "possible matches" projection returned by
+ * GET /farmers/search (see FarmerController.search() on the backend) —
+ * used by the "Add Farm to Existing Farmer" flow (FindFarmerScreen.tsx)
+ * to let the enumerator pick the right returning farmer by Farmer ID,
+ * phone, National ID, name, county/district/community, or scanned QR
+ * payload, without fetching each candidate's full record.
+ */
+export interface FarmerSearchResult {
+    id: string;
+    farmerId?: string;
+    fullName: string;
+    profilePhoto?: string;
+    phoneNumber?: string;
+    county?: string;
+    district?: string;
+    community?: string;
+    farmCount: number;
+    commodities: string[];
+    isActive?: boolean;
+}
+
+export const searchFarmers = async (params: { query?: string; qrPayload?: string }) => {
+    return apiClient.get<ApiResponse<FarmerSearchResult[]>>('/farmers/search', {
+        params: {
+            q: params.query,
+            qr: params.qrPayload,
+        },
+    });
+};
+
 export const getFarmers = async () => {
     return apiClient.get<ApiResponse<Farmer[]>>('/farmers');
 };
