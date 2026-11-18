@@ -5,6 +5,7 @@ import { navigationMenu, type NavigationItem } from '../config/navigation';
 import { useAuth } from '../context/AuthContext';
 import { UserRole } from '../types';
 import lacraLogo from '../assets/lacra_logo.jpg';
+import PartnerLogos from './ui/PartnerLogos';
 
 interface SidebarProps {
     isOpen: boolean;
@@ -399,6 +400,16 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, collapsed, onToggleC
                             <LogOut size={18} />
                         </button>
                     </div>
+
+                    {/* Platform partner attribution (IFAD / EFI). Hidden in
+                        the collapsed icon-only rail — there isn't room to
+                        render legible wordmark logos at 72px, and this is
+                        purely an attribution footer, not navigation. */}
+                    {!collapsed && (
+                        <div className="mt-3 pt-3 border-t border-brand-border flex justify-center">
+                            <PartnerLogos variant="inline" size="sm" />
+                        </div>
+                    )}
                 </div>
             </aside>
         </>

@@ -4,6 +4,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import apiClient from '../api/client';
 import logo from '../assets/lacra_logo.jpg';
 import { Loader2, Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
+import PartnerLogos from '../components/ui/PartnerLogos';
 import styles from './Login.module.css';
 
 const Login: React.FC = () => {
@@ -75,6 +76,9 @@ const Login: React.FC = () => {
                 </div>
 
                 <div className={styles.heroFooter}>
+                    <div className={styles.heroPartners}>
+                        <PartnerLogos variant="card" size="md" />
+                    </div>
                     &copy; {new Date().getFullYear()} LACRA &middot; Liberia Agriculture Commodity Regulatory Authority
                 </div>
             </div>
@@ -157,6 +161,10 @@ const Login: React.FC = () => {
                     <p className={styles.footerNote}>
                         Protected access &middot; LACRA EUDR Platform
                     </p>
+
+                    <div className={styles.cardPartners}>
+                        <PartnerLogos variant="inline" size="sm" />
+                    </div>
                 </div>
             </div>
         </div>

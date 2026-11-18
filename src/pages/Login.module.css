@@ -147,6 +147,15 @@
     color: rgba(255, 255, 255, 0.6);
 }
 
+/* "Supported by" IFAD / EFI badge, sitting just above the copyright line
+   in the hero footer. A white card is used (via PartnerLogos' `card`
+   variant) so the partner marks' own dark artwork reads cleanly against
+   the dark brown/green hero background, the same way the official seal's
+   gold accents are treated as a deliberate, separate visual layer. */
+.heroPartners {
+    margin-bottom: 18px;
+}
+
 /* Right panel - the actual sign-in form */
 .formPanel {
     display: grid;
@@ -357,4 +366,24 @@
     text-align: center;
     font-size: 11.5px;
     color: #94a3b8;
+}
+
+/* Compact "Supported by" lockup inside the form card itself, so the IFAD /
+   EFI attribution is still visible on narrow/mobile screens where the hero
+   panel (and its own partner badge) is hidden entirely. Hidden at the same
+   960px breakpoint the hero panel appears at, so the attribution is shown
+   exactly once per viewport size — never duplicated alongside the hero's
+   own badge on desktop. */
+.cardPartners {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid #f1f5f9;
+    display: flex;
+    justify-content: center;
+}
+
+@media (min-width: 960px) {
+    .cardPartners {
+        display: none;
+    }
 }
