@@ -1,10 +1,24 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { AlertTriangle } from 'lucide-react';
 import { createBatch, getAllBatches, updateBatchStatus } from '../../api/batches';
 import type { Batch } from '../../api/batches';
 import { getFarmers } from '../../api/farmers';
 import { QRCodeCanvas } from 'qrcode.react';
 import jsPDF from 'jspdf';
+
+const SkeletonListItem: React.FC = () => (
+    <li className="p-4 animate-pulse">
+        <div className="flex justify-between items-start">
+            <div className="flex-1 space-y-2">
+                <div className="h-4 bg-gray-200 rounded w-1/3"></div>
+                <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                <div className="h-3 bg-gray-200 rounded w-1/4"></div>
+            </div>
+            <div className="ml-4 h-16 w-16 bg-gray-200 rounded"></div>
+        </div>
+    </li>
+);
 
 const BatchManager: React.FC = () => {
     const [batches, setBatches] = useState<Batch[]>([]);
@@ -13,18 +27,33 @@ const BatchManager: React.FC = () => {
     const [weight, setWeight] = useState(0);
     const [cropType, setCropType] = useState('Cocoa');
     const [loading, setLoading] = useState(false);
+    const [listLoading, setListLoading] = useState(true);
+    const [listError, setListError] = useState<string | null>(null);
 
     useEffect(() => {
         loadData();
     }, []);
 
     const loadData = async () => {
-        const [batchRes, farmerRes] = await Promise.all([getAllBatches(), getFarmers()]);
-        if (batchRes.data.status) {
-            setBatches(batchRes.data.data);
-        }
-        if (farmerRes.data.status) {
-            setFarmers(farmerRes.data.data);
+        setListLoading(true);
+        setListError(null);
+        try {
+            const [batchRes, farmerRes] = await Promise.all([getAllBatches(), getFarmers()]);
+            if (batchRes.data.status) {
+                setBatches(batchRes.data.data);
+            }
+            if (farmerRes.data.status) {
+                setFarmers(farmerRes.data.data);
+            }
+        } catch (error: any) {
+            const status = error?.response?.status;
+            setListError(
+                status === 401
+                    ? 'Session expired. Please log in again to view batches.'
+                    : 'Failed to load batches. Please check your connection and try again.'
+            );
+        } finally {
+            setListLoading(false);
         }
     };
 
@@ -183,6 +212,24 @@ const BatchManager: React.FC = () => {
                     <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
                         <h3 className="text-lg leading-6 font-medium text-gray-900">Active Batches</h3>
                     </div>
+                    {listLoading ? (
+                        <ul className="divide-y divide-gray-200">
+                            <SkeletonListItem />
+                            <SkeletonListItem />
+                            <SkeletonListItem />
+                        </ul>
+                    ) : listError ? (
+                        <div className="p-8 text-center">
+                            <AlertTriangle className="mx-auto h-8 w-8 text-red-400 mb-2" />
+                            <p className="text-sm text-gray-600 mb-3">{listError}</p>
+                            <button
+                                onClick={loadData}
+                                className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md"
+                            >
+                                Try Again
+                            </button>
+                        </div>
+                    ) : (
                     <ul className="divide-y divide-gray-200">
                         {batches.map(batch => (
                             <li key={batch.id} className="p-4 hover:bg-gray-50">
@@ -247,6 +294,7 @@ const BatchManager: React.FC = () => {
                         ))}
                         {batches.length === 0 && <li className="p-4 text-center text-gray-500">No batches created yet.</li>}
                     </ul>
+                    )}
                 </div>
             </div>
         </div>

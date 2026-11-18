@@ -1,9 +1,23 @@
 import React, { useEffect, useState } from 'react';
+import { AlertTriangle } from 'lucide-react';
 import { createShipment, getAllShipments, validateShipment, getDDSData, type DDSData } from '../../api/shipments';
 import type { Shipment } from '../../api/shipments';
 import { getAllBatches } from '../../api/batches';
 import type { Batch } from '../../api/batches';
 import jsPDF from 'jspdf';
+
+const SkeletonListItem: React.FC = () => (
+    <li className="p-4 animate-pulse">
+        <div className="flex justify-between items-start">
+            <div className="flex-1 space-y-2">
+                <div className="h-4 bg-gray-200 rounded w-1/3"></div>
+                <div className="h-3 bg-gray-200 rounded w-1/2"></div>
+                <div className="h-3 bg-gray-200 rounded w-1/4"></div>
+            </div>
+            <div className="h-8 w-32 bg-gray-200 rounded"></div>
+        </div>
+    </li>
+);
 
 const ExportManager: React.FC = () => {
     const [shipments, setShipments] = useState<Shipment[]>([]);
@@ -12,20 +26,35 @@ const ExportManager: React.FC = () => {
     const [destination, setDestination] = useState('Netherlands');
     const [vessel, setVessel] = useState('');
     const [loading, setLoading] = useState(false);
+    const [listLoading, setListLoading] = useState(true);
+    const [listError, setListError] = useState<string | null>(null);
 
     useEffect(() => {
         loadData();
     }, []);
 
     const loadData = async () => {
-        const [shipRes, batchRes] = await Promise.all([getAllShipments(), getAllBatches()]);
-        if (shipRes.data.status) setShipments(shipRes.data.data);
+        setListLoading(true);
+        setListError(null);
+        try {
+            const [shipRes, batchRes] = await Promise.all([getAllShipments(), getAllBatches()]);
+            if (shipRes.data.status) setShipments(shipRes.data.data);
 
-        if (batchRes.data.status) {
-            const allBatches = batchRes.data.data;
-            // Filter only WAREHOUSE batches for export
-            const readyBatches = allBatches.filter((b: Batch) => b.status === 'WAREHOUSE');
-            setBatches(readyBatches);
+            if (batchRes.data.status) {
+                const allBatches = batchRes.data.data;
+                // Filter only WAREHOUSE batches for export
+                const readyBatches = allBatches.filter((b: Batch) => b.status === 'WAREHOUSE');
+                setBatches(readyBatches);
+            }
+        } catch (error: any) {
+            const status = error?.response?.status;
+            setListError(
+                status === 401
+                    ? 'Session expired. Please log in again to view shipments.'
+                    : 'Failed to load shipments. Please check your connection and try again.'
+            );
+        } finally {
+            setListLoading(false);
         }
     };
 
@@ -192,6 +221,24 @@ const ExportManager: React.FC = () => {
                     <div className="px-4 py-5 sm:px-6 border-b border-gray-200">
                         <h3 className="text-lg leading-6 font-medium text-gray-900">Active Shipments</h3>
                     </div>
+                    {listLoading ? (
+                        <ul className="divide-y divide-gray-200">
+                            <SkeletonListItem />
+                            <SkeletonListItem />
+                            <SkeletonListItem />
+                        </ul>
+                    ) : listError ? (
+                        <div className="p-8 text-center">
+                            <AlertTriangle className="mx-auto h-8 w-8 text-red-400 mb-2" />
+                            <p className="text-sm text-gray-600 mb-3">{listError}</p>
+                            <button
+                                onClick={loadData}
+                                className="px-4 py-2 text-sm font-medium text-white bg-green-600 hover:bg-green-700 rounded-md"
+                            >
+                                Try Again
+                            </button>
+                        </div>
+                    ) : (
                     <ul className="divide-y divide-gray-200">
                         {shipments.map(ship => (
                             <li key={ship.id} className="p-4 hover:bg-gray-50">
@@ -229,6 +276,7 @@ const ExportManager: React.FC = () => {
                         ))}
                         {shipments.length === 0 && <li className="p-4 text-center text-gray-500">No shipments created.</li>}
                     </ul>
+                    )}
                 </div>
             </div>
         </div>

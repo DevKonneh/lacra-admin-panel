@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../api/client';
-import { ClipboardCheck, Plus } from 'lucide-react';
+import { ClipboardCheck, Plus, AlertTriangle } from 'lucide-react';
 
 interface Inspection {
     id: string;
@@ -14,25 +14,47 @@ interface Inspection {
     inspector: { name: string };
 }
 
+// Skeleton row shown while inspections are loading, so the table never
+// flashes "0 inspections" / an empty state before the real data arrives.
+const SkeletonRow: React.FC = () => (
+    <tr>
+        <td className="px-6 py-4"><div className="h-3.5 w-24 bg-gray-200 rounded animate-pulse" /></td>
+        <td className="px-6 py-4"><div className="h-3.5 w-28 bg-gray-200 rounded animate-pulse" /></td>
+        <td className="px-6 py-4"><div className="h-3.5 w-20 bg-gray-200 rounded animate-pulse" /></td>
+        <td className="px-6 py-4"><div className="h-5 w-20 bg-gray-200 rounded-full animate-pulse" /></td>
+        <td className="px-6 py-4"><div className="h-3.5 w-16 bg-gray-200 rounded animate-pulse" /></td>
+        <td className="px-6 py-4"><div className="h-3.5 w-20 bg-gray-200 rounded animate-pulse" /></td>
+    </tr>
+);
+
 const InspectionList: React.FC = () => {
     const navigate = useNavigate();
     const [inspections, setInspections] = useState<Inspection[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         fetchInspections();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const fetchInspections = async () => {
         try {
-            const res = await apiClient.get('/inspections');
-            // @ts-ignore
+            setLoading(true);
+            setError(null);
+            const res: any = await apiClient.get('/inspections');
             if (res.data.status) {
-                // @ts-ignore
                 setInspections(res.data.data);
+            } else {
+                setError(res.data.message || 'Failed to load inspections.');
             }
-        } catch (error) {
-            console.error(error);
+        } catch (err: any) {
+            console.error('Error fetching inspections', err);
+            if (err?.response?.status === 401) {
+                setError('Your session has expired. Please log in again.');
+            } else {
+                setError('Failed to load inspections. Please check your connection and try again.');
+            }
         } finally {
             setLoading(false);
         }
@@ -52,8 +74,19 @@ const InspectionList: React.FC = () => {
             </div>
 
             <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-                {loading ? (
-                    <div className="p-12 text-center text-gray-500">Loading inspections...</div>
+                {error ? (
+                    <div className="flex flex-col items-center justify-center py-16 gap-3 text-center px-6">
+                        <div className="h-12 w-12 rounded-full bg-red-50 flex items-center justify-center">
+                            <AlertTriangle className="h-6 w-6 text-red-500" />
+                        </div>
+                        <p className="text-sm font-medium text-gray-900">{error}</p>
+                        <button
+                            onClick={fetchInspections}
+                            className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50"
+                        >
+                            Try Again
+                        </button>
+                    </div>
                 ) : (
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
@@ -67,7 +100,11 @@ const InspectionList: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                            {inspections.length === 0 ? (
+                            {loading ? (
+                                <>
+                                    <SkeletonRow /><SkeletonRow /><SkeletonRow /><SkeletonRow /><SkeletonRow />
+                                </>
+                            ) : inspections.length === 0 ? (
                                 <tr>
                                     <td colSpan={6} className="px-6 py-12 text-center text-gray-500">
                                         <ClipboardCheck className="mx-auto h-12 w-12 text-gray-400 mb-2" />

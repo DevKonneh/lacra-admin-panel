@@ -1,19 +1,35 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { getAllPermits } from '../../api/permits'; // You might need a getMyPermits too if separate endpoint
-import { FileBadge, Plus, Search } from 'lucide-react';
+import { FileBadge, Plus, Search, AlertTriangle } from 'lucide-react';
+
+// Skeleton row shown while permits are loading, so the table never
+// flashes "0 permits" / an empty state before the real data arrives.
+const SkeletonRow: React.FC = () => (
+    <tr>
+        <td className="px-6 py-4"><div className="h-3.5 w-28 bg-gray-200 rounded animate-pulse" /></td>
+        <td className="px-6 py-4"><div className="h-3.5 w-24 bg-gray-200 rounded animate-pulse" /></td>
+        <td className="px-6 py-4"><div className="h-5 w-20 bg-gray-200 rounded-full animate-pulse" /></td>
+        <td className="px-6 py-4"><div className="h-3.5 w-20 bg-gray-200 rounded animate-pulse" /></td>
+        <td className="px-6 py-4 text-right"><div className="h-3.5 w-12 bg-gray-200 rounded animate-pulse ml-auto" /></td>
+    </tr>
+);
 
 const PermitList: React.FC = () => {
     const [permits, setPermits] = useState<any[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
     const [searchTerm, setSearchTerm] = useState('');
 
     useEffect(() => {
         loadPermits();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const loadPermits = async () => {
         try {
+            setLoading(true);
+            setError(null);
             // Similarly assuming getAllPermits handles role-based filtering on backend or we filter here
             const response = await getAllPermits();
             // The API response body is in response.data
@@ -21,11 +37,15 @@ const PermitList: React.FC = () => {
             if (response.data && Array.isArray(response.data.data)) {
                 setPermits(response.data.data);
             } else {
-                setPermits([]);
+                setError(response.data?.message || 'Failed to load permits.');
             }
-        } catch (err) {
-            console.error(err);
-            setPermits([]);
+        } catch (err: any) {
+            console.error('Error fetching permits', err);
+            if (err?.response?.status === 401) {
+                setError('Your session has expired. Please log in again.');
+            } else {
+                setError('Failed to load permits. Please check your connection and try again.');
+            }
         } finally {
             setLoading(false);
         }
@@ -47,8 +67,6 @@ const PermitList: React.FC = () => {
             default: return 'bg-gray-100 text-gray-800';
         }
     };
-
-    if (loading) return <div>Loading...</div>;
 
     return (
         <div className="space-y-6">
@@ -79,6 +97,20 @@ const PermitList: React.FC = () => {
                     </div>
                 </div>
 
+                {error ? (
+                    <div className="flex flex-col items-center justify-center py-16 gap-3 text-center px-6">
+                        <div className="h-12 w-12 rounded-full bg-red-50 flex items-center justify-center">
+                            <AlertTriangle className="h-6 w-6 text-red-500" />
+                        </div>
+                        <p className="text-sm font-medium text-gray-900">{error}</p>
+                        <button
+                            onClick={loadPermits}
+                            className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50"
+                        >
+                            Try Again
+                        </button>
+                    </div>
+                ) : (
                 <div className="overflow-x-auto">
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
@@ -91,7 +123,11 @@ const PermitList: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                            {filteredPermits.map(permit => (
+                            {loading ? (
+                                <>
+                                    <SkeletonRow /><SkeletonRow /><SkeletonRow /><SkeletonRow /><SkeletonRow />
+                                </>
+                            ) : filteredPermits.map(permit => (
                                 <tr key={permit.id} className="hover:bg-gray-50">
                                     <td className="px-6 py-4 whitespace-nowrap">
                                         <div className="flex items-center">
@@ -115,7 +151,7 @@ const PermitList: React.FC = () => {
                                     </td>
                                 </tr>
                             ))}
-                            {filteredPermits.length === 0 && (
+                            {!loading && filteredPermits.length === 0 && (
                                 <tr>
                                     <td colSpan={5} className="px-6 py-4 text-center text-sm text-gray-500">
                                         No permits found.
@@ -125,6 +161,7 @@ const PermitList: React.FC = () => {
                         </tbody>
                     </table>
                 </div>
+                )}
             </div>
         </div>
     );

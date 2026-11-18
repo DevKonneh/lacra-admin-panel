@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import apiClient from '../../api/client';
-import { ShieldCheck, Plus } from 'lucide-react';
+import { ShieldCheck, Plus, AlertTriangle } from 'lucide-react';
 
 interface QCRecord {
     id: string;
@@ -11,25 +11,45 @@ interface QCRecord {
     inspector: { name: string };
 }
 
+// Skeleton row shown while QC records are loading, so the table never
+// flashes "0 records" / an empty state before the real data arrives.
+const SkeletonRow: React.FC = () => (
+    <tr>
+        <td className="px-6 py-4"><div className="h-3.5 w-24 bg-gray-200 rounded animate-pulse" /></td>
+        <td className="px-6 py-4"><div className="h-3.5 w-20 bg-gray-200 rounded animate-pulse" /></td>
+        <td className="px-6 py-4"><div className="h-5 w-16 bg-gray-200 rounded-full animate-pulse" /></td>
+        <td className="px-6 py-4"><div className="h-3.5 w-20 bg-gray-200 rounded animate-pulse" /></td>
+    </tr>
+);
+
 const QualityControlList: React.FC = () => {
     const navigate = useNavigate();
     const [records, setRecords] = useState<QCRecord[]>([]);
     const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
 
     useEffect(() => {
         fetchQC();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, []);
 
     const fetchQC = async () => {
         try {
-            const res = await apiClient.get('/quality');
-            // @ts-ignore
+            setLoading(true);
+            setError(null);
+            const res: any = await apiClient.get('/quality');
             if (res.data.status) {
-                // @ts-ignore
                 setRecords(res.data.data);
+            } else {
+                setError(res.data.message || 'Failed to load quality control records.');
             }
-        } catch (error) {
-            console.error(error);
+        } catch (err: any) {
+            console.error('Error fetching QC records', err);
+            if (err?.response?.status === 401) {
+                setError('Your session has expired. Please log in again.');
+            } else {
+                setError('Failed to load quality control records. Please check your connection and try again.');
+            }
         } finally {
             setLoading(false);
         }
@@ -49,8 +69,19 @@ const QualityControlList: React.FC = () => {
             </div>
 
             <div className="bg-white shadow overflow-hidden sm:rounded-lg">
-                {loading ? (
-                    <div className="p-12 text-center text-gray-500">Loading QC records...</div>
+                {error ? (
+                    <div className="flex flex-col items-center justify-center py-16 gap-3 text-center px-6">
+                        <div className="h-12 w-12 rounded-full bg-red-50 flex items-center justify-center">
+                            <AlertTriangle className="h-6 w-6 text-red-500" />
+                        </div>
+                        <p className="text-sm font-medium text-gray-900">{error}</p>
+                        <button
+                            onClick={fetchQC}
+                            className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50"
+                        >
+                            Try Again
+                        </button>
+                    </div>
                 ) : (
                     <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
@@ -62,7 +93,11 @@ const QualityControlList: React.FC = () => {
                             </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
-                            {records.length === 0 ? (
+                            {loading ? (
+                                <>
+                                    <SkeletonRow /><SkeletonRow /><SkeletonRow /><SkeletonRow /><SkeletonRow />
+                                </>
+                            ) : records.length === 0 ? (
                                 <tr>
                                     <td colSpan={4} className="px-6 py-12 text-center text-gray-500">
                                         <ShieldCheck className="mx-auto h-12 w-12 text-gray-400 mb-2" />
