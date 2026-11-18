@@ -76,9 +76,6 @@ const Login: React.FC = () => {
                 </div>
 
                 <div className={styles.heroFooter}>
-                    <div className={styles.heroPartners}>
-                        <PartnerLogos variant="card" size="md" />
-                    </div>
                     &copy; {new Date().getFullYear()} LACRA &middot; Liberia Agriculture Commodity Regulatory Authority
                 </div>
             </div>
