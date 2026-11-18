@@ -40,6 +40,7 @@ const Login: React.FC = () => {
             <div className={styles.hero}>
                 <div className={styles.heroCircleLg} />
                 <div className={styles.heroCircleSm} />
+                <div className={styles.heroRingGold} />
 
                 <div className={styles.heroTop}>
                     <img src={logo} alt="LACRA" className={styles.heroLogo} />
@@ -149,6 +150,7 @@ const Login: React.FC = () => {
 
                         <div className={styles.links}>
                             <Link to="/register" className={styles.linkBtn}>Register as Farmer</Link>
+                            <Link to="/apply" className={styles.linkBtn}>Apply for a LACRA Permit or Licence</Link>
                         </div>
                     </form>
 

@@ -72,6 +72,18 @@ const InfoTip: React.FC<{ text: string }> = ({ text }) => (
 // renders if `roles` includes the signed-in user's role; omitting `roles`
 // means every authenticated staff member (non-Farmer) can see it.
 // ---------------------------------------------------------------------
+// `tone` groups actions by what KIND of task they are (data entry vs.
+// review/approval vs. finance vs. field/QA) so the icon chips are no
+// longer a uniform wall of identical gray-to-green icons — reuses the same
+// tone vocabulary as the StatCard system below for consistency.
+type QuickActionTone = 'green' | 'blue' | 'amber' | 'indigo' | 'gray';
+const QUICK_ACTION_TONE_STYLES: Record<QuickActionTone, string> = {
+    green: 'bg-brand-green/10 text-brand-green',
+    blue: 'bg-blue-50 text-blue-600',
+    amber: 'bg-amber-50 text-amber-600',
+    indigo: 'bg-indigo-50 text-indigo-600',
+    gray: 'bg-slate-100 text-slate-500',
+};
 interface QuickAction {
     key: string;
     label: string;
@@ -79,21 +91,22 @@ interface QuickAction {
     path?: string;
     onClick?: (ctx: { setShowRegisterForm: (v: boolean) => void; showRegisterForm: boolean }) => void;
     roles?: UserRole[];
+    tone: QuickActionTone;
 }
 const QUICK_ACTIONS: QuickAction[] = [
-    { key: 'register-farmer', label: 'Register Farmer', icon: <UserPlus2 className="h-4 w-4" />, onClick: ({ setShowRegisterForm, showRegisterForm }) => setShowRegisterForm(!showRegisterForm) },
-    { key: 'add-farm', label: 'Add Farm', icon: <MapPinned className="h-4 w-4" />, path: '/farms/new' },
-    { key: 'commercial-queue', label: 'Review Applications', icon: <FileCheck className="h-4 w-4" />, path: '/applications/commercial-queue', roles: [UserRole.COMMERCIAL, UserRole.ADMIN] },
-    { key: 'dg-queue', label: 'DG Approvals', icon: <Stamp className="h-4 w-4" />, path: '/applications/dg-queue', roles: [UserRole.DG, UserRole.ADMIN] },
-    { key: 'technical-queue', label: 'Technical Reviews', icon: <ClipboardCheck className="h-4 w-4" />, path: '/applications/technical-queue', roles: [UserRole.TECHNICAL, UserRole.ADMIN] },
-    { key: 'inspection-queue', label: 'Inspector Assessments', icon: <ShieldAlert className="h-4 w-4" />, path: '/applications/inspection-queue', roles: [UserRole.INSPECTOR, UserRole.ADMIN] },
-    { key: 'billing-queue', label: 'Billing Review', icon: <FileBadge className="h-4 w-4" />, path: '/applications/billing-queue', roles: [UserRole.FINANCE, UserRole.ADMIN] },
-    { key: 'payment-queue', label: 'Payment Verification', icon: <FileBadge className="h-4 w-4" />, path: '/applications/payment-queue', roles: [UserRole.FINANCE, UserRole.ADMIN] },
-    { key: 'it-queue', label: 'Certificate Issuance', icon: <FileCheck className="h-4 w-4" />, path: '/applications/it-queue', roles: [UserRole.IT, UserRole.ADMIN] },
-    { key: 'identity-verification', label: 'Identity Verification', icon: <ShieldQuestion className="h-4 w-4" />, path: '/farmers/verification', roles: [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.INSPECTOR] },
-    { key: 'data-correction', label: 'Data Correction Queue', icon: <FileWarning className="h-4 w-4" />, path: '/farms/data-correction-queue', roles: [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.INSPECTOR] },
-    { key: 'quality', label: 'Quality Control', icon: <FlaskConical className="h-4 w-4" />, path: '/quality' },
-    { key: 'inspections', label: 'Schedule Inspection', icon: <ClipboardCheck className="h-4 w-4" />, path: '/inspections' },
+    { key: 'register-farmer', label: 'Register Farmer', icon: <UserPlus2 className="h-4 w-4" />, onClick: ({ setShowRegisterForm, showRegisterForm }) => setShowRegisterForm(!showRegisterForm), tone: 'green' },
+    { key: 'add-farm', label: 'Add Farm', icon: <MapPinned className="h-4 w-4" />, path: '/farms/new', tone: 'green' },
+    { key: 'commercial-queue', label: 'Review Applications', icon: <FileCheck className="h-4 w-4" />, path: '/applications/commercial-queue', roles: [UserRole.COMMERCIAL, UserRole.ADMIN], tone: 'blue' },
+    { key: 'dg-queue', label: 'DG Approvals', icon: <Stamp className="h-4 w-4" />, path: '/applications/dg-queue', roles: [UserRole.DG, UserRole.ADMIN], tone: 'blue' },
+    { key: 'technical-queue', label: 'Technical Reviews', icon: <ClipboardCheck className="h-4 w-4" />, path: '/applications/technical-queue', roles: [UserRole.TECHNICAL, UserRole.ADMIN], tone: 'blue' },
+    { key: 'inspection-queue', label: 'Inspector Assessments', icon: <ShieldAlert className="h-4 w-4" />, path: '/applications/inspection-queue', roles: [UserRole.INSPECTOR, UserRole.ADMIN], tone: 'amber' },
+    { key: 'billing-queue', label: 'Billing Review', icon: <FileBadge className="h-4 w-4" />, path: '/applications/billing-queue', roles: [UserRole.FINANCE, UserRole.ADMIN], tone: 'indigo' },
+    { key: 'payment-queue', label: 'Payment Verification', icon: <FileBadge className="h-4 w-4" />, path: '/applications/payment-queue', roles: [UserRole.FINANCE, UserRole.ADMIN], tone: 'indigo' },
+    { key: 'it-queue', label: 'Certificate Issuance', icon: <FileCheck className="h-4 w-4" />, path: '/applications/it-queue', roles: [UserRole.IT, UserRole.ADMIN], tone: 'blue' },
+    { key: 'identity-verification', label: 'Identity Verification', icon: <ShieldQuestion className="h-4 w-4" />, path: '/farmers/verification', roles: [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.INSPECTOR], tone: 'amber' },
+    { key: 'data-correction', label: 'Data Correction Queue', icon: <FileWarning className="h-4 w-4" />, path: '/farms/data-correction-queue', roles: [UserRole.ADMIN, UserRole.SUPER_ADMIN, UserRole.INSPECTOR], tone: 'amber' },
+    { key: 'quality', label: 'Quality Control', icon: <FlaskConical className="h-4 w-4" />, path: '/quality', tone: 'gray' },
+    { key: 'inspections', label: 'Schedule Inspection', icon: <ClipboardCheck className="h-4 w-4" />, path: '/inspections', tone: 'gray' },
 ];
 
 // ---------------------------------------------------------------------
@@ -469,9 +482,9 @@ const Dashboard: React.FC = () => {
                                 <button
                                     key={action.key}
                                     onClick={() => action.path ? navigate(action.path) : action.onClick?.({ setShowRegisterForm, showRegisterForm })}
-                                    className="group inline-flex items-center gap-2 px-3.5 py-2 rounded-lg border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:border-brand-green hover:bg-brand-green/5 hover:text-brand-green transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
+                                    className="group inline-flex items-center gap-2 pl-2 pr-3.5 py-2 rounded-xl border border-gray-200 bg-white text-sm font-medium text-gray-700 hover:border-brand-green/50 hover:shadow-card transition-all focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-green"
                                 >
-                                    <span className="text-gray-400 group-hover:text-brand-green transition-colors">{action.icon}</span>
+                                    <span className={`flex items-center justify-center h-6 w-6 rounded-lg ${QUICK_ACTION_TONE_STYLES[action.tone]}`}>{action.icon}</span>
                                     {action.label}
                                 </button>
                             ))}
@@ -502,6 +515,7 @@ const Dashboard: React.FC = () => {
                     <StatCard
                         icon={<UserPlus className="h-5 w-5" />}
                         tone="blue"
+                        headline
                         title="Registered Farmers"
                         tooltip="Total number of Farmer records matching the current filters (Farmer Registry count)."
                         value={stats.totalFarmers}
@@ -580,6 +594,7 @@ const Dashboard: React.FC = () => {
                     <StatCard
                         icon={<FileCheck className="h-5 w-5" />}
                         tone="green"
+                        headline
                         title="Assessed Low Risk, Valid Geometry"
                         tooltip={`${stats.compliantFarms} ÷ ${stats.totalFarms} ALL REGISTERED FARMS (${stats.complianceDenominatorLabel}) = ${stats.complianceRate}%. A farm is counted here ONLY if it has (1) a COMPLETED risk assessment, (2) a Low risk result, AND (3) a Valid GPS boundary. Farms with no completed assessment are EXCLUDED here and counted separately as Assessment Pending — see that card. Click for the full calculation.`}
                         value={stats.compliantFarms}
@@ -982,27 +997,37 @@ const TONE_STYLES: Record<StatTone, { chipBg: string; chipText: string; bar: str
 // explaining the exact calculation behind the number, and an optional
 // `ratePercent` that renders a thin, color-matched progress bar so a rate
 // (e.g. "16.7%") has a visual representation, not just text in parentheses.
-const StatCard = ({ icon, title, tooltip, value, link, linkText, tone = 'green', onClick, suffix = "", ratePercent }: {
+//
+// `headline` marks the single most important metric in a section (e.g. the
+// first card of "Farmer & Farm Overview"): a larger value, a bolder icon
+// chip and a brand-colored top accent make it read as the "lead number" at
+// a glance, while every other card in the row stays visually calmer. This
+// is intentionally used sparingly — only one headline card per section —
+// so it differentiates rather than just making everything louder.
+const StatCard = ({ icon, title, tooltip, value, link, linkText, tone = 'green', onClick, suffix = "", ratePercent, headline = false }: {
     icon: React.ReactNode; title: string; tooltip?: string; value: React.ReactNode;
     link?: string; linkText?: string; tone?: StatTone; onClick?: () => void; suffix?: string;
     /** 0-100. When provided, renders a thin progress bar under the value. */
     ratePercent?: number;
+    /** Marks this card as the lead/headline metric of its section. */
+    headline?: boolean;
 }) => {
     const t = TONE_STYLES[tone];
     return (
-        <div className={`group bg-white overflow-hidden rounded-xl border border-gray-200 ${t.ring} hover:shadow-card transition-all duration-150`}>
-            <div className="p-5">
+        <div className={`group relative bg-white overflow-hidden rounded-xl border ${headline ? 'border-brand-green/25' : 'border-gray-200'} ${t.ring} hover:shadow-card-hover hover:-translate-y-0.5 transition-all duration-150`}>
+            {headline && <div className="absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-brand-green via-brand-green to-brand-gold/70" />}
+            <div className={`p-5 ${headline ? 'pt-6' : ''}`}>
                 <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0 flex-1">
                         <dt className="text-[11px] font-semibold text-gray-500 truncate tracking-wide uppercase flex items-center">
                             {title}
                             {tooltip && <InfoTip text={tooltip} />}
                         </dt>
-                        <dd className="text-[26px] font-bold text-gray-900 mt-1.5 leading-none tracking-tight">
+                        <dd className={`${headline ? 'text-[32px]' : 'text-[26px]'} font-bold text-gray-900 mt-1.5 leading-none tracking-tight`}>
                             {typeof value === 'number' ? <AnimatedCounter value={value} suffix={suffix} /> : value}
                         </dd>
                     </div>
-                    <div className={`flex-shrink-0 h-11 w-11 rounded-xl ${t.chipBg} ${t.chipText} flex items-center justify-center`}>{icon}</div>
+                    <div className={`flex-shrink-0 ${headline ? 'h-12 w-12' : 'h-11 w-11'} rounded-xl ${t.chipBg} ${t.chipText} flex items-center justify-center`}>{icon}</div>
                 </div>
                 {typeof ratePercent === 'number' && (
                     <div className="mt-3 h-1.5 w-full rounded-full bg-gray-100 overflow-hidden" role="progressbar" aria-valuenow={Math.round(ratePercent)} aria-valuemin={0} aria-valuemax={100}>

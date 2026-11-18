@@ -134,7 +134,7 @@ const Layout: React.FC = () => {
                         </button>
 
                         <div>
-                            <h1 className="font-extrabold text-base text-brand-text leading-tight">LACRA CMIS</h1>
+                            <h1 className="font-extrabold text-base text-brand-brown leading-tight">LACRA CMIS</h1>
                             <div className="text-xs text-brand-muted mt-0.5">Commodity Management Information System</div>
                         </div>
                     </div>
@@ -145,7 +145,7 @@ const Layout: React.FC = () => {
                         <span className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-full bg-brand-green/8 border border-brand-green/18 text-brand-green font-extrabold text-xs whitespace-nowrap">
                             LACRA EUDR Platform
                         </span>
-                        <span className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-full bg-slate-100 border border-slate-200 text-slate-700 font-extrabold text-xs whitespace-nowrap">
+                        <span className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-full bg-brand-brown-soft border border-brand-brown/15 text-brand-brown font-extrabold text-xs whitespace-nowrap">
                             Signed in: Admin
                         </span>
                     </div>

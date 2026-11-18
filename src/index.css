@@ -4,9 +4,13 @@
 @layer base {
     body {
         @apply bg-brand-bg text-brand-text font-sans;
+        /* Added a very faint warm brown tint at the bottom-left, echoing the
+           LACRA seal's brown without competing with the existing green
+           tints or darkening the page background in any perceptible way. */
         background:
             radial-gradient(1000px 500px at 10% 0%, rgba(22, 163, 74, .12), transparent 60%),
             radial-gradient(1000px 500px at 90% 0%, rgba(11, 122, 51, .10), transparent 60%),
+            radial-gradient(900px 500px at 15% 100%, rgba(81, 45, 13, .05), transparent 60%),
             #f6fbf7;
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;

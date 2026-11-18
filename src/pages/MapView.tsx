@@ -441,7 +441,7 @@ const MapView: React.FC = () => {
             <div className="bg-white border border-brand-border rounded-xl p-3.5 shadow-card">
                 <div className="flex items-start justify-between gap-3 flex-wrap mb-3">
                     <div className="flex items-center gap-2">
-                        <div className="w-8 h-8 rounded-lg bg-brand-green/10 flex items-center justify-center flex-none">
+                        <div className="w-8 h-8 rounded-lg bg-brand-green/10 ring-1 ring-brand-brown/15 flex items-center justify-center flex-none">
                             <ShieldCheck className="h-4.5 w-4.5 text-brand-green" />
                         </div>
                         <div>
@@ -570,31 +570,34 @@ const MapView: React.FC = () => {
                     </MapContainer>
 
                     {/* Layer toggle */}
-                    <div className="absolute top-3 right-3 z-[1000] bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 flex text-xs font-semibold overflow-hidden">
+                    <div className="absolute top-3 right-3 z-[1000] bg-white/95 backdrop-blur rounded-xl shadow-card border border-brand-border flex text-xs font-semibold overflow-hidden">
                         <button
                             type="button"
                             onClick={() => setLayer('satellite')}
-                            className={`flex items-center gap-1 px-3 py-2 transition-colors ${layer === 'satellite' ? 'bg-green-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+                            className={`flex items-center gap-1 px-3 py-2 transition-colors ${layer === 'satellite' ? 'bg-brand-green text-white' : 'text-gray-600 hover:bg-brand-green/8'}`}
                         >
                             <Satellite className="h-3.5 w-3.5" /> Satellite
                         </button>
                         <button
                             type="button"
                             onClick={() => setLayer('street')}
-                            className={`flex items-center gap-1 px-3 py-2 transition-colors ${layer === 'street' ? 'bg-green-600 text-white' : 'text-gray-600 hover:bg-gray-50'}`}
+                            className={`flex items-center gap-1 px-3 py-2 transition-colors ${layer === 'street' ? 'bg-brand-green text-white' : 'text-gray-600 hover:bg-brand-green/8'}`}
                         >
                             <MapIcon className="h-3.5 w-3.5" /> Street
                         </button>
                     </div>
 
-                    {/* Legend */}
-                    <div className="absolute bottom-3 left-3 z-[1000] bg-white/95 backdrop-blur rounded-lg shadow-md border border-gray-200 px-3 py-2.5 text-[11px] max-w-[200px]">
-                        <p className="font-extrabold text-brand-text mb-1.5 flex items-center gap-1"><Ruler className="h-3 w-3" /> Risk Legend</p>
-                        <div className="space-y-1">
+                    {/* Legend — restyled as a proper branded card (was a plain
+                        gray-bordered box); 2-column grid keeps it compact so it
+                        doesn't grow tall enough to crowd the hover-readout
+                        chip in the opposite corner on short map heights. */}
+                    <div className="absolute bottom-3 left-3 z-[1000] bg-white/95 backdrop-blur rounded-xl shadow-card border border-brand-border px-3 py-2.5 text-[11px] max-w-[220px]">
+                        <p className="font-extrabold text-brand-brown mb-1.5 flex items-center gap-1"><Ruler className="h-3 w-3" /> Risk Legend</p>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-1">
                             {(['Low', 'Medium', 'High', 'Unknown'] as const).map(r => {
                                 const s = riskStyle(r);
                                 return (
-                                    <div key={r} className="flex items-center gap-1.5 text-gray-600">
+                                    <div key={r} className="flex items-center gap-1.5 text-gray-600 whitespace-nowrap">
                                         <span className="w-2.5 h-2.5 rounded-full flex-none" style={{ background: s.dot }} />
                                         {s.label}
                                     </div>
@@ -604,7 +607,7 @@ const MapView: React.FC = () => {
                     </div>
 
                     {/* Live hover coordinate + resolved place-name readout */}
-                    <div className="absolute bottom-3 right-3 z-[1000] bg-slate-900/85 text-white text-[11px] rounded-md px-3 py-1.5 flex flex-col items-end gap-0.5 pointer-events-none max-w-[280px]">
+                    <div className="absolute bottom-3 right-3 z-[1000] bg-brand-brown/90 text-white text-[11px] rounded-md px-3 py-1.5 flex flex-col items-end gap-0.5 pointer-events-none max-w-[280px]">
                         {hoverLatLng ? (
                             <>
                                 <span className="flex items-center gap-1.5 font-mono">

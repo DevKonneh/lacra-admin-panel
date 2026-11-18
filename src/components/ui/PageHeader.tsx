@@ -33,7 +33,7 @@ const PageHeader: React.FC<PageHeaderProps> = ({ breadcrumb, title, description,
             {breadcrumb && breadcrumb.length > 0 && <Breadcrumb items={breadcrumb} />}
             <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
-                    <h1 className="text-xl sm:text-2xl font-semibold text-brand-text leading-tight break-words">
+                    <h1 className="text-xl sm:text-2xl font-semibold text-brand-brown leading-tight break-words">
                         {title}
                     </h1>
                     {description && (

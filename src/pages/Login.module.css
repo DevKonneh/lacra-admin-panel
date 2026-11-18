@@ -2,7 +2,11 @@
     min-height: 100vh;
     display: grid;
     grid-template-columns: 1fr;
-    background: linear-gradient(135deg, #0b3d1f 0%, #0b7a33 55%, #16a34a 100%);
+    /* Brand-accurate hero gradient derived from the official LACRA seal:
+       deep brown (ink/earth) -> brown -> deep forest green -> green.
+       Replaces the previous generic flat-green gradient with a treatment
+       that actually reflects the seal's brown + green identity. */
+    background: linear-gradient(135deg, #2d1907 0%, #512d0d 38%, #07491f 72%, #0b7a33 100%);
 }
 
 @media (min-width: 960px) {
@@ -48,6 +52,20 @@
     left: -60px;
 }
 
+/* Subtle gold ring accent, echoing the seal's gold cocoa-pod motif.
+   Decorative only (gold fails text contrast, so it is never used for
+   copy) — a thin outlined ring, not a filled shape, to stay restrained. */
+.heroRingGold {
+    position: absolute;
+    width: 180px;
+    height: 180px;
+    border-radius: 50%;
+    border: 1.5px solid rgba(227, 177, 0, 0.35);
+    top: 64px;
+    right: 96px;
+    pointer-events: none;
+}
+
 .heroTop {
     display: flex;
     align-items: center;
@@ -61,7 +79,8 @@
     height: 52px;
     border-radius: 14px;
     object-fit: cover;
-    border: 2px solid rgba(255, 255, 255, 0.5);
+    border: 2px solid rgba(227, 177, 0, 0.55);
+    background: #fff;
 }
 
 .heroBrandName {
@@ -110,6 +129,10 @@
 .heroStatValue {
     font-size: 22px;
     font-weight: 800;
+    /* Gold accent on the headline stat values only (large, bold text) —
+       large/bold text has a lower WCAG contrast floor (3:1), and this
+       value comfortably clears it against the dark hero background. */
+    color: #ffd84d;
 }
 
 .heroStatLabel {
@@ -137,6 +160,7 @@
     max-width: 400px;
     background: #ffffff;
     border: 1px solid #e5e7eb;
+    border-top: 3px solid #512d0d;
     border-radius: 20px;
     box-shadow: 0 20px 45px rgba(15, 23, 42, 0.10);
     padding: 36px 32px;
@@ -172,7 +196,7 @@
     margin: 0;
     font-size: 24px;
     font-weight: 800;
-    color: #0f172a;
+    color: #512d0d;
 }
 
 .subtitle {
@@ -245,6 +269,10 @@
 .input:focus {
     border-color: #0b7a33;
     box-shadow: 0 0 0 3px rgba(11, 122, 51, 0.14);
+}
+
+.field:focus-within .label {
+    color: #512d0d;
 }
 
 .input::placeholder {

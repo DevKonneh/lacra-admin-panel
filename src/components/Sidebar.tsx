@@ -335,12 +335,16 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, collapsed, onToggleC
                     ${isOpen ? 'translate-x-0 shadow-2xl' : '-translate-x-full'}
                 `}
             >
-                {/* Brand */}
-                <div className={`flex gap-3 items-center p-2.5 border border-brand-border rounded-xl bg-gradient-to-br from-brand-green/10 to-brand-green/6 shadow-card ${collapsed ? 'lg:justify-center lg:p-2' : ''}`}>
+                {/* Brand — subtle brown-to-green gradient (echoing the seal's
+                    own palette) replaces the previous single-tone green
+                    tint, and the logo gets a thin gold ring instead of a
+                    plain white border so it reads as "badge/seal", not a
+                    generic rounded avatar. */}
+                <div className={`flex gap-3 items-center p-2.5 border border-brand-border rounded-xl bg-gradient-to-br from-brand-brown/8 via-brand-green/8 to-brand-green/6 shadow-card ${collapsed ? 'lg:justify-center lg:p-2' : ''}`}>
                     <img
                         src={lacraLogo}
                         alt="LACRA"
-                        className="w-[40px] h-[40px] rounded-full flex-none border-2 border-white shadow-sm object-cover bg-white"
+                        className="w-[40px] h-[40px] rounded-full flex-none border-2 border-brand-gold/50 shadow-sm object-cover bg-white"
                     />
                     {!collapsed && (
                         <div className="min-w-0">

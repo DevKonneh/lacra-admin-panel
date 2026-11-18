@@ -18,14 +18,20 @@ interface SectionHeadingProps {
  * Used by Dashboard.tsx and NeedsAttentionSection.tsx so both match.
  */
 const SectionHeading: React.FC<SectionHeadingProps> = ({ icon, children, action }) => (
-    <div className="flex items-center gap-2 mb-4">
-        <span className="flex items-center justify-center h-6 w-6 rounded-md bg-brand-green/10 text-brand-green flex-shrink-0 [&>svg]:h-3.5 [&>svg]:w-3.5">
+    <div className="flex items-center gap-2.5 mb-4">
+        {/* Slightly larger chip with a brand-brown ring, echoing the LACRA
+            seal's ink color so section headers read with more presence
+            without introducing a new "loud" color per section. */}
+        <span className="flex items-center justify-center h-7 w-7 rounded-md bg-brand-green/10 text-brand-green ring-1 ring-brand-brown/15 flex-shrink-0 [&>svg]:h-3.5 [&>svg]:w-3.5">
             {icon}
         </span>
-        <h2 className="text-[11px] font-bold text-slate-500 tracking-widest uppercase whitespace-nowrap">
+        <h2 className="text-[11.5px] font-bold text-brand-brown/90 tracking-widest uppercase whitespace-nowrap">
             {children}
         </h2>
-        <div className="flex-1 h-px bg-slate-200" />
+        {/* Hairline rule now fades from a faint gold tint into slate, a subtle
+            nod to the seal's gold without using gold as text (it fails
+            contrast) or as a heavy decorative block. */}
+        <div className="flex-1 h-px bg-gradient-to-r from-brand-gold/40 via-slate-200 to-slate-200" />
         {action && <div className="flex-shrink-0">{action}</div>}
     </div>
 );
