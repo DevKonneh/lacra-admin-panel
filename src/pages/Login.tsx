@@ -7,6 +7,18 @@ import { Loader2, Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 import PartnerLogos from '../components/ui/PartnerLogos';
 import styles from './Login.module.css';
 
+/* The platform's core functions, shown as callouts on the brand panel.
+   These replace the previous EUDR / GPS / 24-7 stat block so the panel
+   reflects the full scope of CMIS rather than a single workstream. */
+const HERO_FUNCTIONS = [
+    'Licences & Permits',
+    'Inspections',
+    'Shipment Clearance',
+    'Farmer Registration & Farm Mapping',
+    'Commodity Traceability',
+    'EUDR Compliance',
+];
+
 const Login: React.FC = () => {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -52,26 +64,20 @@ const Login: React.FC = () => {
                 </div>
 
                 <div className={styles.heroBody}>
-                    <h1 className={styles.heroTitle}>Farm Mapping &amp; EUDR Compliance Platform</h1>
+                    <h1 className={styles.heroTitle}>Agricultural Commodity Management &amp; Compliance</h1>
                     <p className={styles.heroSubtitle}>
-                        Manage farmer registrations, farm boundary mapping, traceability and
-                        deforestation risk analysis in one place &mdash; built for LACRA's
-                        national commodity compliance program.
+                        Manage licences and permits, record inspections, process shipment
+                        clearance, register farmers, and map farm boundaries. Trace commodities
+                        from farm to export and assess deforestation risk as part of the EUDR
+                        compliance process.
                     </p>
 
                     <div className={styles.heroStats}>
-                        <div className={styles.heroStat}>
-                            <span className={styles.heroStatValue}>EUDR</span>
-                            <span className={styles.heroStatLabel}>Aligned Traceability</span>
-                        </div>
-                        <div className={styles.heroStat}>
-                            <span className={styles.heroStatValue}>GPS</span>
-                            <span className={styles.heroStatLabel}>Farm Boundary Mapping</span>
-                        </div>
-                        <div className={styles.heroStat}>
-                            <span className={styles.heroStatValue}>24/7</span>
-                            <span className={styles.heroStatLabel}>Field Data Sync</span>
-                        </div>
+                        {HERO_FUNCTIONS.map((label) => (
+                            <div key={label} className={styles.heroStat}>
+                                <span className={styles.heroStatValue}>{label}</span>
+                            </div>
+                        ))}
                     </div>
                 </div>
 
@@ -87,11 +93,11 @@ const Login: React.FC = () => {
                         <img src={logo} alt="LACRA" className={styles.logo} />
                         <div>
                             <div className={styles.brandName}>LACRA</div>
-                            <div className={styles.brandSub}>Admin Portal</div>
+                            <div className={styles.brandSub}>CMIS Portal</div>
                         </div>
                     </div>
 
-                    <h1 className={styles.title}>Welcome back</h1>
+                    <h1 className={styles.title}>Sign in to LACRA CMIS</h1>
                     <p className={styles.subtitle}>Sign in to your account to continue</p>
 
                     <form onSubmit={handleSubmit} className={styles.form}>
@@ -150,13 +156,13 @@ const Login: React.FC = () => {
                         </button>
 
                         <div className={styles.links}>
-                            <Link to="/register" className={styles.linkBtn}>Register as Farmer</Link>
-                            <Link to="/apply" className={styles.linkBtn}>Apply for a LACRA Permit or Licence</Link>
+                            <Link to="/register" className={styles.linkBtn}>Register as a farmer</Link>
+                            <Link to="/apply" className={styles.linkBtn}>Apply for a licence or permit</Link>
                         </div>
                     </form>
 
                     <p className={styles.footerNote}>
-                        Protected access &middot; LACRA EUDR Platform
+                        Protected access &middot; LACRA CMIS
                     </p>
 
                     <div className={styles.cardPartners}>
