@@ -9,6 +9,7 @@ import FarmSoilPanel from '../../components/FarmSoilPanel';
 import { resolveFileUrl } from '../../utils/fileUrl';
 import SafeImage from '../../components/SafeImage';
 import { estimateTreeCount, formatTreeCount } from '../../utils/treeEstimate';
+import { effectiveRiskLevel, isStaleAssessment, complianceBucketOf, complianceBucketLabel } from '../../utils/riskStatus';
 
 interface FarmDocument {
     id: string;
@@ -68,7 +69,17 @@ const FarmDetails: React.FC = () => {
     }
 
     const areaLabel = farm.totalAreaHa ? `${farm.totalAreaHa} ha` : 'Not measured';
-    const boundaryType = farm.location?.type === 'Polygon' ? 'GPS Polygon Boundary' : farm.location?.type === 'Point' ? 'Single GPS Point' : 'Not captured';
+    const boundaryType = farm.location?.type === 'Polygon' ? 'GPS Polygon Boundary'
+        : farm.location?.type === 'MultiPolygon' ? 'GPS Multi-polygon Boundary'
+            : farm.location?.type === 'Point' ? 'Single GPS Point'
+                : 'Not captured';
+
+    // Farm.riskLevel defaults to 'Low' in the database, so it must never be
+    // read directly here: an unassessed farm would render a green "Low Risk"
+    // badge it has not earned. effectiveRiskLevel() returns null until a
+    // completed assessment date exists.
+    const assessedRisk = effectiveRiskLevel(farm);
+    const assessmentStale = isStaleAssessment(farm);
 
     const hasRealTreeCount = farm.numberOfTrees !== null && farm.numberOfTrees !== undefined;
     const treeEstimate = hasRealTreeCount
@@ -100,11 +111,14 @@ const FarmDetails: React.FC = () => {
                         </div>
                     </div>
                     <span className={`px-3.5 py-1.5 rounded-full text-xs font-bold border backdrop-blur-sm ${
-                        farm.riskLevel === 'High' ? 'bg-red-500/20 text-red-100 border-red-300/40' :
-                        farm.riskLevel === 'Medium' ? 'bg-orange-500/20 text-orange-100 border-orange-300/40' :
-                        'bg-white/20 text-white border-white/40'
+                        assessedRisk === 'High' ? 'bg-red-500/20 text-red-100 border-red-300/40' :
+                        assessedRisk === 'Medium' ? 'bg-orange-500/20 text-orange-100 border-orange-300/40' :
+                        assessedRisk === 'Low' ? 'bg-green-500/25 text-green-50 border-green-200/50' :
+                        'bg-white/15 text-white/90 border-white/30'
                     }`}>
-                        Risk: {farm.riskLevel || 'Low'}
+                        {assessedRisk
+                            ? <>Risk: {assessedRisk}{assessmentStale ? ' (stale)' : ''}</>
+                            : 'Not Assessed'}
                     </span>
                 </div>
             </div>
@@ -162,6 +176,44 @@ const FarmDetails: React.FC = () => {
                     </div>
 
                     <div className="bg-white shadow-md rounded-xl p-4 text-sm space-y-2">
+                        {/* Assessment state, kept adjacent to the map so a reviewer can
+                            see geometry type, whether an assessment exists, and when it
+                            last ran without leaving the page. */}
+                        <div className="flex justify-between border-b border-gray-100 pb-2">
+                            <span className="text-gray-500">Boundary type</span>
+                            <span className="font-medium text-gray-900">{boundaryType}</span>
+                        </div>
+                        <div className="flex justify-between border-b border-gray-100 pb-2">
+                            <span className="text-gray-500">Geometry check</span>
+                            <span className={`font-semibold ${
+                                farm.geometryStatus === 'Valid' ? 'text-green-700'
+                                    : farm.geometryStatus === 'Invalid' ? 'text-red-600'
+                                        : farm.geometryStatus === 'Needs Review' ? 'text-amber-600'
+                                            : 'text-gray-400'
+                            }`}>
+                                {farm.geometryStatus || 'Missing'}
+                            </span>
+                        </div>
+                        <div className="flex justify-between border-b border-gray-100 pb-2">
+                            <span className="text-gray-500">Compliance status</span>
+                            <span className={`font-semibold ${
+                                complianceBucketOf(farm) === 'Compliant' ? 'text-green-700'
+                                    : complianceBucketOf(farm) === 'High Risk' ? 'text-red-600'
+                                        : complianceBucketOf(farm) === 'Needs Review' ? 'text-amber-600'
+                                            : 'text-gray-500'
+                            }`}>
+                                {complianceBucketLabel(complianceBucketOf(farm))}
+                            </span>
+                        </div>
+                        <div className="flex justify-between border-b border-gray-100 pb-2">
+                            <span className="text-gray-500">Last assessed</span>
+                            <span className={`font-medium ${assessmentStale ? 'text-amber-700' : 'text-gray-900'}`}>
+                                {farm.lastRiskAssessmentDate
+                                    ? new Date(farm.lastRiskAssessmentDate).toLocaleDateString()
+                                    : 'Never'}
+                                {assessmentStale && <span className="ml-1 text-[10px] font-bold bg-amber-100 text-amber-800 px-1 py-0.5 rounded">stale</span>}
+                            </span>
+                        </div>
                         <div className="flex justify-between border-b border-gray-100 pb-2">
                             <span className="text-gray-500">Ownership</span>
                             <span className="font-medium text-gray-900">{farm.ownershipType || 'N/A'}</span>

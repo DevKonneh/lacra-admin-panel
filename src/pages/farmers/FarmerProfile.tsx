@@ -15,6 +15,7 @@ import { getRiskHistory, type RiskAnalysisResult } from '../../api/risk';
 import { getAllBatches, type Batch } from '../../api/batches';
 import { getCustodyHistory, type CustodyHistoryData } from '../../api/transfers';
 import { formatFarmerLocationLine, formatFarmerId, hasSharedPhoneNumber } from './farmerListHelpers';
+import { effectiveRiskLevel } from '../../utils/riskStatus';
 import {
     triState, type TriState,
     formatFarmLocationLine, getFarmCommoditySummary, calcAreaHaFor,
@@ -486,9 +487,11 @@ const FarmerProfile: React.FC = () => {
     }, [selectedFarm]);
 
     const latestAssessment: RiskAnalysisResult | undefined = riskHistory[0];
-    // null (not a 'Low' default) when nothing has ever been assessed — see RiskPill, which now
-    // renders a distinct "Not Assessed" state instead of silently implying a real "Low risk" finding.
-    const overallRiskLevel: string | null = selectedFarm?.riskLevel ?? latestAssessment?.overallRisk ?? null;
+    // effectiveRiskLevel() returns null until a COMPLETED assessment exists —
+    // Farm.riskLevel alone defaults to 'Low' in the database, so reading it
+    // directly would show an unassessed farm as a green "Low risk" finding.
+    // RiskPill renders that null as a distinct "Not Assessed" state.
+    const overallRiskLevel: string | null = effectiveRiskLevel(selectedFarm) ?? latestAssessment?.overallRisk ?? null;
 
     const hasSharedPhone = farmer ? hasSharedPhoneNumber(farmer, allFarmers) : false;
 
@@ -1137,7 +1140,9 @@ const FarmerProfile: React.FC = () => {
                                                         )}
                                                     </td>
                                                     <td className="px-3 py-2.5 text-gray-500">{areaDisplay}</td>
-                                                    <td className="px-3 py-2.5"><RiskPill level={f.riskLevel} /></td>
+                                                    {/* effectiveRiskLevel, not f.riskLevel: the raw column
+                                                        defaults to 'Low' before any assessment has run. */}
+                                                    <td className="px-3 py-2.5"><RiskPill level={effectiveRiskLevel(f)} /></td>
                                                     <td className="px-3 py-2.5 text-right">
                                                         <Link to={`/farms/${f.id}`} className="text-brand-green hover:text-brand-green-hover font-medium text-xs whitespace-nowrap">
                                                             View Farm

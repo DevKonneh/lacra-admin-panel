@@ -99,7 +99,13 @@ export interface WhispIndicators {
     loggingConcessionBefore2020?: 'yes' | 'no';
 }
 
-export type WhispRiskLabel = 'high' | 'low' | 'unknown';
+/**
+ * Whisp's own commodity-category risk verdict. 'more_info_needed' is a real
+ * value Whisp returns when its decision tree could NOT reach a definitive
+ * low/high call — the backend maps that to MEDIUM risk, so it must never be
+ * rendered as low. 'unknown' means no label came back at all.
+ */
+export type WhispRiskLabel = 'high' | 'low' | 'more_info_needed' | 'unknown';
 
 /** Real Open Foris Whisp satellite analysis result for a plot (EUDR indicators). */
 export interface WhispData {

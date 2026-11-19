@@ -320,13 +320,20 @@ const RiskAnalysis: React.FC = () => {
                     {!loading && riskResult && (
                         <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
                             {/* Overall risk banner */}
+                            {/* Overall risk banner. Deliberately worded as a RISK
+                                result, never "Compliant": a satellite/Whisp risk
+                                result is one input to the EUDR due-diligence file
+                                and does not by itself establish compliance. */}
                             <div className={`border-l-4 p-4 rounded-r ${riskResult.overallRisk === 'High' ? 'bg-red-50 border-red-500' : (riskResult.overallRisk === 'Medium' ? 'bg-orange-50 border-orange-500' : 'bg-green-50 border-green-500')}`}>
                                 <div className="flex items-center">
                                     {riskResult.overallRisk === 'High' ? <AlertTriangle className="h-6 w-6 text-red-500 mr-2" /> : (riskResult.overallRisk === 'Medium' ? <AlertTriangle className="h-6 w-6 text-orange-500 mr-2" /> : <CheckCircle className="h-6 w-6 text-green-500 mr-2" />)}
                                     <h3 className={`text-lg font-medium ${riskResult.overallRisk === 'High' ? 'text-red-800' : (riskResult.overallRisk === 'Medium' ? 'text-orange-800' : 'text-green-800')}`}>
-                                        {riskResult.overallRisk === 'High' ? 'High Risk Detected' : (riskResult.overallRisk === 'Medium' ? 'Medium Risk Detected' : 'Compliant')}
+                                        {riskResult.overallRisk === 'High' ? 'High Risk Detected' : (riskResult.overallRisk === 'Medium' ? 'Medium Risk Detected' : 'Low Risk Detected')}
                                     </h3>
                                 </div>
+                                <p className="text-xs text-gray-600 mt-1">
+                                    Satellite and record checks are due-diligence evidence only. This result does not by itself certify EUDR compliance.
+                                </p>
                                 <div className="flex flex-wrap gap-2 mt-2">
                                     <RiskBadge value={riskResult.deforestationRisk} label="Deforestation" />
                                     <RiskBadge value={riskResult.legalityRisk} label="Legality" />
