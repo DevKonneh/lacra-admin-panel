@@ -33,6 +33,13 @@ interface PublicFarmGeo {
     cropType: string | null;
     totalAreaHa: number | null;
     riskLevel: string | null;
+    // Explicit assessment status from the backend. `riskLevelVerified` is null
+    // unless a live, verified assessment exists — see assessmentDisplay().
+    assessmentStatus?: 'verified' | 'unverified_historical' | 'never_assessed';
+    riskLevelVerified?: string | null;
+    riskAssessedAt?: string | null;
+    riskAssessmentSource?: string | null;
+    riskAssessmentNote?: string | null;
     farmRegistrationStatus: string | null;
 }
 
@@ -42,6 +49,11 @@ interface PublicFarmFull {
     totalAreaHa: number;
     location: any;
     riskLevel: string;
+    assessmentStatus?: 'verified' | 'unverified_historical' | 'never_assessed';
+    riskLevelVerified?: string | null;
+    riskAssessedAt?: string | null;
+    riskAssessmentSource?: string | null;
+    riskAssessmentNote?: string | null;
     farmRegistrationStatus: string;
     ownershipType?: string;
     numberOfTrees?: number;
@@ -51,6 +63,41 @@ interface PublicFarmFull {
     useChemicals?: boolean;
     extensionServices?: boolean;
     farmAddress?: string;
+}
+
+/**
+ * How a farm's risk should be DISPLAYED on the public profile.
+ *
+ * `Farm.riskLevel` DB-defaults to 'Low', so a farm that was never assessed
+ * still carries 'Low'. Rendering that column directly showed a green "Low"
+ * rating for farms with no assessment at all. This returns a label and colour
+ * derived from the backend's explicit `assessmentStatus`, and only ever shows a
+ * risk level when the assessment is actually verified:
+ *
+ *   verified              -> the verified level (Low/Medium/High)
+ *   unverified_historical -> "Unverified" (never a rating)
+ *   never_assessed / any  -> "Not Assessed"
+ *
+ * An absent status (older backend) falls through to "Not Assessed" — the safe
+ * default, so a legacy payload can never present a mock result as a rating.
+ */
+function assessmentDisplay(farm: {
+    assessmentStatus?: 'verified' | 'unverified_historical' | 'never_assessed';
+    riskLevelVerified?: string | null;
+}): { label: string; className: string } {
+    const level = farm.riskLevelVerified;
+    if (farm.assessmentStatus === 'verified' && level) {
+        const className = level === 'Low'
+            ? 'text-green-600'
+            : level === 'High'
+                ? 'text-red-600'
+                : 'text-yellow-600';
+        return { label: level, className };
+    }
+    if (farm.assessmentStatus === 'unverified_historical') {
+        return { label: 'Unverified', className: 'text-gray-500' };
+    }
+    return { label: 'Not Assessed', className: 'text-gray-400' };
 }
 
 interface PublicFarmerGeo {
@@ -351,8 +398,8 @@ const PublicFarmerProfile: React.FC = () => {
                                                 <div className="font-medium text-right">{farm.totalAreaHa} ha</div>
 
                                                 <div className="text-gray-500">Risk Level</div>
-                                                <div className={`font-medium text-right ${farm.riskLevel === 'Low' ? 'text-green-600' : farm.riskLevel === 'High' ? 'text-red-600' : 'text-yellow-600'}`}>
-                                                    {farm.riskLevel || 'Not Assessed'}
+                                                <div className={`font-medium text-right ${assessmentDisplay(farm).className}`}>
+                                                    {assessmentDisplay(farm).label}
                                                 </div>
 
                                                 <div className="text-gray-500">Trees</div>
@@ -403,8 +450,8 @@ const PublicFarmerProfile: React.FC = () => {
                                             {farm.cropType && (
                                                 <span className="text-xs font-semibold px-2 py-1 bg-white border border-gray-200 rounded text-gray-600">{farm.cropType}</span>
                                             )}
-                                            <span className={`text-xs font-semibold px-2 py-1 bg-white border border-gray-200 rounded ${farm.riskLevel === 'Low' ? 'text-green-600' : farm.riskLevel === 'High' ? 'text-red-600' : 'text-yellow-600'}`}>
-                                                {farm.riskLevel || 'Not Assessed'}
+                                            <span className={`text-xs font-semibold px-2 py-1 bg-white border border-gray-200 rounded ${assessmentDisplay(farm).className}`}>
+                                                {assessmentDisplay(farm).label}
                                             </span>
                                         </div>
                                     </div>
