@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { getFarmers, type Farmer } from '../api/farmers';
-import { assessRisk, type RiskAnalysisResult } from '../api/risk';
+import { getFarmers, type Farmer, type Farm } from '../api/farmers';
+import { assessRisk, toAssessmentFailure, type RiskAnalysisResult, type AssessmentFailure } from '../api/risk';
+import { effectiveRiskLevel } from '../utils/riskStatus';
 import { getComplianceCalculationDetails, type ComplianceCalculationDetails, type DashboardFilterParams } from '../api/reports';
 import { AlertTriangle, CheckCircle, User, MapPin, FileText, BarChart3, Copy, Loader2, Calculator, RefreshCw, Clock } from 'lucide-react';
 import { MapContainer, TileLayer, Polygon, CircleMarker } from 'react-leaflet';
@@ -196,7 +197,13 @@ const CopyableCoords: React.FC<{ label: string; text: string }> = ({ label, text
 const RiskAnalysis: React.FC = () => {
     const [farmers, setFarmers] = useState<Farmer[]>([]);
     const [selectedFarmer, setSelectedFarmer] = useState<Farmer | null>(null);
+    // The farm actually being assessed. Kept explicit (never `farms[0]`) so a
+    // multi-farm farmer can never have the wrong parcel's result attached to
+    // the selected farm, and so a deep link can open one exact farm.
+    const [selectedFarmId, setSelectedFarmId] = useState<string | null>(null);
     const [riskResult, setRiskResult] = useState<RiskAnalysisResult | null>(null);
+    // A failed assessment is a first-class UI state, not a silent no-op.
+    const [assessmentError, setAssessmentError] = useState<AssessmentFailure | null>(null);
     const [loading, setLoading] = useState(false);
     const [listLoading, setListLoading] = useState(true);
     const [listError, setListError] = useState<string | null>(null);
@@ -207,6 +214,8 @@ const RiskAnalysis: React.FC = () => {
     // lands the user directly on the relevant subset instead of the full list.
     const [searchParams] = useSearchParams();
     const riskLevelFilter = searchParams.get('riskLevel');
+    // Deep link: /risk-analysis?farmId=<id> opens THAT farm, not farms[0].
+    const farmIdParam = searchParams.get('farmId');
 
     // "Clicking the compliance percentage opens its calculation details":
     // /risk-analysis?complianceDetails=1 (plus any dashboard filters carried
@@ -250,24 +259,66 @@ const RiskAnalysis: React.FC = () => {
         ? farmers.filter((f) => f.farms?.some((farm) => farm.riskLevel === riskLevelFilter))
         : farmers;
 
-    const handleCheckRisk = async (farmer: Farmer) => {
-        setSelectedFarmer(farmer);
+    /**
+     * Runs an assessment for ONE EXPLICIT farm.
+     *
+     * Previously this always used `farmer.farms[0]`, so for a farmer with
+     * several farms the map, the submitted geometry and the saved result could
+     * all belong to a different parcel than the one staff were looking at.
+     */
+    const runAssessment = async (farm: Farm) => {
+        setSelectedFarmId(farm.id);
         setRiskResult(null);
+        setAssessmentError(null);
         setLoading(true);
-        // Check risk for the first farm for MVP simplicity
-        if (farmer.farms && farmer.farms.length > 0) {
-            try {
-                const response = await assessRisk(farmer.farms[0].id);
-                if (response.data.status) {
-                    setRiskResult(response.data.data);
-                }
-            } catch (error) {
-                console.error("Error assessing risk", error);
-                alert("Failed to assess risk");
+        try {
+            const response = await assessRisk(farm.id);
+            if (response.data.status) {
+                setRiskResult(response.data.data);
+            } else {
+                setAssessmentError(toAssessmentFailure({ response }));
+            }
+        } catch (error) {
+            // No more generic alert(): show exactly why, and state plainly that
+            // nothing was recorded. The farm keeps its last verified result.
+            console.error("Error assessing risk", error);
+            setAssessmentError(toAssessmentFailure(error));
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const handleSelectFarmer = (farmer: Farmer) => {
+        setSelectedFarmer(farmer);
+        setSelectedFarmId(null);
+        setRiskResult(null);
+        setAssessmentError(null);
+    };
+
+    // Deep-link handling: once the farmer list has loaded, resolve ?farmId= to
+    // its owning farmer + farm and assess exactly that farm.
+    useEffect(() => {
+        if (!farmIdParam || farmers.length === 0) return;
+        if (selectedFarmId === farmIdParam && (riskResult || assessmentError || loading)) return;
+        for (const farmer of farmers) {
+            const farm = farmer.farms?.find((f) => f.id === farmIdParam);
+            if (farm) {
+                setSelectedFarmer(farmer);
+                runAssessment(farm);
+                return;
             }
         }
-        setLoading(false);
-    };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [farmIdParam, farmers]);
+
+    // The farm whose map/details we should show: the one just assessed, else
+    // the explicitly selected one, else null (never a silent farms[0]).
+    const activeFarm: Farm | null = (() => {
+        if (riskResult?.farm) return riskResult.farm as unknown as Farm;
+        if (!selectedFarmer || !selectedFarmId) return null;
+        return selectedFarmer.farms?.find((f) => f.id === selectedFarmId) ?? null;
+    })();
+
 
     return (
         <div className="space-y-6">
@@ -294,19 +345,66 @@ const RiskAnalysis: React.FC = () => {
                         </p>
                     ) : (
                         <ul className="divide-y divide-gray-200 max-h-[60vh] overflow-y-auto">
-                            {displayedFarmers.map(farmer => (
-                                <li key={farmer.id} className="py-4 flex justify-between items-center cursor-pointer hover:bg-gray-50 p-2 rounded" onClick={() => handleCheckRisk(farmer)}>
-                                    <div>
+                            {displayedFarmers.map(farmer => {
+                                const isSelected = selectedFarmer?.id === farmer.id;
+                                return (
+                                <li key={farmer.id} className={`py-3 px-2 rounded ${isSelected ? 'bg-green-50' : 'hover:bg-gray-50'}`}>
+                                    <button
+                                        type="button"
+                                        className="w-full text-left"
+                                        onClick={() => handleSelectFarmer(farmer)}
+                                    >
                                         <p className="text-sm font-medium text-gray-900">{farmer.firstName} {farmer.lastName}</p>
                                         <p className="text-sm text-gray-500">{farmer.email || farmer.phoneNumber}</p>
                                         <p className="text-xs text-gray-400">
                                             {farmer.farms.length} Farm(s)
-                                            {farmer.farms?.some((f) => f.riskLevel === 'High') && <span className="ml-1.5 text-red-600 font-medium">• High Risk</span>}
+                                            {farmer.farms?.some((f) => effectiveRiskLevel(f) === 'High') && <span className="ml-1.5 text-red-600 font-medium">• High Risk</span>}
                                         </p>
-                                    </div>
-                                    <button className="text-blue-600 hover:text-blue-900 text-sm font-medium">Analyze</button>
+                                    </button>
+
+                                    {/* EXPLICIT farm selection. A farmer may have several
+                                        farms; the assessed parcel must be the one staff
+                                        choose, never an implicit farms[0]. */}
+                                    {isSelected && (
+                                        <div className="mt-2 pl-1 border-l-2 border-green-200 ml-1">
+                                            {farmer.farms.length === 0 ? (
+                                                <p className="text-xs text-gray-500 pl-2 py-1">No farms recorded for this farmer.</p>
+                                            ) : (
+                                                <ul className="pl-2 space-y-1">
+                                                    {farmer.farms.map((farm) => {
+                                                        const level = effectiveRiskLevel(farm);
+                                                        const isActive = selectedFarmId === farm.id;
+                                                        return (
+                                                            <li key={farm.id} className="flex items-center justify-between gap-2">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => runAssessment(farm)}
+                                                                    disabled={loading}
+                                                                    className={`text-left text-xs px-2 py-1 rounded ${isActive ? 'bg-green-600 text-white' : 'text-gray-700 hover:bg-gray-100'} disabled:opacity-60`}
+                                                                >
+                                                                    <span className="font-medium">{farm.name}</span>
+                                                                    <span className={isActive ? 'ml-1.5' : 'ml-1.5 text-gray-400'}>
+                                                                        {level ? `${level} risk` : 'Not assessed'}
+                                                                    </span>
+                                                                </button>
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => runAssessment(farm)}
+                                                                    disabled={loading}
+                                                                    className="text-blue-600 hover:text-blue-900 text-xs font-medium disabled:opacity-60 shrink-0"
+                                                                >
+                                                                    Analyze
+                                                                </button>
+                                                            </li>
+                                                        );
+                                                    })}
+                                                </ul>
+                                            )}
+                                        </div>
+                                    )}
                                 </li>
-                            ))}
+                                );
+                            })}
                         </ul>
                     )}
                 </div>
@@ -315,7 +413,55 @@ const RiskAnalysis: React.FC = () => {
                 <div className="bg-white shadow rounded-lg p-6">
                     <h2 className="text-lg font-medium mb-4">Risk Analysis Report</h2>
                     {loading && <p className="text-gray-500">Analyzing geospatial data...</p>}
-                    {!loading && selectedFarmer && !riskResult && <p className="text-gray-500">Select a farmer to view risk analysis.</p>}
+                    {!loading && selectedFarmer && !riskResult && !assessmentError && (
+                        <p className="text-gray-500">Select a farm to view its risk analysis.</p>
+                    )}
+
+                    {/* FAILED ASSESSMENT — an explicit state, never a silent no-op.
+                        The backend no longer saves a mock or failed result, so when a
+                        run fails there IS no new assessment. We say that plainly and
+                        make clear the farm keeps its last verified result/timestamp. */}
+                    {!loading && assessmentError && (
+                        <div className="rounded-lg border-l-4 border-red-500 bg-red-50 p-4">
+                            <div className="flex items-start gap-2">
+                                <AlertTriangle className="h-5 w-5 text-red-600 mt-0.5 shrink-0" />
+                                <div className="min-w-0">
+                                    <h3 className="text-sm font-semibold text-red-900">
+                                        Assessment failed — no result was recorded
+                                    </h3>
+                                    <p className="text-sm text-red-800 mt-1 break-words">{assessmentError.message}</p>
+                                    <p className="text-xs text-gray-700 mt-2">
+                                        This farm keeps its last <span className="font-medium">verified</span> assessment
+                                        {activeFarm?.lastRiskAssessmentDate
+                                            ? <> from <span className="font-medium">{formatDate(activeFarm.lastRiskAssessmentDate)}</span></>
+                                            : <> — it has never been successfully assessed</>}.
+                                        Nothing was overwritten.
+                                    </p>
+                                    <div className="flex flex-wrap items-center gap-2 mt-3">
+                                        <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-white border border-red-200 text-red-800">
+                                            Reason: {assessmentError.code}
+                                        </span>
+                                        {assessmentError.retryable ? (
+                                            <button
+                                                type="button"
+                                                onClick={() => {
+                                                    const farm = selectedFarmer?.farms?.find((f) => f.id === selectedFarmId);
+                                                    if (farm) runAssessment(farm);
+                                                }}
+                                                className="inline-flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded border border-red-300 text-red-800 hover:bg-red-100"
+                                            >
+                                                <RefreshCw className="h-3 w-3" /> Retry
+                                            </button>
+                                        ) : (
+                                            <span className="text-[11px] text-gray-600">
+                                                Not retryable — this needs a configuration or data fix first.
+                                            </span>
+                                        )}
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
 
                     {!loading && riskResult && (
                         <div className="space-y-4 max-h-[70vh] overflow-y-auto pr-1">
@@ -539,82 +685,130 @@ const RiskAnalysis: React.FC = () => {
                         </div>
                     )}
 
-                    {/* Mini Map Preview */}
+                    {/* Mini Map Preview — shows the farm that was actually assessed
+                        (activeFarm), never an implicit farms[0]. If the farm has no
+                        usable coordinates we say so explicitly instead of silently
+                        centring the map on a default country location, which would
+                        make an unmapped farm look located. */}
                     {(() => {
-                        const farmWithLoc = riskResult?.farm?.location ? riskResult.farm : selectedFarmer?.farms?.[0];
-                        return farmWithLoc?.location ? (
-                        <div className="mt-6 h-64 w-full rounded-md overflow-hidden border border-gray-200">
-                            {(() => {
-                                const loc = farmWithLoc.location;
-                                // Narrowed GeoJSON coordinates (see GeoJsonCoordinate above) instead
-                                // of `any` — the shape still varies by geometry type, so we index
-                                // into it defensively below exactly as before.
-                                const coords = loc.coordinates as GeoJsonCoordinate[];
+                        if (!activeFarm) return null;
 
-                                // Calculate center based on geometry type
-                                const getCenter = (): [number, number] => {
-                                    if (loc.type === 'Point') {
-                                        return [coords[1] as number, coords[0] as number];
+                        const loc = activeFarm.location as { type?: string; coordinates?: GeoJsonCoordinate[] } | undefined;
+                        const coords = (loc?.coordinates || []) as GeoJsonCoordinate[];
+
+                        /**
+                         * Returns [lat, lng] for the map centre, or null when this
+                         * farm genuinely has no valid geometry. Deliberately has NO
+                         * default: a missing/blank geometry must render as
+                         * "No mapped location", not a plausible-looking wrong place.
+                         */
+                        const getCenter = (): [number, number] | null => {
+                            const isValidPair = (a: unknown, b: unknown) =>
+                                typeof a === 'number' && typeof b === 'number' && Number.isFinite(a) && Number.isFinite(b);
+
+                            if (loc?.type === 'Point') {
+                                const lng = coords[0], lat = coords[1];
+                                return isValidPair(lng, lat) ? [lat as number, lng as number] : null;
+                            }
+                            if (loc?.type === 'Polygon' && Array.isArray(coords[0])) {
+                                const ring = coords[0] as unknown as number[][];
+                                if (!Array.isArray(ring) || ring.length === 0) return null;
+                                let latSum = 0, lonSum = 0, n = 0;
+                                for (const pair of ring) {
+                                    if (!Array.isArray(pair)) continue;
+                                    if (!isValidPair(pair[0], pair[1])) continue;
+                                    lonSum += pair[0];
+                                    latSum += pair[1];
+                                    n++;
+                                }
+                                return n > 0 ? [latSum / n, lonSum / n] : null;
+                            }
+                            if (loc?.type === 'MultiPolygon' && Array.isArray(coords[0])) {
+                                // Flat-average every vertex of the first ring of each
+                                // part — good enough for a centre, and never invents a
+                                // location when there is no geometry.
+                                let latSum = 0, lonSum = 0, n = 0;
+                                for (const poly of coords as unknown as number[][][][]) {
+                                    const ring = poly?.[0];
+                                    if (!Array.isArray(ring)) continue;
+                                    for (const pair of ring) {
+                                        if (!Array.isArray(pair) || !isValidPair(pair[0], pair[1])) continue;
+                                        lonSum += pair[0];
+                                        latSum += pair[1];
+                                        n++;
                                     }
-                                    if (loc.type === 'Polygon' && coords[0]) {
-                                        // Calculate centroid of the polygon
-                                        const points = coords[0] as GeoJsonCoordinate[];
-                                        if (points.length === 0) return [5.6037, -0.1870];
+                                }
+                                return n > 0 ? [latSum / n, lonSum / n] : null;
+                            }
+                            return null;
+                        };
 
-                                        let latSum = 0;
-                                        let lonSum = 0;
-                                        points.forEach((p) => {
-                                            const pair = p as number[];
-                                            lonSum += pair[0];
-                                            latSum += pair[1];
-                                        });
-                                        return [latSum / points.length, lonSum / points.length];
-                                    }
-                                    // Default (Ghana)
-                                    return [5.6037, -0.1870];
-                                };
+                        const center = getCenter();
 
-                                const center = getCenter();
+                        // A recorded GPS POINT and a surveyed BOUNDARY are materially
+                        // different evidence. Say which one this farm has rather than
+                        // presenting a single pin as though it were a mapped boundary.
+                        const boundaryKind =
+                            loc?.type === 'Polygon' || loc?.type === 'MultiPolygon'
+                                ? 'Surveyed boundary'
+                                : loc?.type === 'Point'
+                                    ? 'Recorded GPS point (no surveyed boundary)'
+                                    : 'No mapped location';
 
-                                // Determine color based on risk
-                                const riskColor = riskResult?.overallRisk === 'High' ? 'red' : (riskResult?.overallRisk === 'Medium' ? 'orange' : 'green');
+                        if (!center) {
+                            return (
+                                <div className="mt-6 rounded-md border border-amber-200 bg-amber-50 p-4">
+                                    <div className="flex items-start gap-2">
+                                        <MapPin className="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
+                                        <div>
+                                            <p className="text-sm font-medium text-amber-900">No mapped location</p>
+                                            <p className="text-xs text-amber-800 mt-0.5">
+                                                This farm has no valid coordinates recorded, so it cannot be shown on a map.
+                                                Record a GPS point or surveyed boundary before relying on its satellite result.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            );
+                        }
 
-                                return (
+                        // Determine color based on risk. An unassessed farm is grey,
+                        // never green — absence of an assessment is not a pass.
+                        const overall = riskResult?.overallRisk;
+                        const riskColor = overall === 'High' ? 'red' : overall === 'Medium' ? 'orange' : overall === 'Low' ? 'green' : 'gray';
+
+                        return (
+                            <div className="mt-6">
+                                <p className="text-[11px] text-gray-500 mb-1">
+                                    {activeFarm.name} · {boundaryKind}
+                                </p>
+                                <div className="h-64 w-full rounded-md overflow-hidden border border-gray-200">
                                     <MapContainer center={center} zoom={10} scrollWheelZoom={false} style={{ height: '100%', width: '100%' }}>
                                         <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                                        {loc.type === 'Point' && (
+                                        {loc?.type === 'Point' && Array.isArray(coords) && (
                                             <CircleMarker
-                                                center={[coords[1] as number, coords[0] as number]}
+                                                center={center}
                                                 radius={10}
                                                 pathOptions={{ color: riskColor }}
                                             />
                                         )}
-                                        {loc.type === 'Polygon' && (
+                                        {loc?.type === 'Polygon' && (
                                             <Polygon
-                                                positions={(coords[0] as GeoJsonCoordinate[]).map((c) => {
-                                                    const pair = c as number[];
-                                                    return [pair[1], pair[0]] as [number, number];
-                                                })}
+                                                positions={(coords[0] as unknown as number[][]).map((c) => [c[1], c[0]] as [number, number])}
                                                 color={riskColor}
                                             />
                                         )}
-                                        {/* MultiPolygon support if needed */}
-                                        {loc.type === 'MultiPolygon' && (loc.coordinates as GeoJsonCoordinate[][]).map((poly, i: number) => (
+                                        {loc?.type === 'MultiPolygon' && (coords as unknown as number[][][][]).map((poly, i: number) => (
                                             <Polygon
                                                 key={i}
-                                                positions={(poly[0] as GeoJsonCoordinate[]).map((c) => {
-                                                    const pair = c as number[];
-                                                    return [pair[1], pair[0]] as [number, number];
-                                                })}
+                                                positions={(poly[0] as unknown as number[][]).map((c) => [c[1], c[0]] as [number, number])}
                                                 color={riskColor}
                                             />
                                         ))}
-
                                     </MapContainer>
-                                );
-                            })()}
-                        </div>
-                        ) : null;
+                                </div>
+                            </div>
+                        );
                     })()}
                 </div>
             </div>

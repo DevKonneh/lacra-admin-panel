@@ -146,6 +146,10 @@ export interface RiskAnalysisResult {
     overallRisk: 'Low' | 'Medium' | 'High';
     whispAnalysisId?: string;
     whispData?: WhispData;
+    /** Provenance stamped by the backend: only 'whisp_live' is audit-grade. */
+    source?: 'whisp_live' | 'mock' | null;
+    /** TRUE only when Whisp returned a completed analysis with usable fields. */
+    whispVerified?: boolean;
     details: {
         assessedAt: string;
         notes: string;
@@ -158,6 +162,86 @@ export interface RiskAnalysisResult {
     overlappingAreas?: string[];
 }
 
+/**
+ * Why an assessment did not produce a result.
+ *
+ * The backend now REFUSES to save a mock or failed assessment (see
+ * AssessmentAttempt / WhispUnavailableError). When that happens the request
+ * fails with a typed body instead of a fake verdict, and the UI must say so
+ * plainly — never fall back to showing a stale or blank risk level as if the
+ * run had succeeded.
+ */
+export type AssessmentFailureCode =
+    | 'not_configured'
+    | 'auth_failed'
+    | 'validation_failed'
+    | 'service_unavailable'
+    | 'timeout'
+    | 'incomplete_result'
+    | 'request_failed';
+
+export interface AssessmentFailure {
+    code: AssessmentFailureCode | string;
+    retryable: boolean;
+    /** Always false for these failures — no assessment row was written. */
+    assessmentRecorded: boolean;
+    message: string;
+    httpStatus?: number;
+}
+
+/** A failed assessment attempt stored by the backend (visible audit trail). */
+export interface AssessmentAttemptRecord {
+    id: string;
+    farmId?: string;
+    farmNameSnapshot?: string;
+    attemptedAt: string;
+    outcome: string;
+    failureCode?: string;
+    message: string;
+    httpStatus?: number;
+    retryable?: boolean;
+}
+
+/**
+ * Normalises an axios error from POST /risk/assess/:farmId into an
+ * AssessmentFailure. Handles both the typed Whisp failure envelope and the
+ * older generic error shape, so the UI can always explain what happened.
+ */
+export const toAssessmentFailure = (error: unknown): AssessmentFailure => {
+    const anyErr = error as any;
+    const status: number | undefined = anyErr?.response?.status;
+    const body = anyErr?.response?.data;
+    const data = body?.data;
+
+    if (data && typeof data === 'object' && data.code) {
+        return {
+            code: data.code,
+            retryable: Boolean(data.retryable),
+            assessmentRecorded: data.assessmentRecorded === true,
+            message: body?.message || 'The assessment could not be completed.',
+            httpStatus: status,
+        };
+    }
+
+    if (!anyErr?.response) {
+        return {
+            code: 'request_failed',
+            retryable: true,
+            assessmentRecorded: false,
+            message:
+                'Could not reach the assessment service. No assessment was recorded — check your connection and try again.',
+        };
+    }
+
+    return {
+        code: status === 400 ? 'validation_failed' : 'request_failed',
+        retryable: status ? status >= 500 || status === 429 : true,
+        assessmentRecorded: false,
+        message: body?.message || 'The assessment could not be completed. No assessment was recorded.',
+        httpStatus: status,
+    };
+};
+
 export const assessRisk = async (farmId: string) => {
     return apiClient.post<ApiResponse<RiskAnalysisResult>>(`/risk/assess/${farmId}`);
 };
@@ -165,3 +249,9 @@ export const assessRisk = async (farmId: string) => {
 export const getRiskHistory = async (farmId: string) => {
     return apiClient.get<ApiResponse<RiskAnalysisResult[]>>(`/risk/history/${farmId}`);
 };
+
+/** Failed attempts for a farm — makes an unsuccessful run visible to staff. */
+export const getAssessmentAttempts = async (farmId: string) => {
+    return apiClient.get<ApiResponse<AssessmentAttemptRecord[]>>(`/risk/attempts/${farmId}`);
+};
+
