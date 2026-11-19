@@ -36,9 +36,23 @@ const LocationMarker: React.FC<MapSelectorProps> = ({ onLocationSelect }) => {
     );
 };
 
+/**
+ * Default map centre: Monrovia, Liberia.
+ *
+ * This was [5.6037, -0.1870] — Accra, GHANA. LACRA is a Liberian agency, so an
+ * enumerator opening this picker landed in the wrong country and could place a
+ * farm hundreds of kilometres away from its true location. Matches the live
+ * picker (PolygonMapSelector) and MapView, both of which already use Monrovia.
+ *
+ * NOTE: this component is currently unused — the active farm pickers are
+ * PolygonMapSelector. It is corrected here so it cannot reintroduce the
+ * wrong-country default if it is ever wired up again.
+ */
+const DEFAULT_CENTER: [number, number] = [6.3156, -10.8074];
+
 const MapSelector: React.FC<MapSelectorProps> = ({ onLocationSelect }) => {
     return (
-        <MapContainer center={[5.6037, -0.1870]} zoom={8} scrollWheelZoom={false} style={{ height: '400px', width: '100%' }}>
+        <MapContainer center={DEFAULT_CENTER} zoom={8} scrollWheelZoom={false} style={{ height: '400px', width: '100%' }}>
             <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
