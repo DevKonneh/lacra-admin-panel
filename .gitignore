@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local credential drops (e.g. uploaded .env files). Never commit.
+.tmp-secrets/
+*.env
+!*.env.example
