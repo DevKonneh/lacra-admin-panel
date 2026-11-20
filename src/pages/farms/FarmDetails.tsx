@@ -357,7 +357,6 @@ const FarmDetails: React.FC = () => {
 
             <FarmRiskPanel
                 farmId={farm.id}
-                riskLevel={farm.riskLevel}
                 lastAssessmentDate={farm.lastRiskAssessmentDate}
                 onAssessmentComplete={fetchFarm}
             />

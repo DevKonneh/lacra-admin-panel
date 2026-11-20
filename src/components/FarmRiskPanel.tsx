@@ -7,8 +7,6 @@ import { getRiskHistory, assessRisk, type RiskAnalysisResult } from '../api/risk
 
 interface RiskPanelProps {
     farmId: string;
-    /** Kept for signature compatibility; the panel derives state from real data. */
-    riskLevel?: 'Low' | 'Medium' | 'High';
     lastAssessmentDate?: string;
     onAssessmentComplete?: () => void;
 }
