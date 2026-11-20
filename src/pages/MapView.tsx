@@ -371,7 +371,20 @@ const MapView: React.FC = () => {
     // included so a deep-linked farm can't disappear after a pan.
     const visibleGeos = useMemo(() => {
         const passed = geos.filter(g => passesFilters(g.farm));
-        if (!bounds) return passed.slice(0, FEATURE_CAP);
+        if (!bounds) {
+            // Before Leaflet reports its bounds, the FEATURE_CAP slice applies.
+            // The selection is force-included HERE too — not just in the
+            // bounds-known branch below. Otherwise a farm sitting past the
+            // 750th mappable element is actually selected (MapController flies
+            // to it, the sidebar row is highlighted) but its pin/polygon is
+            // never drawn on the first paint, so "select a farm beyond the cap"
+            // looks broken until the map settles.
+            const capped = passed.slice(0, FEATURE_CAP);
+            if (!selectedFarmId) return capped;
+            const sel = passed.find(g => g.farm.id === selectedFarmId);
+            if (sel && !capped.includes(sel)) return [sel, ...capped.slice(0, FEATURE_CAP - 1)];
+            return capped;
+        }
         const inBounds = passed.filter(g => bounds.contains(g.center));
         if (selectedFarmId) {
             const sel = passed.find(g => g.farm.id === selectedFarmId);
