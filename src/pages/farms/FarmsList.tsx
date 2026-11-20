@@ -43,21 +43,65 @@ const complianceStatusOf = (farm: FarmWithFarmer): 'Assessment Pending' | 'Compl
     return 'Needs Review';
 };
 
+/**
+ * True when the backend resolved this farm's newest assessment as
+ * 'unverified_historical' — a result exists, but it cannot be trusted as a
+ * verified live assessment (legacy, mock-derived, or flagged).
+ *
+ * WHY THIS IS A SEPARATE SIGNAL FROM THE BUCKET ABOVE
+ * --------------------------------------------------
+ * `complianceStatusOf()` is the SQL twin of the backend's
+ * `complianceStatusWhereSql()` and deliberately keys on
+ * `lastRiskAssessmentDate`, exactly as the published compliance buckets do.
+ * That is NOT changed here: a farm the Dashboard counts as "Compliant" must
+ * still read "Compliant" in this list, or the drill-down number and the rows it
+ * opens would disagree — the very mismatch fixed in RiskAnalysis below.
+ *
+ * The remaining gap is that `lastRiskAssessmentDate` is set by ANY recorded
+ * assessment, including the retired mock path. So a green "Assessed Low Risk,
+ * Valid Geometry" badge can sit on top of a result nobody can verify. Rather
+ * than move the farm into a different bucket (which would silently change
+ * figures LACRA may already have published), we flag it in place: the bucket
+ * stays exactly as counted, and the provenance warning keeps the badge honest.
+ */
+const isUnverifiedAssessment = (farm: FarmWithFarmer): boolean =>
+    farm.assessmentStatus === 'unverified_historical';
+
 // Visible badge for the SAME 4-bucket rule as complianceStatusOf() above —
 // so staff can see, at a glance in the list, exactly which bucket a farm
 // falls into without having to apply the filter first.
+//
+// A farm whose newest assessment is unverified keeps its bucket (so the count
+// still matches the Dashboard drill-down) and gains a second, amber
+// "Unverified" badge. That keeps a green "Compliant" from being read as a
+// verified clean bill of health when the underlying result cannot be verified.
 const ComplianceBadge: React.FC<{ farm: FarmWithFarmer }> = ({ farm }) => {
     const status = complianceStatusOf(farm);
-    if (status === 'Assessment Pending') {
-        return <Badge tone="slate" icon={<Clock />}>Assessment Pending</Badge>;
-    }
-    if (status === 'Compliant') {
-        return <Badge tone="green" icon={<ShieldCheck />}>Assessed Low Risk, Valid Geometry</Badge>;
-    }
-    if (status === 'High Risk') {
-        return <Badge tone="red" icon={<ShieldAlert />}>High Risk</Badge>;
-    }
-    return <Badge tone="amber" icon={<HelpCircle />}>Needs Review</Badge>;
+    const unverified = isUnverifiedAssessment(farm);
+
+    const bucket = (() => {
+        if (status === 'Assessment Pending') {
+            return <Badge tone="slate" icon={<Clock />}>Assessment Pending</Badge>;
+        }
+        if (status === 'Compliant') {
+            return <Badge tone="green" icon={<ShieldCheck />}>Assessed Low Risk, Valid Geometry</Badge>;
+        }
+        if (status === 'High Risk') {
+            return <Badge tone="red" icon={<ShieldAlert />}>High Risk</Badge>;
+        }
+        return <Badge tone="amber" icon={<HelpCircle />}>Needs Review</Badge>;
+    })();
+
+    if (!unverified) return bucket;
+
+    return (
+        <span className="inline-flex flex-wrap items-center gap-1.5">
+            {bucket}
+            <Badge tone="orange" icon={<FileWarning />}>
+                Unverified result
+            </Badge>
+        </span>
+    );
 };
 
 const GeometryBadge: React.FC<{ farm: FarmWithFarmer }> = ({ farm }) => {

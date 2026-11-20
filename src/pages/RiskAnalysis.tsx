@@ -255,8 +255,31 @@ const RiskAnalysis: React.FC = () => {
         fetchFarmers();
     }, []);
 
+    /**
+     * Dashboard drill-down filter — MUST use the same rule as the number that
+     * was clicked, or the card and the list disagree.
+     *
+     * The "High Risk Farms" card is `stats.highRiskFarms` from the backend,
+     * computed as `lastRiskAssessmentDate IS NOT NULL AND riskLevel = 'High'`
+     * (ReportsController.complianceStatusWhereSql). This filter previously
+     * tested `farm.riskLevel === riskLevelFilter` alone, so it also matched
+     * farms that were NEVER assessed — whose riskLevel is merely the DB
+     * default — and the click-through could list a different number of farms
+     * than the card showed.
+     *
+     * Deliberately NOT `effectiveRiskLevel()` here. That helper requires
+     * `assessmentStatus === 'verified'`, which is STRICTER than the published
+     * bucket, so using it would make this list under-report relative to the
+     * card — swapping one mismatch for another. Alignment with the published
+     * figure wins; provenance is surfaced separately (FarmsList shows an
+     * "Unverified result" marker on the same farms) rather than by silently
+     * dropping rows from a drill-down LACRA is looking at.
+     */
+    const matchesRiskLevel = (farm: Farm, level: string): boolean =>
+        Boolean(farm.lastRiskAssessmentDate) && farm.riskLevel === level;
+
     const displayedFarmers = riskLevelFilter
-        ? farmers.filter((f) => f.farms?.some((farm) => farm.riskLevel === riskLevelFilter))
+        ? farmers.filter((f) => f.farms?.some((farm) => matchesRiskLevel(farm, riskLevelFilter)))
         : farmers;
 
     /**
