@@ -22,15 +22,37 @@
 export type RiskLevel = 'Low' | 'Medium' | 'High';
 export const RISK_LEVELS: RiskLevel[] = ['Low', 'Medium', 'High'];
 
-/** Anything carrying the two fields the rule depends on. */
+/** Anything carrying the fields the rule depends on. */
 export interface AssessableRisk {
     riskLevel?: string | null;
     lastRiskAssessmentDate?: string | null;
+    /**
+     * Explicit status from the backend (see AssessmentStatus.ts there).
+     * 'verified' | 'unverified_historical' | 'never_assessed'.
+     * Optional: older payloads and some call sites don't send it.
+     */
+    assessmentStatus?: 'verified' | 'unverified_historical' | 'never_assessed';
 }
 
-/** A farm counts as assessed only once a completed assessment date exists. */
-export const isAssessed = (farm?: AssessableRisk | null): boolean =>
-    Boolean(farm?.lastRiskAssessmentDate);
+/**
+ * A farm counts as assessed only once we can TRUST the result.
+ *
+ * The old rule was `Boolean(lastRiskAssessmentDate)`. That was not enough:
+ * the retired mock path also stamped that date, so a fabricated verdict
+ * passed this check and rendered green ("Low Risk") for staff — the exact
+ * defect this audit has been closing elsewhere.
+ *
+ * When the backend supplies `assessmentStatus` we use it, and only
+ * 'verified' counts. When it is absent (older payload, or a call site that
+ * doesn't fetch it) we keep the date-based behaviour so nothing breaks.
+ */
+export const isAssessed = (farm?: AssessableRisk | null): boolean => {
+    if (!farm) return false;
+    if (farm.assessmentStatus !== undefined) {
+        return farm.assessmentStatus === 'verified';
+    }
+    return Boolean(farm.lastRiskAssessmentDate);
+};
 
 /**
  * The farm's real risk level, or null when it has never been assessed.
