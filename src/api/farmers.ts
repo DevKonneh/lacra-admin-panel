@@ -90,6 +90,26 @@ export interface Farm {
     }[];
     riskLevel?: 'Low' | 'Medium' | 'High';
     lastRiskAssessmentDate?: string;
+    /**
+     * Provenance of the farm's risk result, resolved server-side by the shared
+     * `deriveAssessmentStatus()` helper (backend `services/AssessmentStatus.ts`).
+     *
+     * WHY THIS EXISTS: `riskLevel` is a DB column that DEFAULTs to 'Low', and
+     * `lastRiskAssessmentDate` only proves that *an* assessment was recorded —
+     * not that it was verified (the retired mock path also stamped that date).
+     * So `riskLevel` alone cannot distinguish a real Low verdict from an
+     * unassessed default, and rendering it as a rating is wrong.
+     *
+     *   'verified'              -> a live Whisp result, verified, not flagged.
+     *                              Only this state may be shown as a rating.
+     *   'unverified_historical' -> a result exists but cannot be trusted as
+     *                              verified (legacy, mock-derived, or flagged).
+     *   'never_assessed'        -> no assessment recorded at all.
+     *
+     * Optional because older/partial payloads may omit it; `isAssessed()` in
+     * utils/riskStatus.ts falls back to `lastRiskAssessmentDate` when absent.
+     */
+    assessmentStatus?: 'verified' | 'unverified_historical' | 'never_assessed';
     createdAt: string;
     updatedAt?: string;
     /** One farm -> many plots -> many commodities (see types above). */

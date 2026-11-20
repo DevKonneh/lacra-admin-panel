@@ -17,6 +17,16 @@ export interface FarmWithFarmer extends Farm {
     };
     riskLevel: 'Low' | 'Medium' | 'High';
     lastRiskAssessmentDate?: string;
+    /**
+     * Server-resolved assessment provenance — see the identical field on
+     * `Farm` in api/farmers.ts for the full rationale.
+     *
+     * In short: `riskLevel` DB-defaults to 'Low', so an unassessed farm still
+     * reads 'Low'. Gate any UI that presents a risk rating on
+     * `assessmentStatus === 'verified'` rather than on `riskLevel` alone.
+     * Returned by GET /farms and GET /farms/:id (FarmController).
+     */
+    assessmentStatus?: 'verified' | 'unverified_historical' | 'never_assessed';
 }
 
 import type { ApiResponse } from './types';
