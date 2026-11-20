@@ -4,6 +4,7 @@ import { getFarm, type FarmWithFarmer } from '../../api/farms';
 import { ArrowLeft, Loader2, MapPin, Calendar, FileText, User, Sprout, Ruler, Camera } from 'lucide-react';
 import FarmMap from '../../components/FarmMap';
 import FarmRiskPanel from '../../components/FarmRiskPanel';
+import PlotAssessmentPanel from '../../components/PlotAssessmentPanel';
 import FarmWeatherPanel from '../../components/FarmWeatherPanel';
 import FarmSoilPanel from '../../components/FarmSoilPanel';
 import { resolveFileUrl } from '../../utils/fileUrl';
@@ -359,6 +360,21 @@ const FarmDetails: React.FC = () => {
                 riskLevel={farm.riskLevel}
                 lastAssessmentDate={farm.lastRiskAssessmentDate}
                 onAssessmentComplete={fetchFarm}
+            />
+
+            {/*
+              * Per-plot satellite assessment.
+              *
+              * Sits BELOW the farm-level risk panel on purpose: FarmRiskPanel
+              * answers "what is this farm's overall position", while this panel
+              * answers "which parcel was checked, on which boundary version, and
+              * what did it find". A farm-level badge cannot express that when a
+              * farm holds several plots — and each plot's verification is the
+              * unit of evidence a due-diligence file actually needs.
+              */}
+            <PlotAssessmentPanel
+                farmId={farm.id}
+                onAssessmentQueued={fetchFarm}
             />
         </div>
     );
