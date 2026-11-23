@@ -27,3 +27,6 @@ dist-ssr
 .tmp-secrets/
 *.env
 !*.env.example
+
+# Field reports contain staff/farmer PII (phone numbers) - never commit
+reports/
